@@ -45,7 +45,8 @@ struct ImageComparisonView: View {
             canvas
             infoBar
         }
-        .background(modeShortcuts)
+        .focusedSceneValue(\.diffCommands, DiffCommandActions(
+            setImageMode: { mode = ImageMode(rawValue: $0) ?? mode }))
         .onReceive(blinkTimer) { _ in if blinking { showB.toggle() } }
         .task(id: taskKey) { await load() }
     }
@@ -151,16 +152,6 @@ struct ImageComparisonView: View {
         .font(.system(size: 11, weight: .medium))
         .padding(.horizontal, 16).padding(.vertical, 7)
         .background(.ultraThinMaterial)
-    }
-
-    private var modeShortcuts: some View {
-        ZStack {
-            ForEach(ImageMode.allCases, id: \.self) { m in
-                Button("") { mode = m }
-                    .keyboardShortcut(KeyEquivalent(Character("\(m.rawValue)")), modifiers: .command)
-                    .opacity(0).frame(width: 0, height: 0)
-            }
-        }
     }
 
     // MARK: - Loading

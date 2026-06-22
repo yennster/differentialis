@@ -23,6 +23,10 @@ struct RootView: View {
         } message: {
             Text(model.errorMessage ?? "")
         }
+        .sheet(isPresented: Binding(get: { model.showShortcuts },
+                                    set: { model.showShortcuts = $0 })) {
+            KeyboardShortcutsView()
+        }
     }
 
     @ViewBuilder

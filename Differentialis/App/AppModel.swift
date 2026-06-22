@@ -29,6 +29,7 @@ final class AppModel {
     var repoRefs: [GitRef] = []
 
     var errorMessage: String?
+    var showShortcuts = false
 
     let store = ComparisonStore()
     let projects = RecentProjectsStore()

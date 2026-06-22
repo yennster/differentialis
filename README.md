@@ -30,9 +30,23 @@ warnings. Each published release automatically gets a signed, notarized `.dmg` a
   - …with synced zoom/pan and a pixel-dimension readout.
 - **Folder diff** — recursive scan classifying every file as **Added / Removed / Modified / Identical**, a changes-only filter, and click-through to the right diff for each file.
 - **3-way merge** — base / left / right with an editable result, per-hunk **take left / right / both / base**, conflict detection, and save-merged output.
-- **Git integration** — open any repository to browse its **commit history**, inspect a commit's changeset, and diff individual files (using the system `git` — no libgit2).
-- **Custom Comparison** — a Liquid Glass popover to compare **any** _Reference_ or _Commit_ against the **Working Copy**, another _Reference_, or _Commit_ — with swap, and **Save** to revisit named comparisons later.
+- **Git integration** — open any repository to browse its **commit history** or flip to a **changed-files** view (working copy vs HEAD, grouped by folder and filterable), then diff individual files. A persistent **Projects** sidebar keeps your opened repositories one click away. Uses the system `git`, no libgit2.
+- **Custom Comparison** — a Liquid Glass popover to compare **any** _Reference_ or _Commit_ (pick from history or **paste a commit hash**) against the **Working Copy**, another _Reference_, or _Commit_ — with swap, and **Save** to revisit named comparisons later.
 - **Liquid Glass throughout** — glass toolbars, mode switchers, popovers, and panels native to macOS 26 Tahoe.
+
+## Keyboard shortcuts
+
+Every command is in the menu bar, and **Help ▸ Keyboard Shortcuts** (`⌘/`) shows the full cheat sheet.
+
+| Action | Shortcut |
+| --- | --- |
+| New Text / Image / Folder comparison | `⌘N` / `⇧⌘N` / `⌥⌘N` |
+| Open Repository | `⌘O` |
+| Next / previous change | `⌘]` / `⌘[` |
+| Toggle Split / Unified | `⌘U` |
+| Image: Two-Up / One-Up / Split / Difference | `⌘1` / `⌘2` / `⌘3` / `⌘4` |
+| Go to Welcome | `⇧⌘0` |
+| Keyboard Shortcuts | `⌘/` |
 
 ## Requirements
 

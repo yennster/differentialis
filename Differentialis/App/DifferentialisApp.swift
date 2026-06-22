@@ -26,10 +26,7 @@ struct DifferentialisApp: App {
                 Button("Open Repository…") { model.chooseFiles(mode: .repository) }
                     .keyboardShortcut("o", modifiers: .command)
             }
-            CommandGroup(after: .sidebar) {
-                Button("Go to Welcome") { model.route = .welcome }
-                    .keyboardShortcut("0", modifiers: [.command, .shift])
-            }
+            AppMenuCommands(model: model)
         }
     }
 }

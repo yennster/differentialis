@@ -19,6 +19,10 @@ struct TextComparisonView: View {
             content
         }
         .task(id: taskKey) { await load() }
+        .focusedSceneValue(\.diffCommands, DiffCommandActions(
+            nextChange: { navigate(1) },
+            prevChange: { navigate(-1) },
+            toggleLayout: { unified.toggle() }))
     }
 
     private var taskKey: String { "\(a.displayName)|\(b.displayName)|\(a.subtitle)|\(b.subtitle)" }
@@ -57,9 +61,7 @@ struct TextComparisonView: View {
         }
         HStack(spacing: 6) {
             Button { navigate(-1) } label: { Image(systemName: "chevron.up") }
-                .keyboardShortcut("[", modifiers: .command)
             Button { navigate(1) } label: { Image(systemName: "chevron.down") }
-                .keyboardShortcut("]", modifiers: .command)
         }
         .buttonStyle(.borderless)
         .disabled(changeIDs.isEmpty)
