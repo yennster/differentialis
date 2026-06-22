@@ -10,6 +10,17 @@ Written in SwiftUI with Apple's Liquid Glass. Zero third-party dependencies.
 
 ![Differentialis comparing two Swift files](docs/hero2.png)
 
+## Download
+
+Grab the latest **`.dmg`** from the [Releases](https://github.com/yennster/differentialis/releases)
+page, open it, and drag **Differentialis** onto **Applications**.
+
+> The build isn't notarized yet, so on first launch right-click the app → **Open**, or clear
+> quarantine once with `xattr -dr com.apple.quarantine /Applications/Differentialis.app`.
+
+Each published release automatically gets a `.dmg` attached by the
+[Release DMG workflow](.github/workflows/release.yml) (`macos-26` runner + Xcode 26).
+
 ## Features
 
 - **Text diff** — a from-scratch Myers diff engine with **character-level** intra-line highlights, **side-by-side and unified** layouts, change bars, collapsible unchanged regions, next/previous-change navigation, and live insertion/deletion stats.

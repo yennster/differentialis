@@ -1,0 +1,82 @@
+name: Release DMG
+
+# When a GitHub Release is published, build Differentialis and attach a
+# drag-to-Applications .dmg so users can download and install it directly.
+# Can also be run manually against an existing tag via "Run workflow".
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build and attach the DMG to (e.g. v0.1.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-dmg:
+    runs-on: macos-26   # GA Apple-silicon image with Xcode 26 preinstalled
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 26
+        run: |
+          if [ -d "/Applications/Xcode_26.5.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_26.5.app
+          fi
+          xcodebuild -version
+          swift --version
+
+      - name: Install build tools
+        run: brew install xcodegen create-dmg
+
+      - name: Resolve version
+        id: ver
+        run: |
+          TAG="${{ github.event.release.tag_name || github.event.inputs.tag }}"
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION:-0.0.0}" >> "$GITHUB_OUTPUT"
+          echo "Building $TAG (marketing version ${VERSION:-0.0.0})"
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build (Release)
+        run: |
+          xcodebuild \
+            -project Differentialis.xcodeproj \
+            -scheme Differentialis \
+            -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -derivedDataPath build \
+            MARKETING_VERSION="${{ steps.ver.outputs.version }}" \
+            CODE_SIGNING_ALLOWED=NO \
+            clean build
+
+      - name: Create DMG
+        run: |
+          chmod +x scripts/make-dmg.sh
+          scripts/make-dmg.sh \
+            "build/Build/Products/Release/Differentialis.app" \
+            "dist/Differentialis-${{ steps.ver.outputs.version }}.dmg"
+
+      - name: Attach DMG to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          files: dist/Differentialis-*.dmg
+          fail_on_unmatched_files: true
+          append_body: true
+          body: |
+
+            ---
+            ### Install
+            1. Download `Differentialis-${{ steps.ver.outputs.version }}.dmg` below and open it.
+            2. Drag **Differentialis** onto the **Applications** folder.
+            3. The build isn't notarized, so on first launch right-click the app → **Open**,
+               or clear quarantine once: `xattr -dr com.apple.quarantine /Applications/Differentialis.app`
