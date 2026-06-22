@@ -33,6 +33,7 @@ warnings. Each published release automatically gets a signed, notarized `.dmg` a
 - **Git integration** — open any repository to browse its **commit history** or flip to a **changed-files** view (working copy vs HEAD, grouped by folder and filterable), then diff individual files. A persistent **Projects** sidebar keeps your opened repositories one click away. Uses the system `git`, no libgit2.
 - **Custom Comparison** — a Liquid Glass popover to compare **any** _Reference_ or _Commit_ (pick from history or **paste a commit hash**) against the **Working Copy**, another _Reference_, or _Commit_ — with swap, and **Save** to revisit named comparisons later.
 - **Liquid Glass throughout** — glass toolbars, mode switchers, popovers, and panels native to macOS 26 Tahoe.
+- **Automatic updates** — checks GitHub Releases on launch and offers the new notarized `.dmg` in a quiet banner (Skip / Later / Download), plus **Check for Updates…** in the app menu. No third-party updater.
 
 ## Keyboard shortcuts
 

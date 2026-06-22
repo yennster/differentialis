@@ -23,6 +23,10 @@ struct TextComparisonView: View {
             nextChange: { navigate(1) },
             prevChange: { navigate(-1) },
             toggleLayout: { unified.toggle() }))
+        .focusable()
+        .focusEffectDisabled()
+        .onKeyPress("]") { navigate(1); return .handled }
+        .onKeyPress("[") { navigate(-1); return .handled }
     }
 
     private var taskKey: String { "\(a.displayName)|\(b.displayName)|\(a.subtitle)|\(b.subtitle)" }

@@ -14,6 +14,11 @@ struct DifferentialisApp: App {
         .windowToolbarStyle(.unified(showsTitle: false))
         .windowResizability(.contentMinSize)
         .commands {
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") {
+                    Task { await model.updates.check(manual: true) }
+                }
+            }
             CommandGroup(replacing: .newItem) {
                 Button("New Text Comparison…") { model.chooseFiles(mode: .text) }
                     .keyboardShortcut("n", modifiers: .command)

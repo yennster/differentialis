@@ -11,6 +11,7 @@ struct OpenChangeset: Identifiable {
     var resolved: ResolvedChangeset
 }
 
+@MainActor
 @Observable
 final class AppModel {
     enum Route: Hashable {
@@ -33,6 +34,7 @@ final class AppModel {
 
     let store = ComparisonStore()
     let projects = RecentProjectsStore()
+    let updates = UpdateChecker()
     var openRepoPath: String?
     private var didProcessLaunchArguments = false
 

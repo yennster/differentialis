@@ -15,7 +15,10 @@ struct RootView: View {
                 .diffCanvasBackground()
         }
         .navigationSplitViewStyle(.balanced)
-        .task { model.openFromLaunchArguments() }
+        .task {
+            model.openFromLaunchArguments()
+            model.updates.checkOnLaunch()
+        }
         .alert("Something went wrong",
                isPresented: Binding(get: { model.errorMessage != nil },
                                     set: { if !$0 { model.errorMessage = nil } })) {
@@ -26,6 +29,20 @@ struct RootView: View {
         .sheet(isPresented: Binding(get: { model.showShortcuts },
                                     set: { model.showShortcuts = $0 })) {
             KeyboardShortcutsView()
+        }
+        .overlay(alignment: .bottom) {
+            if let update = model.updates.available {
+                UpdateBanner(update: update)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.snappy, value: model.updates.available)
+        .alert("Check for Updates",
+               isPresented: Binding(get: { model.updates.manualMessage != nil },
+                                    set: { if !$0 { model.updates.manualMessage = nil } })) {
+            Button("OK", role: .cancel) { model.updates.manualMessage = nil }
+        } message: {
+            Text(model.updates.manualMessage ?? "")
         }
     }
 
