@@ -23,8 +23,12 @@ fi
 mkdir -p "$(dirname "$OUT")"
 rm -f "$OUT"
 
-# Ad-hoc sign so the bundle carries a valid (if not Developer-ID) signature.
-codesign --force --deep --sign - "$APP" 2>/dev/null || true
+# If the app is already signed with a real (Developer ID) identity, leave it
+# alone. Otherwise ad-hoc sign so the bundle at least carries a valid signature.
+sig="$(codesign -dvv "$APP" 2>&1 || true)"
+if echo "$sig" | grep -q "Signature=adhoc" || echo "$sig" | grep -qi "not signed"; then
+  codesign --force --deep --sign - "$APP" 2>/dev/null || true
+fi
 
 app_name="$(basename "$APP")"
 

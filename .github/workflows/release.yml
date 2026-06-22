@@ -58,12 +58,86 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             clean build
 
+      # ---- Optional Developer ID signing + notarization -------------------
+      # Enabled automatically when the signing secrets are present; otherwise
+      # the build is ad-hoc signed (see scripts/make-dmg.sh) and still works,
+      # but users get a Gatekeeper prompt on first launch.
+      #
+      # Required repo secrets to enable:
+      #   MACOS_DEVID_P12_BASE64    base64 of a "Developer ID Application" .p12
+      #   MACOS_DEVID_P12_PASSWORD  the .p12 export password
+      #   MACOS_NOTARY_KEY_BASE64   base64 of the App Store Connect API key .p8
+      #   MACOS_NOTARY_KEY_ID       the key id (e.g. ABCDE12345)
+      #   MACOS_NOTARY_ISSUER_ID    the issuer id (a UUID)
+      - name: Detect signing config
+        id: signing
+        env:
+          P12: ${{ secrets.MACOS_DEVID_P12_BASE64 }}
+        run: |
+          if [ -n "$P12" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "Developer ID signing + notarization: ENABLED"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Developer ID signing not configured — using ad-hoc fallback."
+          fi
+
+      - name: Import Developer ID certificate
+        if: steps.signing.outputs.enabled == 'true'
+        env:
+          P12_BASE64: ${{ secrets.MACOS_DEVID_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.MACOS_DEVID_P12_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASS="$(openssl rand -base64 24)"
+          echo "$P12_BASE64" | base64 --decode > "$RUNNER_TEMP/devid.p12"
+          security create-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/devid.p12" -k "$KEYCHAIN" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASS" "$KEYCHAIN" >/dev/null
+          # Keep the existing keychains in the search list and add ours.
+          # shellcheck disable=SC2046
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | sed 's/[" ]//g')
+          IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN" | awk '/Developer ID Application/ {print $2; exit}')"
+          echo "IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+          rm -f "$RUNNER_TEMP/devid.p12"
+
+      - name: Sign app (Developer ID, hardened runtime)
+        if: steps.signing.outputs.enabled == 'true'
+        run: |
+          APP="build/Build/Products/Release/Differentialis.app"
+          # Sign nested code inside-out, then the bundle itself.
+          find "$APP/Contents/Frameworks" -type f \( -name "*.dylib" -o -name "*.framework" \) -print0 2>/dev/null \
+            | xargs -0 -I{} codesign --force --options runtime --timestamp --sign "$IDENTITY" {} || true
+          codesign --force --options runtime --timestamp --sign "$IDENTITY" "$APP"
+          codesign --verify --strict --verbose=2 "$APP"
+
       - name: Create DMG
         run: |
           chmod +x scripts/make-dmg.sh
           scripts/make-dmg.sh \
             "build/Build/Products/Release/Differentialis.app" \
             "dist/Differentialis-${{ steps.ver.outputs.version }}.dmg"
+
+      - name: Notarize and staple
+        if: steps.signing.outputs.enabled == 'true'
+        env:
+          NOTARY_KEY_BASE64: ${{ secrets.MACOS_NOTARY_KEY_BASE64 }}
+          NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+        run: |
+          DMG="dist/Differentialis-${{ steps.ver.outputs.version }}.dmg"
+          echo "$NOTARY_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/notary.p8"
+          codesign --force --timestamp --sign "$IDENTITY" "$DMG" || true
+          xcrun notarytool submit "$DMG" \
+            --key "$RUNNER_TEMP/notary.p8" \
+            --key-id "$NOTARY_KEY_ID" \
+            --issuer "$NOTARY_ISSUER_ID" \
+            --wait
+          xcrun stapler staple "$DMG"
+          xcrun stapler validate "$DMG"
+          rm -f "$RUNNER_TEMP/notary.p8"
 
       - name: Attach DMG to the release
         uses: softprops/action-gh-release@v2
@@ -78,5 +152,4 @@ jobs:
             ### Install
             1. Download `Differentialis-${{ steps.ver.outputs.version }}.dmg` below and open it.
             2. Drag **Differentialis** onto the **Applications** folder.
-            3. The build isn't notarized, so on first launch right-click the app → **Open**,
-               or clear quarantine once: `xattr -dr com.apple.quarantine /Applications/Differentialis.app`
+            3. ${{ steps.signing.outputs.enabled == 'true' && 'Signed with Developer ID and notarized by Apple — just open it.' || 'This build is not notarized, so on first launch right-click the app → **Open** (or run `xattr -dr com.apple.quarantine /Applications/Differentialis.app`).' }}
