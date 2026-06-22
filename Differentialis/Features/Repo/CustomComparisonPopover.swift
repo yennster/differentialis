@@ -120,19 +120,43 @@ struct CustomComparisonPopover: View {
         .menuStyle(.borderlessButton)
     }
 
+    /// Paste/type any commit hash, or pick one from history. Arbitrary SHAs resolve at compare time.
     private func commitMenu(selection: Binding<String>) -> some View {
-        Menu {
-            ForEach(commits.prefix(60)) { commit in
-                Button { selection.wrappedValue = commit.id } label: {
-                    Text("\(commit.shortSHA)  \(commit.summary)")
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 7) {
+                Image(systemName: "number").font(.system(size: 11)).foregroundStyle(.secondary)
+                TextField("Paste a commit hash", text: selection)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12.5, weight: .medium, design: .monospaced))
+                Menu {
+                    ForEach(commits.prefix(60)) { commit in
+                        Button("\(commit.shortSHA)  \(commit.summary)") { selection.wrappedValue = commit.id }
+                    }
+                } label: {
+                    Image(systemName: "clock.arrow.circlepath").font(.system(size: 11)).foregroundStyle(.secondary)
                 }
+                .menuStyle(.borderlessButton).fixedSize()
+                .help("Pick from history")
             }
-        } label: {
-            let commit = commits.first { $0.id == selection.wrappedValue }
-            menuLabel(icon: "smallcircle.filled.circle",
-                      text: commit.map { "\($0.shortSHA)  \($0.summary)" } ?? "Select commit")
+            .padding(.horizontal, 12).padding(.vertical, 8)
+            .frame(maxWidth: .infinity)
+            .background(.black.opacity(0.22), in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.white.opacity(0.08)))
+
+            if let subject = resolvedSubject(for: selection.wrappedValue) {
+                Text(subject).font(.system(size: 10.5)).foregroundStyle(.secondary)
+                    .lineLimit(1).truncationMode(.tail)
+            }
         }
-        .menuStyle(.borderlessButton)
+    }
+
+    private func resolvedSubject(for hash: String) -> String? {
+        let h = hash.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !h.isEmpty else { return nil }
+        if let c = commits.first(where: { $0.id == h || $0.id.hasPrefix(h) || $0.shortSHA == h }) {
+            return c.summary
+        }
+        return "Resolves “\(h)” when you Compare"
     }
 
     private func scopeMenu(selection: Binding<WorkingScope>) -> some View {

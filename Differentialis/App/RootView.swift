@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct RootView: View {
     @Environment(AppModel.self) private var model
@@ -60,20 +61,20 @@ struct SidebarView: View {
             Label("Welcome", systemImage: "sparkles")
                 .tag(AppModel.Route.welcome)
 
-            if let repo = model.repo {
-                Section("Repository") {
-                    Label {
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(model.repoName).font(.system(size: 13, weight: .semibold))
-                            Text("\(repo.currentBranch() ?? "—")")
-                                .font(.system(size: 11)).foregroundStyle(.secondary)
-                        }
-                    } icon: {
-                        Image(systemName: "point.3.connected.trianglepath.dotted")
-                            .foregroundStyle(Theme.brand)
-                    }
-                    .tag(AppModel.Route.repository)
+            Section {
+                ForEach(model.projects.projects) { project in
+                    ProjectRow(project: project)
                 }
+                Button {
+                    model.chooseFiles(mode: .repository)
+                } label: {
+                    Label("Open Repository…", systemImage: "plus.circle")
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            } header: {
+                Text("Projects")
             }
 
             if !model.comparisons.isEmpty || !model.changesets.isEmpty {
@@ -128,6 +129,37 @@ struct SidebarView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .background(.ultraThinMaterial)
+    }
+}
+
+struct ProjectRow: View {
+    @Environment(AppModel.self) private var model
+    let project: RecentProject
+
+    private var isOpen: Bool { model.route == .repository && model.openRepoPath == project.path }
+
+    var body: some View {
+        Button {
+            model.openProject(project)
+        } label: {
+            Label {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(project.name).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+                    Text(project.parentPath).font(.system(size: 10)).foregroundStyle(.secondary)
+                        .lineLimit(1).truncationMode(.middle)
+                }
+            } icon: {
+                Image(systemName: "point.3.connected.trianglepath.dotted")
+                    .foregroundStyle(isOpen ? Theme.brand : .secondary)
+            }
+        }
+        .buttonStyle(.plain)
+        .listRowBackground(isOpen ? Theme.brand.opacity(0.16) : Color.clear)
+        .contextMenu {
+            Button("Open") { model.openProject(project) }
+            Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([project.url]) }
+            Button("Remove from List", role: .destructive) { model.projects.remove(project) }
+        }
     }
 }
 

@@ -31,6 +31,8 @@ final class AppModel {
     var errorMessage: String?
 
     let store = ComparisonStore()
+    let projects = RecentProjectsStore()
+    var openRepoPath: String?
     private var didProcessLaunchArguments = false
 
     // MARK: - Launch arguments (open files/folders/repo passed on the command line)
@@ -98,7 +100,14 @@ final class AppModel {
         repo = repository
         repoName = repository.displayName()
         repoRefs = (try? repository.refs()) ?? []
+        let root = (try? repository.root()) ?? url
+        openRepoPath = root.standardizedFileURL.path
+        projects.record(name: repository.displayName(), url: root)
         route = .repository
+    }
+
+    func openProject(_ project: RecentProject) {
+        openRepository(at: project.url)
     }
 
     func refreshRefs() {
@@ -134,6 +143,9 @@ final class AppModel {
         repo = repository
         repoName = repository.displayName()
         repoRefs = (try? repository.refs()) ?? []
+        let root = (try? repository.root()) ?? saved.repoURL
+        openRepoPath = root.standardizedFileURL.path
+        projects.record(name: repository.displayName(), url: root)
         do {
             let resolved = try repository.customChangeset(a: saved.a, b: saved.b)
             openChangeset(OpenChangeset(title: saved.name, subtitle: saved.repoName,
