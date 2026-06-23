@@ -14,7 +14,11 @@ When cutting a release, add a section here and use it as the release notes:
   comparison) comparing A/B file metadata: size, type, dates, permissions, and for images the
   dimensions, format, and color space, with differing values highlighted.
 - **Collapsible panels** in the repository view — hide the commit / files list or the
-  changed-files list to give the diff more room.
+  changed-files list (matching collapse controls in each panel header) to give the diff more room.
+- **Changelog** link in the Help menu.
+
+### Changed
+- Bundle identifier migrated to `app.differentialis.*` to match the differentialis.app domain.
 
 ## [0.1.2] — 2026-06-23
 

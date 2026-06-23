@@ -1,6 +1,6 @@
 name: Differentialis
 options:
-  bundleIdPrefix: me.jennyplunkett
+  bundleIdPrefix: app.differentialis
   deploymentTarget:
     macOS: "26.0"
   createIntermediateGroups: true
@@ -19,7 +19,7 @@ targets:
       - path: Differentialis
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: me.jennyplunkett.Differentialis
+        PRODUCT_BUNDLE_IDENTIFIER: app.differentialis.Differentialis
         GENERATE_INFOPLIST_FILE: "YES"
         INFOPLIST_KEY_CFBundleDisplayName: Differentialis
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
@@ -43,7 +43,7 @@ targets:
       - target: Differentialis
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: me.jennyplunkett.DifferentialisTests
+        PRODUCT_BUNDLE_IDENTIFIER: app.differentialis.DifferentialisTests
         GENERATE_INFOPLIST_FILE: "YES"
         CODE_SIGNING_ALLOWED: "NO"
 schemes:

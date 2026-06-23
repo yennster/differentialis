@@ -29,6 +29,26 @@ extension View {
     }
 }
 
+/// Shown in place of a collapsed panel: a thin rail with an expand control at the top.
+struct CollapsedRail: View {
+    var expand: () -> Void
+    var body: some View {
+        VStack(spacing: 0) {
+            Button(action: expand) {
+                Image(systemName: "sidebar.left").font(.system(size: 13, weight: .semibold))
+            }
+            .buttonStyle(.borderless)
+            .padding(.vertical, 9)
+            .help("Show panel")
+            Divider().opacity(0.3)
+            Spacer()
+        }
+        .frame(width: 34, alignment: .top)
+        .frame(maxHeight: .infinity)
+        .background(.black.opacity(0.18))
+    }
+}
+
 /// A pill-shaped count/stat chip.
 struct StatChip: View {
     let text: String

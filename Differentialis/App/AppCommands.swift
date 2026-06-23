@@ -60,6 +60,9 @@ struct AppMenuCommands: Commands {
             Button("Keyboard Shortcuts") { model.showShortcuts = true }
                 .keyboardShortcut("/", modifiers: .command)
             Divider()
+            Button("Changelog") {
+                NSWorkspace.shared.open(URL(string: "https://github.com/yennster/differentialis/blob/main/CHANGELOG.md")!)
+            }
             Button("Differentialis on GitHub") {
                 NSWorkspace.shared.open(URL(string: "https://github.com/yennster/differentialis")!)
             }

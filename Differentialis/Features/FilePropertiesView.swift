@@ -104,18 +104,16 @@ struct FilePropertiesView: View {
             header
             Divider().opacity(0.4)
             if loaded {
-                ScrollView {
-                    VStack(spacing: 0) {
-                        ForEach(rows) { propertyRow($0) }
-                    }
-                    .padding(.vertical, 4)
+                VStack(spacing: 0) {
+                    ForEach(rows) { propertyRow($0) }
                 }
+                .padding(.vertical, 4)
             } else {
                 ProgressView().frame(maxWidth: .infinity).frame(height: 140)
             }
         }
         .frame(width: 540)
-        .frame(maxHeight: 520)
+        .fixedSize(horizontal: false, vertical: true)
         .background(Theme.canvas)
         .task {
             rows = await Task.detached { FilePropertiesBuilder.rows(a: a, b: b) }.value

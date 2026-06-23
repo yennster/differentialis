@@ -22,7 +22,9 @@ struct RepositoryView: View {
 
     var body: some View {
         HSplitView {
-            if !leftCollapsed {
+            if leftCollapsed {
+                CollapsedRail { withAnimation(.snappy) { leftCollapsed = false } }
+            } else {
                 leftPane
                     .frame(minWidth: 240, idealWidth: 320, maxWidth: 460)
             }
@@ -62,6 +64,10 @@ struct RepositoryView: View {
             Spacer()
             Text(mode == .commits ? "\(commits.count) commits" : "\(filteredWorkingFiles.count) files")
                 .font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+            Button { withAnimation(.snappy) { leftCollapsed = true } } label: {
+                Image(systemName: "sidebar.left")
+            }
+            .buttonStyle(.borderless).help("Hide list")
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
     }
@@ -192,12 +198,6 @@ struct RepositoryView: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .navigation) {
-            Button { withAnimation(.snappy) { leftCollapsed.toggle() } } label: {
-                Image(systemName: "sidebar.left")
-            }
-            .help(leftCollapsed ? "Show list" : "Hide list")
-        }
         ToolbarItemGroup(placement: .primaryAction) {
             Button { revealInFinder() } label: { Image(systemName: "folder") }
                 .help("Reveal in Finder")

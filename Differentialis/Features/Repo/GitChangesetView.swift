@@ -19,7 +19,9 @@ struct GitChangesetView: View {
                                    description: Text("These two states are identical."))
         } else {
             HSplitView {
-                if !listCollapsed {
+                if listCollapsed {
+                    CollapsedRail { withAnimation(.snappy) { listCollapsed = false } }
+                } else {
                     VStack(spacing: 0) {
                         HStack {
                             Text("\(files.count) file\(files.count == 1 ? "" : "s")")
@@ -38,14 +40,6 @@ struct GitChangesetView: View {
                 }
                 detail
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .overlay(alignment: .topLeading) {
-                        if listCollapsed {
-                            Button { withAnimation(.snappy) { listCollapsed = false } } label: {
-                                Image(systemName: "sidebar.left")
-                            }
-                            .buttonStyle(.borderless).padding(10).help("Show files")
-                        }
-                    }
             }
         }
     }
