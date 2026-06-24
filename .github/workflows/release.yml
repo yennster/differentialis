@@ -22,6 +22,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so the Sparkle build number (commit count) is monotonic
 
       - name: Select Xcode 26
         run: |
@@ -39,9 +41,13 @@ jobs:
         run: |
           TAG="${{ github.event.release.tag_name || github.event.inputs.tag }}"
           VERSION="${TAG#v}"
+          # Monotonic CFBundleVersion for Sparkle's version comparison (marketing version
+          # alone isn't what Sparkle compares). Commit count is strictly increasing.
+          BUILD_NUMBER="$(git rev-list --count HEAD)"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=${VERSION:-0.0.0}" >> "$GITHUB_OUTPUT"
-          echo "Building $TAG (marketing version ${VERSION:-0.0.0})"
+          echo "build=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "Building $TAG (marketing ${VERSION:-0.0.0}, build $BUILD_NUMBER)"
 
       - name: Generate Xcode project
         run: xcodegen generate
@@ -55,6 +61,7 @@ jobs:
             -destination 'generic/platform=macOS' \
             -derivedDataPath build \
             MARKETING_VERSION="${{ steps.ver.outputs.version }}" \
+            CURRENT_PROJECT_VERSION="${{ steps.ver.outputs.build }}" \
             CODE_SIGNING_ALLOWED=NO \
             clean build
 
@@ -82,6 +89,19 @@ jobs:
             echo "Developer ID signing not configured — using ad-hoc fallback."
           fi
 
+      - name: Detect Sparkle appcast key
+        id: sparkle
+        env:
+          KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: |
+          if [ -n "$KEY" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "Sparkle appcast signing: ENABLED"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "SPARKLE_ED_PRIVATE_KEY not set — appcast will not be generated."
+          fi
+
       - name: Import Developer ID certificate
         if: steps.signing.outputs.enabled == 'true'
         env:
@@ -107,10 +127,26 @@ jobs:
         if: steps.signing.outputs.enabled == 'true'
         run: |
           APP="build/Build/Products/Release/Differentialis.app"
-          # Sign nested code inside-out, then the bundle itself.
-          find "$APP/Contents/Frameworks" -type f \( -name "*.dylib" -o -name "*.framework" \) -print0 2>/dev/null \
+          FRAMEWORKS="$APP/Contents/Frameworks"
+          sign() { codesign --force --options runtime --timestamp --sign "$IDENTITY" "$@"; }
+
+          # Sparkle bundles helper tools — XPC services, the Updater UI app, and the
+          # Autoupdate binary — that each need Developer ID + hardened-runtime signatures,
+          # signed deepest-first before the framework and the app, or notarization rejects them.
+          SPARKLE="$FRAMEWORKS/Sparkle.framework"
+          if [ -d "$SPARKLE" ]; then
+            while IFS= read -r -d '' x; do sign "$x"; done < <(find "$SPARKLE" -name "*.xpc" -print0)
+            while IFS= read -r -d '' x; do sign "$x"; done < <(find "$SPARKLE" -name "Updater.app" -print0)
+            while IFS= read -r -d '' x; do sign "$x"; done < <(find "$SPARKLE" -name "Autoupdate" -type f -print0)
+            sign "$SPARKLE"
+          fi
+
+          # Any other bundled dylibs.
+          find "$FRAMEWORKS" -type f -name "*.dylib" -print0 2>/dev/null \
             | xargs -0 -I{} codesign --force --options runtime --timestamp --sign "$IDENTITY" {} || true
-          codesign --force --options runtime --timestamp --sign "$IDENTITY" "$APP"
+
+          # Finally the app bundle itself.
+          sign "$APP"
           codesign --verify --strict --verbose=2 "$APP"
 
       - name: Create DMG
@@ -153,3 +189,36 @@ jobs:
             1. Download `Differentialis-${{ steps.ver.outputs.version }}.dmg` below and open it.
             2. Drag **Differentialis** onto the **Applications** folder.
             3. ${{ steps.signing.outputs.enabled == 'true' && 'Signed with Developer ID and notarized by Apple — just open it.' || 'This build is not notarized, so on first launch right-click the app → **Open** (or run `xattr -dr com.apple.quarantine /Applications/Differentialis.app`).' }}
+
+            After this version is installed, future updates install in-app from **Differentialis → Check for Updates…** — no more manual DMG downloads.
+
+      # Sparkle in-app updates: generate an EdDSA-signed appcast over the final (notarized,
+      # stapled) DMG and attach it as `appcast.xml`. Installed apps read it from the repo's
+      # "latest" release (SUFeedURL in Info.plist) to self-update.
+      - name: Generate, sign, and publish the Sparkle appcast
+        if: steps.sparkle.outputs.enabled == 'true'
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.ver.outputs.tag }}"
+          # Sparkle's CLI tools, pinned to the framework version the app links against.
+          curl -fsSL -o "$RUNNER_TEMP/sparkle.tar.xz" \
+            "https://github.com/sparkle-project/Sparkle/releases/download/2.9.3/Sparkle-2.9.3.tar.xz"
+          mkdir -p "$RUNNER_TEMP/sparkle"
+          tar -xf "$RUNNER_TEMP/sparkle.tar.xz" -C "$RUNNER_TEMP/sparkle"
+          printf '%s' "$SPARKLE_ED_PRIVATE_KEY" > "$RUNNER_TEMP/sparkle_ed_private"
+
+          # generate_appcast reads the DMG in dist/, pulls CFBundleVersion/ShortVersionString
+          # from the app inside, EdDSA-signs the DMG, and writes dist/appcast.xml with the
+          # enclosure pointing at this release's asset.
+          "$RUNNER_TEMP/sparkle/bin/generate_appcast" \
+            --ed-key-file "$RUNNER_TEMP/sparkle_ed_private" \
+            --download-url-prefix "https://github.com/yennster/differentialis/releases/download/${TAG}/" \
+            --link "https://github.com/yennster/differentialis/releases/tag/${TAG}" \
+            dist/
+          rm -f "$RUNNER_TEMP/sparkle_ed_private"
+
+          echo "---- generated appcast.xml ----"
+          cat dist/appcast.xml
+          gh release upload "$TAG" dist/appcast.xml --clobber

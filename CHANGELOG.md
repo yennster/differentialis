@@ -20,6 +20,17 @@ When cutting a release, add a section here and use it as the release notes:
   indicator forever because it waited for both sides to decode. It now renders whichever side is
   present and shows a clear placeholder explaining the other side is absent.
 
+### Added
+- **In-app updates** — Differentialis now downloads, verifies, installs, and relaunches updates
+  itself instead of opening the DMG download page in a browser. The update banner's button
+  ("Update") and **Check for Updates…** both install in place; updates are verified with an
+  EdDSA-signed appcast attached to the latest GitHub release.
+
+### Changed
+- Added **Sparkle** as the app's only third-party dependency, used solely for the self-updater.
+  The diff, merge, and git engines remain dependency-free. Releases now carry a monotonic
+  `CFBundleVersion` and an `appcast.xml` so installed apps can find and verify new versions.
+
 ## [0.1.5] — 2026-06-23
 
 ### Fixed

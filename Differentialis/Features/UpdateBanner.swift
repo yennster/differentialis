@@ -17,13 +17,13 @@ struct UpdateBanner: View {
                     .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 12)
-            Button("Notes") { model.updates.openReleaseNotes() }
+            Button("Notes") { model.updater.openReleaseNotes() }
                 .buttonStyle(.borderless)
-            Button("Skip") { withAnimation(.snappy) { model.updates.skipAvailable() } }
+            Button("Skip") { withAnimation(.snappy) { model.updater.skipAvailable() } }
                 .buttonStyle(.borderless).foregroundStyle(.secondary)
-            Button("Later") { withAnimation(.snappy) { model.updates.dismissAvailable() } }
+            Button("Later") { withAnimation(.snappy) { model.updater.dismissAvailable() } }
                 .buttonStyle(.borderless).foregroundStyle(.secondary)
-            Button("Download") { model.updates.downloadAvailable() }
+            Button("Update") { model.updater.installAvailable() }
                 .buttonStyle(.glassProminent).tint(Theme.brand)
         }
         .padding(.horizontal, 16).padding(.vertical, 11)
