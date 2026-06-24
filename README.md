@@ -6,7 +6,9 @@
 
 A native macOS app for comparing and merging text, images, and folders — with git built in.
 
-Written in SwiftUI with Apple's Liquid Glass. Zero third-party dependencies.
+Written in SwiftUI with Apple's Liquid Glass. The diff, merge, and git engines have no
+third-party dependencies; [Sparkle](https://sparkle-project.org) is the lone dependency, used
+only for in-app updates.
 
 ![Differentialis comparing two Swift files](docs/hero2.png)
 
@@ -19,6 +21,10 @@ The build is **signed with Developer ID and notarized by Apple**, so it opens wi
 warnings. Each published release automatically gets a signed, notarized `.dmg` attached by the
 [Release DMG workflow](.github/workflows/release.yml) (`macos-26` runner + Xcode 26).
 Release history lives in the [changelog](CHANGELOG.md).
+
+After that first install, you won't need the DMG again — Differentialis **updates itself**:
+**Check for Updates…** (or the update banner) downloads, verifies, installs, and relaunches the
+new version in place.
 
 ## Features
 
@@ -34,7 +40,7 @@ Release history lives in the [changelog](CHANGELOG.md).
 - **Git integration** — open any repository to browse its **commit history** or flip to a **changed-files** view (working copy vs HEAD, grouped by folder and filterable), then diff individual files. A persistent **Projects** sidebar keeps your opened repositories one click away. Uses the system `git`, no libgit2.
 - **Custom Comparison** — a Liquid Glass popover to compare **any** _Reference_ or _Commit_ (pick from history or **paste a commit hash**) against the **Working Copy**, another _Reference_, or _Commit_ — with swap, and **Save** to revisit named comparisons later.
 - **Liquid Glass throughout** — glass toolbars, mode switchers, popovers, and panels native to macOS 26 Tahoe.
-- **Automatic updates** — checks GitHub Releases on launch and offers the new notarized `.dmg` in a quiet banner (Skip / Later / Download), plus **Check for Updates…** in the app menu. No third-party updater.
+- **In-app updates** — a quiet banner (Skip / Later / **Update**) offers new versions and installs them in place — download, EdDSA-verify, swap, and relaunch — without leaving the app, plus **Check for Updates…** in the app menu. Powered by [Sparkle](https://sparkle-project.org) reading an appcast attached to the latest GitHub release.
 
 ## Keyboard shortcuts
 

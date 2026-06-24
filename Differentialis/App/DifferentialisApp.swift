@@ -16,8 +16,9 @@ struct DifferentialisApp: App {
         .commands {
             CommandGroup(after: .appInfo) {
                 Button("Check for Updates…") {
-                    Task { await model.updates.check(manual: true) }
+                    model.updater.checkForUpdates()
                 }
+                .disabled(!model.updater.canCheckForUpdates)
             }
             CommandGroup(replacing: .newItem) {
                 Button("New Text Comparison…") { model.chooseFiles(mode: .text) }

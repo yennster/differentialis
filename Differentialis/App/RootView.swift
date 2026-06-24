@@ -38,7 +38,6 @@ struct RootView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task {
             await model.openFromLaunchArguments()
-            model.updates.checkOnLaunch()
         }
         .alert("Something went wrong",
                isPresented: Binding(get: { model.errorMessage != nil },
@@ -52,19 +51,12 @@ struct RootView: View {
             KeyboardShortcutsView()
         }
         .overlay(alignment: .bottom) {
-            if let update = model.updates.available {
+            if let update = model.updater.available {
                 UpdateBanner(update: update)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .animation(.snappy, value: model.updates.available)
-        .alert("Check for Updates",
-               isPresented: Binding(get: { model.updates.manualMessage != nil },
-                                    set: { if !$0 { model.updates.manualMessage = nil } })) {
-            Button("OK", role: .cancel) { model.updates.manualMessage = nil }
-        } message: {
-            Text(model.updates.manualMessage ?? "")
-        }
+        .animation(.snappy, value: model.updater.available)
     }
 
     @ViewBuilder
