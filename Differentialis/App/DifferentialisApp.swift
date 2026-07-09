@@ -1,8 +1,11 @@
 import SwiftUI
+import AppKit
 
 @main
 struct DifferentialisApp: App {
     @State private var model = AppModel()
+    @State private var cliInstalled = CommandLineToolInstaller.isInstalled
+    @NSApplicationDelegateAdaptor private var appDelegate: AppDelegate
 
     var body: some Scene {
         WindowGroup {
@@ -17,6 +20,14 @@ struct DifferentialisApp: App {
             CommandGroup(after: .appInfo) {
                 Button("Check for Updates…") {
                     Task { await model.updates.check(manual: true) }
+                }
+                Button(cliInstalled ? "Uninstall Command Line Tool…" : "Install Command Line Tool…") {
+                    if cliInstalled {
+                        CommandLineToolInstaller.uninstall()
+                    } else {
+                        CommandLineToolInstaller.install()
+                    }
+                    cliInstalled = CommandLineToolInstaller.isInstalled
                 }
             }
             CommandGroup(replacing: .newItem) {
@@ -33,5 +44,15 @@ struct DifferentialisApp: App {
             }
             AppMenuCommands(model: model)
         }
+    }
+}
+
+/// Handles the `open` Apple Event delivered by `open -a Differentialis <path>` and by Finder
+/// "Open With…". LaunchServices only routes document types the app claims (see Info.plist
+/// `CFBundleDocumentTypes`); without that, folder/repo args against an already-running app are
+/// rejected before reaching here. Routes the URLs into the shared `AppModel.open(urls:)`.
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func application(_ application: NSApplication, open urls: [URL]) {
+        Task { await AppModel.shared.open(urls: urls) }
     }
 }
