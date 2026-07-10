@@ -22,6 +22,8 @@ struct ZoomableImageView: View {
 
     @State private var baseScale: CGFloat = 1
     @State private var baseOffset: CGSize = .zero
+    @State private var isZooming = false
+    @State private var isPanning = false
 
     var body: some View {
         GeometryReader { geo in
@@ -36,21 +38,26 @@ struct ZoomableImageView: View {
                 .gesture(
                     MagnifyGesture()
                         .onChanged { value in
+                            // Capture the scale once at gesture start. Re-basing every frame (via
+                            // the shared-state onChange below) made zoom compound exponentially.
+                            if !isZooming { isZooming = true; baseScale = zoom.scale }
                             zoom.scale = max(0.1, min(24, baseScale * value.magnification))
                         }
-                        .onEnded { _ in baseScale = zoom.scale }
+                        .onEnded { _ in isZooming = false; baseScale = zoom.scale }
                 )
                 .simultaneousGesture(
                     DragGesture()
                         .onChanged { value in
+                            if !isPanning { isPanning = true; baseOffset = zoom.offset }
                             zoom.offset = CGSize(width: baseOffset.width + value.translation.width,
                                                  height: baseOffset.height + value.translation.height)
                         }
-                        .onEnded { _ in baseOffset = zoom.offset }
+                        .onEnded { _ in isPanning = false; baseOffset = zoom.offset }
                 )
                 .onChange(of: zoom.scale) { _, newValue in
-                    baseScale = newValue
-                    if newValue == 1 { baseOffset = .zero }
+                    // Keep the other pane in sync, but never re-base the pane that's mid-gesture.
+                    if !isZooming { baseScale = newValue }
+                    if newValue == 1 && !isPanning { baseOffset = .zero }
                 }
         }
         .background(CheckerboardBackground())

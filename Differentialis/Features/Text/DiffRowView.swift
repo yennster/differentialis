@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// Builds an AttributedString with the changed character ranges highlighted.
 func highlightedLine(_ text: String, ranges: [Range<Int>], color: Color) -> AttributedString {
@@ -27,6 +28,7 @@ struct DiffRowView: View {
                  kind: rightKind, side: .right)
         }
         .background(isCurrent ? Theme.brand.opacity(0.12) : .clear)
+        .contextMenu { DiffRowCopyMenu(left: row.leftText, right: row.rightText) }
     }
 
     private enum Side { case left, right }
@@ -83,6 +85,30 @@ struct DiffRowView: View {
             Color.clear.frame(height: 17)
                 .frame(maxWidth: .infinity)
         }
+    }
+}
+
+/// Copy actions for a diff row. Per-line `textSelection` can't span rows, so this gives an explicit
+/// way to copy whichever side you want (or both) without dragging across the split.
+struct DiffRowCopyMenu: View {
+    let left: String?
+    let right: String?
+
+    var body: some View {
+        if let left {
+            Button("Copy Left") { copy(left) }
+        }
+        if let right {
+            Button("Copy Right") { copy(right) }
+        }
+        if let left, let right {
+            Button("Copy Both") { copy("\(left)\t\(right)") }
+        }
+    }
+
+    private func copy(_ string: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(string, forType: .string)
     }
 }
 

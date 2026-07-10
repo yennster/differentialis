@@ -7,10 +7,14 @@ enum LineDiff {
     static let collapseThreshold = context * 2 + 1
 
     static func split(_ text: String) -> [String] {
-        // Normalize CRLF and split on newlines (keeps a trailing empty line if present).
-        text.replacingOccurrences(of: "\r\n", with: "\n")
+        // Normalize CR/CRLF to LF, then split. A single trailing empty component (the final
+        // newline every well-formed text file ends with) is dropped so the diff doesn't show a
+        // phantom blank numbered row at the end of the file. An empty input stays one empty line.
+        let normalized = text.replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
-            .components(separatedBy: "\n")
+        var lines = normalized.components(separatedBy: "\n")
+        if lines.count > 1 && lines.last == "" { lines.removeLast() }
+        return lines
     }
 
     /// Build aligned side-by-side rows from two texts.
@@ -30,13 +34,14 @@ enum LineDiff {
                 let ins = i < pendingInserts.count ? pendingInserts[i] : nil
                 switch (del, ins) {
                 case let (d?, n?):
-                    let sim = similarity(d.1, n.1)
-                    let (lh, rh) = sim > 0.25 ? charHighlights(d.1, n.1) : ([], [])
+                    // One char diff yields both the similarity gate and the highlight ranges.
+                    let cd = charDiff(d.1, n.1)
+                    let similar = cd.similarity > 0.25
                     rows.append(DiffRow(kind: .modified,
                                         leftNumber: d.0 + 1, rightNumber: n.0 + 1,
                                         leftText: d.1, rightText: n.1,
-                                        leftHighlights: sim > 0.25 ? lh : [],
-                                        rightHighlights: sim > 0.25 ? rh : []))
+                                        leftHighlights: similar ? cd.left : [],
+                                        rightHighlights: similar ? cd.right : []))
                 case let (d?, nil):
                     rows.append(DiffRow(kind: .deleted,
                                         leftNumber: d.0 + 1, rightNumber: nil,

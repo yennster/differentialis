@@ -3,10 +3,12 @@ import AppKit
 
 /// Installs / uninstalls the `differentialis` command-line launcher into `/usr/local/bin`.
 ///
-/// The launcher script is bundled at `Contents/Resources/differentialis`. This creates a symlink
-/// to it via a one-time administrator prompt — the same pattern Kaleidoscope, Tower, and
-/// SourceTree use for their companion tools — so drag-to-Applications users get the CLI without a
-/// manual step. The symlink always points inside the installed app, so it stays in sync.
+/// The launcher script is bundled at `Contents/Resources/differentialis`. This installs a *copy* of
+/// it via a one-time administrator prompt — the same companion-tool pattern used by Tower,
+/// SourceTree, and other developer apps — so drag-to-Applications users get the CLI without a manual
+/// step. A copy (rather than a symlink into the bundle) keeps working even if the app later moves or
+/// is launched from a translocated/quarantined path, and there's no dangling link after an eject.
+/// The script resolves the app by bundle id, so a standalone copy never needs to be kept in sync.
 ///
 /// Everything runs on the main thread: `NSAppleScript` is main-thread-only (per Apple's docs), and
 /// the administrator auth dialog is a separate process that blocks until the user responds — the
@@ -31,7 +33,9 @@ enum CommandLineToolInstaller {
     /// Creates the symlink via an administrator password prompt. Shows a confirmation alert on
     /// success or a failure alert on error; a canceled password dialog is silent.
     static func install() {
-        let shell = "mkdir -p /usr/local/bin && ln -sf \(quoted(bundledScriptPath)) \(installPath)"
+        // Copy the launcher (don't symlink into the bundle) so it survives the app moving, and
+        // chmod +x so it's directly runnable.
+        let shell = "mkdir -p /usr/local/bin && rm -f \(installPath) && cp \(quoted(bundledScriptPath)) \(installPath) && chmod 755 \(installPath)"
         switch runPrivileged(shell) {
         case .success:
             present(success: "Installed `differentialis` to \(installPath).\nOpen Terminal and run `differentialis <path>`.")

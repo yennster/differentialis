@@ -48,25 +48,34 @@ struct GitRepository {
     // MARK: - Changed files
 
     func changedFiles(inCommit sha: String) throws -> [GitChangedFile] {
-        let out = try run(["diff-tree", "--no-commit-id", "--name-status", "-r", "--root", "-M", sha])
+        let out = try run(["diff-tree", "--no-commit-id", "--name-status", "-r", "--root", "-M", "-z", sha])
         return parseNameStatus(out)
     }
 
     func changedFiles(from: String, to: String) throws -> [GitChangedFile] {
-        let out = try run(["diff", "--name-status", "-M", from, to])
+        let out = try run(["diff", "--name-status", "-M", "-z", from, to])
         return parseNameStatus(out)
+    }
+
+    /// Untracked files (used to complete "All Changes"), each surfaced as an added/untracked entry.
+    func untrackedFiles() -> [GitChangedFile] {
+        guard let out = try? run(["ls-files", "--others", "--exclude-standard", "-z"]) else { return [] }
+        return out.split(separator: "\u{0}", omittingEmptySubsequences: true).map {
+            GitChangedFile(path: String($0), oldPath: nil, status: .untracked)
+        }
     }
 
     /// Working-copy changes relative to HEAD/index.
     func workingChanges(scope: WorkingScope) throws -> [GitChangedFile] {
         switch scope {
         case .staged:
-            return parseNameStatus(try run(["diff", "--name-status", "-M", "--cached"]))
+            return parseNameStatus(try run(["diff", "--name-status", "-M", "-z", "--cached"]))
         case .unstaged:
-            return parseNameStatus(try run(["diff", "--name-status", "-M"]))
+            return parseNameStatus(try run(["diff", "--name-status", "-M", "-z"]))
         case .all:
-            let out = try run(["status", "--porcelain", "-z"])
-            return parsePorcelain(out)
+            // -uall expands untracked directories to individual files (a bare "dir/" row can't be
+            // diffed); the rewritten porcelain parser handles renames without phantom entries.
+            return parsePorcelain(try run(["status", "--porcelain", "-uall", "-z"]))
         }
     }
 
@@ -105,35 +114,56 @@ struct GitRepository {
 
     // MARK: - Parsing
 
+    /// Parses NUL-delimited `git diff --name-status -z` output. `-z` is essential: without it git
+    /// C-quotes any non-ASCII or whitespace-containing filename, and tab-splitting breaks on those.
+    /// For a rename/copy, `-z` emits `STATUS\0oldpath\0newpath\0` (old before new).
     func parseNameStatus(_ out: String) -> [GitChangedFile] {
         var files: [GitChangedFile] = []
-        for raw in out.split(separator: "\n") {
-            let parts = raw.split(separator: "\t").map(String.init)
-            guard let code = parts.first, let letter = code.first else { continue }
+        let tokens = out.split(separator: "\u{0}", omittingEmptySubsequences: false).map(String.init)
+        var i = 0
+        while i < tokens.count {
+            let code = tokens[i]
+            i += 1
+            guard let letter = code.first else { continue }   // skips the trailing empty token
             let status = GitFileStatus(letter: letter)
-            if (status == .renamed || status == .copied), parts.count >= 3 {
-                files.append(GitChangedFile(path: parts[2], oldPath: parts[1], status: status))
-            } else if parts.count >= 2 {
-                files.append(GitChangedFile(path: parts[1], oldPath: nil, status: status))
+            if status == .renamed || status == .copied {
+                guard i + 1 < tokens.count else { break }
+                files.append(GitChangedFile(path: tokens[i + 1], oldPath: tokens[i], status: status))
+                i += 2
+            } else {
+                guard i < tokens.count else { break }
+                let path = tokens[i]
+                i += 1
+                if !path.isEmpty { files.append(GitChangedFile(path: path, oldPath: nil, status: status)) }
             }
         }
         return files
     }
 
-    private func parsePorcelain(_ out: String) -> [GitChangedFile] {
+    /// Parses NUL-delimited `git status --porcelain -z` output. Each record is `XY <path>`; for a
+    /// rename/copy the ORIGINAL path follows as a separate NUL token AFTER the record (new-then-old,
+    /// the reverse of `diff -z`). The previous tab/line parser produced phantom garbled entries from
+    /// that trailing token and dropped rename origins.
+    func parsePorcelain(_ out: String) -> [GitChangedFile] {
         var files: [GitChangedFile] = []
-        let entries = out.split(separator: "\u{0}").map(String.init)
+        let tokens = out.split(separator: "\u{0}", omittingEmptySubsequences: false).map(String.init)
         var i = 0
-        while i < entries.count {
-            let entry = entries[i]
-            guard entry.count >= 3 else { i += 1; continue }
-            let x = Array(entry)[0]
-            let y = Array(entry)[1]
-            let path = String(entry.dropFirst(3))
-            let letter: Character = x != " " && x != "?" ? x : y
-            let status = GitFileStatus(letter: letter == " " ? "M" : letter)
-            files.append(GitChangedFile(path: path, oldPath: nil, status: status))
+        while i < tokens.count {
+            let entry = tokens[i]
             i += 1
+            guard entry.count >= 4 else { continue }   // "XY " + at least one path char
+            let chars = Array(entry)
+            let x = chars[0]
+            let y = chars[1]
+            let path = String(entry.dropFirst(3))
+            var oldPath: String? = nil
+            if x == "R" || x == "C" || y == "R" || y == "C", i < tokens.count {
+                oldPath = tokens[i]   // the rename/copy origin
+                i += 1
+            }
+            let letter: Character = (x != " " && x != "?") ? x : (x == "?" ? "?" : y)
+            let status = GitFileStatus(letter: letter == " " ? "M" : letter)
+            files.append(GitChangedFile(path: path, oldPath: oldPath, status: status))
         }
         return files
     }
@@ -143,29 +173,55 @@ struct GitRepository {
     @discardableResult
     func run(_ args: [String]) throws -> String {
         let data = try runData(args)
-        return String(data: data, encoding: .utf8) ?? ""
+        // Lossy decode: a single invalid UTF-8 byte becomes U+FFFD rather than nil'ing the whole
+        // string (which used to blank the entire commit history / diff). The ASCII record
+        // separators we parse on (NUL, US, RS, tab) survive lossy decoding intact.
+        return String(decoding: data, as: UTF8.self)
     }
 
     func runData(_ args: [String]) throws -> Data {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: Self.gitPath)
         process.arguments = ["-C", url.path] + args
+
+        var env = ProcessInfo.processInfo.environment
+        env["GIT_TERMINAL_PROMPT"] = "0"   // never block waiting for credentials on stdin
+        env["GIT_OPTIONAL_LOCKS"] = "0"    // read-only ops shouldn't contend for the index lock
+        env["LC_ALL"] = "C"                // stable, non-localized output for parsing
+        process.environment = env
+        process.standardInput = FileHandle.nullDevice
+
         let stdout = Pipe()
         let stderr = Pipe()
         process.standardOutput = stdout
         process.standardError = stderr
+
         do {
             try process.run()
         } catch {
             throw GitError.commandFailed("Failed to launch git: \(error.localizedDescription)")
         }
+
+        // Drain both pipes without deadlocking: a large diff can fill the stdout pipe buffer and
+        // block git before it ever writes stderr, while the old code sat reading stderr first.
+        // Read stderr concurrently and stdout on this thread, then join.
+        let errSink = ByteSink()
+        let stderrHandle = stderr.fileHandleForReading
+        let queue = DispatchQueue(label: "app.differentialis.git.stderr")
+        queue.async { errSink.data = stderrHandle.readDataToEndOfFile() }
         let outData = stdout.fileHandleForReading.readDataToEndOfFile()
-        let errData = stderr.fileHandleForReading.readDataToEndOfFile()
+        queue.sync {}   // ensure the stderr read has finished before we touch errSink
+
         process.waitUntilExit()
         if process.terminationStatus != 0 {
-            let message = String(data: errData, encoding: .utf8) ?? "git exited with \(process.terminationStatus)"
+            let message = String(data: errSink.data, encoding: .utf8) ?? "git exited with \(process.terminationStatus)"
             throw GitError.commandFailed(message.trimmingCharacters(in: .whitespacesAndNewlines))
         }
         return outData
     }
+}
+
+/// Reference box so a background pipe read can hand its bytes back without a data race on a `var`.
+private final class ByteSink: @unchecked Sendable {
+    var data = Data()
 }

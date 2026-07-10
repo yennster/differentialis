@@ -12,6 +12,9 @@ struct DifferentialisApp: App {
             RootView()
                 .environment(model)
                 .frame(minWidth: 980, minHeight: 640)
+                // The UI is a deliberately dark, glass-on-gradient design with hard-coded white/black
+                // overlays; it's unreadable under the Light system appearance, so pin it to dark.
+                .preferredColorScheme(.dark)
         }
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unified(showsTitle: false))

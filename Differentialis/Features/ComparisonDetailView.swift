@@ -15,6 +15,8 @@ struct ComparisonDetailView: View {
         case .merge:
             MergeView(base: comparison.base ?? .empty(name: "base"),
                       left: comparison.a, right: comparison.b)
+        case .binary:
+            BinaryComparisonView(a: comparison.a, b: comparison.b)
         }
     }
 }

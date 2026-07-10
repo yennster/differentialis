@@ -2,7 +2,7 @@ import Foundation
 
 /// A single open comparison tab.
 struct Comparison: Identifiable, Hashable {
-    enum Mode: Hashable { case text, image, folder, merge }
+    enum Mode: Hashable { case text, image, folder, merge, binary }
 
     let id = UUID()
     var mode: Mode
@@ -17,6 +17,7 @@ struct Comparison: Identifiable, Hashable {
         case .image: return "photo"
         case .folder: return "folder"
         case .merge: return "arrow.triangle.merge"
+        case .binary: return "doc"
         }
     }
 
@@ -24,6 +25,7 @@ struct Comparison: Identifiable, Hashable {
     static func mode(for a: ComparisonSource, _ b: ComparisonSource) -> Mode {
         if a.isDirectory || b.isDirectory { return .folder }
         if a.kind == .image || b.kind == .image { return .image }
+        if a.kind == .binary || b.kind == .binary { return .binary }
         return .text
     }
 

@@ -43,12 +43,19 @@ final class RecentProjectsStore {
     }
 
     private func load() {
+        guard let data = try? Data(contentsOf: fileURL) else { return }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        guard let data = try? Data(contentsOf: fileURL),
-              let decoded = try? decoder.decode([RecentProject].self, from: data) else { return }
-        // Drop entries whose folder no longer exists or is no longer a repo.
-        projects = decoded.filter { FileManager.default.fileExists(atPath: $0.path) }
+        // Keep every entry, including ones on currently-unmounted volumes — purging them at launch
+        // permanently forgets a repo just because an external drive or network share was offline.
+        // Decode element-tolerantly and quarantine a wholly-corrupt file instead of overwriting it.
+        if let decoded = try? decoder.decode([LenientDecodable<RecentProject>].self, from: data) {
+            projects = decoded.compactMap(\.value)
+        } else {
+            let backup = fileURL.appendingPathExtension("corrupt")
+            try? FileManager.default.removeItem(at: backup)
+            try? FileManager.default.moveItem(at: fileURL, to: backup)
+        }
     }
 
     private func persist() {

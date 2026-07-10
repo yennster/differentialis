@@ -1,5 +1,4 @@
 import Foundation
-import CryptoKit
 import UniformTypeIdentifiers
 
 enum FolderStatus: Hashable {
@@ -52,14 +51,24 @@ enum FolderScanner {
 
     private static func relativeFiles(root: URL) -> [String: URL] {
         var result: [String: URL] = [:]
-        let keys: [URLResourceKey] = [.isRegularFileKey]
+        let keys: [URLResourceKey] = [.isRegularFileKey, .isSymbolicLinkKey, .isDirectoryKey]
+        // Show hidden files (dotfiles like .gitignore/.env are exactly what people diff); keep
+        // package descendants opaque so an .app bundle isn't exploded into thousands of rows.
         guard let enumerator = FileManager.default.enumerator(
             at: root, includingPropertiesForKeys: keys,
-            options: [.skipsHiddenFiles, .skipsPackageDescendants]) else { return result }
+            options: [.skipsPackageDescendants]) else { return result }
 
         let prefix = root.standardizedFileURL.path + "/"
         for case let url as URL in enumerator {
-            guard (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else { continue }
+            let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .isDirectoryKey])
+            // Prune the .git directory entirely — walking its object store would swamp the scan.
+            if values?.isDirectory == true && url.lastPathComponent == ".git" {
+                enumerator.skipDescendants()
+                continue
+            }
+            let isRegular = values?.isRegularFile == true
+            let isSymlink = values?.isSymbolicLink == true
+            guard isRegular || isSymlink else { continue }
             let full = url.standardizedFileURL.path
             guard full.hasPrefix(prefix) else { continue }
             result[String(full.dropFirst(prefix.count))] = url
@@ -68,11 +77,34 @@ enum FolderScanner {
     }
 
     private static func filesEqual(_ a: URL, _ b: URL) -> Bool {
+        let aLink = (try? a.resourceValues(forKeys: [.isSymbolicLinkKey]))?.isSymbolicLink == true
+        let bLink = (try? b.resourceValues(forKeys: [.isSymbolicLinkKey]))?.isSymbolicLink == true
+        if aLink || bLink {
+            // Compare link destinations rather than following the links.
+            guard aLink == bLink else { return false }
+            let aDest = try? FileManager.default.destinationOfSymbolicLink(atPath: a.path)
+            let bDest = try? FileManager.default.destinationOfSymbolicLink(atPath: b.path)
+            return aDest == bDest
+        }
+        return contentsEqual(a, b)
+    }
+
+    /// Streams both files in 1 MB chunks, bailing at the first mismatch — constant memory and an
+    /// early exit, instead of loading each entire file into RAM to hash it.
+    private static func contentsEqual(_ a: URL, _ b: URL) -> Bool {
         let aSize = (try? a.resourceValues(forKeys: [.fileSizeKey]))?.fileSize
         let bSize = (try? b.resourceValues(forKeys: [.fileSizeKey]))?.fileSize
         if let aSize, let bSize, aSize != bSize { return false }
-        guard let aData = try? Data(contentsOf: a), let bData = try? Data(contentsOf: b) else { return false }
-        return SHA256.hash(data: aData) == SHA256.hash(data: bData)
+        guard let fa = try? FileHandle(forReadingFrom: a),
+              let fb = try? FileHandle(forReadingFrom: b) else { return false }
+        defer { try? fa.close(); try? fb.close() }
+        let chunk = 1 << 20
+        while true {
+            let da = (try? fa.read(upToCount: chunk)) ?? Data()
+            let db = (try? fb.read(upToCount: chunk)) ?? Data()
+            if da != db { return false }
+            if da.isEmpty { return true }   // both reached EOF together with all chunks equal
+        }
     }
 
     private static func isImage(_ path: String) -> Bool {

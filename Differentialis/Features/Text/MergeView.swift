@@ -9,8 +9,20 @@ struct MergeView: View {
     @State private var hunks: [MergeHunk] = []
     @State private var loadError: String?
     @State private var loaded = false
+    @State private var lineEnding = "\n"
+    @State private var finalNewline = false
 
     private var unresolvedConflicts: Int { hunks.filter { $0.isConflict && !$0.resolved }.count }
+
+    private var taskKey: String {
+        "\(base.displayName)|\(base.subtitle)|\(left.displayName)|\(left.subtitle)|\(right.displayName)|\(right.subtitle)"
+    }
+
+    private var defaultSaveName: String {
+        if case .file(let url) = left { return url.lastPathComponent }
+        if case .file(let url) = base { return url.lastPathComponent }
+        return "merged.txt"
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -33,7 +45,8 @@ struct MergeView: View {
                 .background(.black.opacity(0.18))
             }
         }
-        .task(id: "\(base.subtitle)|\(left.subtitle)|\(right.subtitle)") { await load() }
+        .task(id: taskKey) { await load() }
+        .focusedSceneValue(\.diffCommands, DiffCommandActions(refresh: { Task { await load() } }))
     }
 
     private var header: some View {
@@ -71,23 +84,65 @@ struct MergeView: View {
     }
 
     private func load() async {
-        do {
-            let baseText = try base.loadText()
-            let leftText = try left.loadText()
-            let rightText = try right.loadText()
-            hunks = ThreeWayMerge.merge(base: baseText, left: leftText, right: rightText)
+        loaded = false
+        loadError = nil
+        let base = base, left = left, right = right
+        let key = taskKey
+        // Read all three files and run the diff3 merge off the main actor — for large files this
+        // is heavy and would otherwise freeze the UI.
+        let outcome: (([MergeHunk], String, Bool)?, String?) = await offMain {
+            do {
+                let baseText = try base.loadText()
+                let leftText = try left.loadText()
+                let rightText = try right.loadText()
+                let hunks = ThreeWayMerge.merge(base: baseText, left: leftText, right: rightText)
+                let style = ThreeWayMerge.lineStyle(of: baseText)
+                return ((hunks, style.ending, style.finalNewline), nil)
+            } catch {
+                return (nil, error.localizedDescription)
+            }
+        }
+        // Ignore a result from a comparison the user has already navigated away from.
+        guard key == taskKey else { return }
+        if let result = outcome.0 {
+            hunks = result.0
+            lineEnding = result.1
+            finalNewline = result.2
             loaded = true
-        } catch {
-            loadError = error.localizedDescription
+        } else {
+            loadError = outcome.1
         }
     }
 
     private func save() {
+        // Never silently write the left side over an unresolved conflict — warn, then emit
+        // standard conflict markers so nothing is lost.
+        if unresolvedConflicts > 0 {
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = "Unresolved conflicts"
+            alert.informativeText = "\(unresolvedConflicts) conflict\(unresolvedConflicts == 1 ? " is" : "s are") still unresolved. They'll be written with «<<<<<<< / ======= / >>>>>>>» markers so you can finish resolving them in your editor."
+            alert.addButton(withTitle: "Save with Markers")
+            alert.addButton(withTitle: "Cancel")
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+        }
+
         let panel = NSSavePanel()
-        panel.nameFieldStringValue = "merged.txt"
+        panel.nameFieldStringValue = defaultSaveName
         panel.canCreateDirectories = true
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        try? ThreeWayMerge.mergedText(hunks).write(to: url, atomically: true, encoding: .utf8)
+
+        let text = ThreeWayMerge.mergedText(hunks, lineEnding: lineEnding, finalNewline: finalNewline)
+        do {
+            try text.write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = "Couldn’t save the merged file"
+            alert.informativeText = error.localizedDescription
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
     }
 }
 

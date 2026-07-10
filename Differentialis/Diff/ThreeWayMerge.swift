@@ -87,12 +87,47 @@ enum ThreeWayMerge {
         return hunks
     }
 
-    static func mergedText(_ hunks: [MergeHunk]) -> String {
-        hunks.flatMap(\.chosen).joined(separator: "\n")
+    /// The merged output. `lineEnding` and `finalNewline` let callers reproduce the source file's
+    /// exact terminator style instead of always emitting LF with no trailing newline (which
+    /// rewrites every line of a CRLF file and drops the final newline). Unresolved conflicts are
+    /// written as standard git-style `<<<<<<< / ======= / >>>>>>>` markers so nothing is silently
+    /// dropped; pass `markConflicts: false` only when conflicts are known to be resolved.
+    static func mergedText(_ hunks: [MergeHunk],
+                           lineEnding: String = "\n",
+                           finalNewline: Bool = false,
+                           markConflicts: Bool = true) -> String {
+        var lines: [String] = []
+        for hunk in hunks {
+            if markConflicts, hunk.isConflict, !hunk.resolved {
+                lines.append("<<<<<<< left")
+                lines.append(contentsOf: hunk.leftLines)
+                lines.append("=======")
+                lines.append(contentsOf: hunk.rightLines)
+                lines.append(">>>>>>> right")
+            } else {
+                lines.append(contentsOf: hunk.chosen)
+            }
+        }
+        let body = lines.joined(separator: lineEnding)
+        return finalNewline && !body.isEmpty ? body + lineEnding : body
     }
 
     static func conflictCount(_ hunks: [MergeHunk]) -> Int {
         hunks.filter { $0.isConflict && !$0.resolved }.count
+    }
+
+    /// The dominant line terminator of `text` and whether it ends with a newline, so merged output
+    /// can round-trip the original file's style.
+    static func lineStyle(of text: String) -> (ending: String, finalNewline: Bool) {
+        let ending: String
+        if text.contains("\r\n") { ending = "\r\n" }
+        else if text.contains("\r") { ending = "\r" }
+        else { ending = "\n" }
+        // Check unicode scalars, not graphemes: Swift treats "\r\n" as one Character, so
+        // hasSuffix("\n") is false on a CRLF file even though it ends with a newline.
+        let last = text.unicodeScalars.last
+        let finalNewline = last == "\n" || last == "\r"
+        return (ending, finalNewline)
     }
 
     private static func equalMatches(_ edits: [Edit]) -> [Int: Int] {
