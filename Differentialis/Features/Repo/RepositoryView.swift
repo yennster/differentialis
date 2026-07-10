@@ -51,10 +51,12 @@ struct RepositoryView: View {
         HSplitView {
             listColumn { commitListContent }
             if changesetFilesCollapsed {
-                CollapsedRail { withAnimation(.snappy) { changesetFilesCollapsed = false } }
+                CollapsedRail(title: "Files") { withAnimation(.panel) { changesetFilesCollapsed = false } }
+                    .transition(.move(edge: .leading).combined(with: .opacity))
             } else {
                 changesetFilesColumn
                     .frame(minWidth: 180, idealWidth: 280, maxWidth: 360, maxHeight: .infinity)
+                    .transition(.move(edge: .leading).combined(with: .opacity))
             }
             changesetDiffColumn
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -74,18 +76,22 @@ struct RepositoryView: View {
     @ViewBuilder
     private func listColumn<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         if leftCollapsed {
-            CollapsedRail { withAnimation(.snappy) { leftCollapsed = false } }
+            CollapsedRail(title: leftCollapsedTitle) { withAnimation(.panel) { leftCollapsed = false } }
+                .transition(.move(edge: .leading).combined(with: .opacity))
         } else {
             VStack(spacing: 0) {
                 leftHeader
                 Divider().opacity(0.4)
-                // Fill the remaining height so the header stays pinned to the top even when the
-                // content is a short empty state (otherwise the whole column floats to centre).
                 content()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .frame(minWidth: 240, idealWidth: 320, maxWidth: 460, maxHeight: .infinity)
+            .transition(.move(edge: .leading).combined(with: .opacity))
         }
+    }
+
+    private var leftCollapsedTitle: String {
+        mode == .commits ? "History" : "Files"
     }
 
     private var leftHeader: some View {
@@ -96,10 +102,13 @@ struct RepositoryView: View {
             }
             .padding(2)
             .background(.black.opacity(0.22), in: Capsule())
+            Text(leftCollapsedTitle)
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundStyle(.primary.opacity(0.7))
             Spacer()
             Text(mode == .commits ? "\(commits.count) commits" : "\(filteredWorkingFiles.count) files")
                 .font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-            Button { withAnimation(.snappy) { leftCollapsed = true } } label: {
+            Button { withAnimation(.panel) { leftCollapsed = true } } label: {
                 Image(systemName: "sidebar.left")
                     .frame(width: 24, height: 22)
                     .contentShape(Rectangle())
@@ -192,10 +201,13 @@ struct RepositoryView: View {
         let count = changeset?.files.count ?? 0
         return VStack(spacing: 0) {
             HStack {
+                Text("Files")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.primary.opacity(0.7))
+                Spacer()
                 Text("\(count) file\(count == 1 ? "" : "s")")
                     .font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-                Spacer()
-                Button { withAnimation(.snappy) { changesetFilesCollapsed = true } } label: {
+                Button { withAnimation(.panel) { changesetFilesCollapsed = true } } label: {
                     Image(systemName: "sidebar.left")
                         .frame(width: 24, height: 22)
                         .contentShape(Rectangle())

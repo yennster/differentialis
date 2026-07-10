@@ -14,6 +14,10 @@ struct OpenChangeset: Identifiable {
 @MainActor
 @Observable
 final class AppModel {
+    static var shared: AppModel!
+
+    init() { AppModel.shared = self }
+
     enum Route: Hashable {
         case welcome
         case repository
@@ -31,14 +35,31 @@ final class AppModel {
 
     var errorMessage: String?
     var showShortcuts = false
-
     let store = ComparisonStore()
     let projects = RecentProjectsStore()
     let updates = UpdateChecker()
     var openRepoPath: String?
     private var didProcessLaunchArguments = false
 
-    // MARK: - Launch arguments (open files/folders/repo passed on the command line)
+    // MARK: - Opening from paths (command line or `open` Apple Event)
+
+    /// Routes file/folder URLs into the right view. Shared by launch-argument parsing and the
+    /// `application(_:open:)` Apple Event handler so `open -a Differentialis <path>` lands in the
+    /// app whether it is being launched or already running — not just on a fresh launch.
+    func open(urls: [URL]) async {
+        guard !urls.isEmpty else { return }
+
+        if urls.count == 1 {
+            // openRepositoryImpl re-checks isRepository and surfaces "'X' is not a git
+            // repository." as an in-app error, so CLI users get feedback instead of a
+            // silent no-op on a single non-repo path.
+            openRepository(at: urls[0])
+        } else if urls.count >= 3 {
+            open(Comparison.merge(base: .file(urls[0]), left: .file(urls[1]), right: .file(urls[2])))
+        } else {
+            open(Comparison.make(a: .file(urls[0]), b: .file(urls[1])))
+        }
+    }
 
     func openFromLaunchArguments() async {
         guard !didProcessLaunchArguments else { return }
@@ -48,16 +69,7 @@ final class AppModel {
             .filter { fm.fileExists(atPath: $0) }
             .map { URL(fileURLWithPath: $0) }
         guard !urls.isEmpty else { return }
-
-        if urls.count == 1 {
-            if await offMain({ GitRepository.isRepository(urls[0]) }) {
-                openRepository(at: urls[0])
-            }
-        } else if urls.count >= 3 {
-            open(Comparison.merge(base: .file(urls[0]), left: .file(urls[1]), right: .file(urls[2])))
-        } else if urls.count >= 2 {
-            open(Comparison.make(a: .file(urls[0]), b: .file(urls[1])))
-        }
+        await open(urls: urls)
     }
 
     // MARK: - Opening

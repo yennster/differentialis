@@ -1,0 +1,44 @@
+#!/bin/bash
+#
+# differentialis — thin CLI launcher bundled inside Differentialis.app.
+#
+#   differentialis <path>                       # open a git repository (error if not one)
+#   differentialis <a> <b>                      # compare two files or folders (auto-detect mode)
+#   differentialis <base> <mine> <theirs>      # open a 3-way merge
+#
+# Resolves relative paths against the current directory and forwards them to the
+# app by bundle id (not app name — name lookup can resolve to a stale Debug build
+# registered with LaunchServices). Works whether Differentialis is running or not.
+#
+# Install (one line, anywhere on your $PATH):
+#
+#   sudo ln -s /Applications/Differentialis.app/Contents/Resources/differentialis \
+#              /usr/local/bin/differentialis
+#
+# (The script lives inside the signed, notarized app bundle, so the symlink always
+# points at the installed copy — no separate file to keep in sync.)
+
+set -euo pipefail
+
+if [ "$#" -eq 0 ]; then
+  echo "usage: differentialis <path> | <a> <b> | <base> <mine> <theirs>" >&2
+  exit 64
+fi
+
+args=()
+for arg in "$@"; do
+  dir="$(dirname -- "$arg")"
+  if [ ! -d "$dir" ]; then
+    echo "differentialis: no such path: $arg" >&2
+    exit 66
+  fi
+  path="$(cd -- "$dir" && pwd -P)/$(basename -- "$arg")"
+  if [ ! -e "$path" ]; then
+    echo "differentialis: no such path: $arg" >&2
+    exit 66
+  fi
+  args+=("$path")
+done
+
+# Bundle id resolves to the registered release install, not a stale Debug build.
+exec open -b app.differentialis.Differentialis "${args[@]}"

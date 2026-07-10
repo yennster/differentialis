@@ -5,7 +5,7 @@ struct TextComparisonView: View {
     let b: ComparisonSource
 
     @State private var document: DiffDocument?
-    @State private var unified = false
+    @AppStorage("diffLayoutUnified") private var unified = false
     @State private var expandedGaps: Set<String> = []
     @State private var changeIDs: [UUID] = []
     @State private var currentChange = -1

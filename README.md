@@ -71,7 +71,27 @@ xcodebuild -project Differentialis.xcodeproj -scheme Differentialis \
 open build/Build/Products/Debug/Differentialis.app
 ```
 
-You can also launch straight into a comparison by passing paths:
+### Command-line launcher
+
+A thin `differentialis` shell script is bundled inside the app and opens a diff from any
+directory. Install it from the app menu: **Differentialis ▸ Install Command Line Tool…** — one
+password prompt, then it's on your `$PATH` forever. (The menu item toggles to **Uninstall…**
+once installed.)
+
+Then:
+
+```bash
+differentialis <path>                       # open a git repository (error if not one)
+differentialis fileA.txt fileB.txt           # compare two files (auto-detects text/image/folder)
+differentialis folderA folderB               # folder diff
+differentialis base.txt mine.txt theirs.txt  # 3-way merge
+```
+
+Paths are resolved against the current directory. The launcher talks to Differentialis by bundle id
+(`app.differentialis.Differentialis`), so it resolves to the registered release install — not a
+stale Debug build — and works whether the app is already running or not.
+
+You can also launch straight into a comparison with `open` directly:
 
 ```bash
 open Differentialis.app --args fileA.txt fileB.txt      # text or image diff
@@ -103,7 +123,7 @@ Covers the Myers algorithm, line diff (including intra-line highlights), and thr
 
 ## Roadmap
 
-- A `diff`-style command-line companion and a URL scheme
+- ~~A `diff`-style command-line companion~~ — shipped; see the [command-line launcher](#command-line-launcher) above. A URL scheme is still planned.
 - Git mergetool / difftool auto-configuration
 - PDF export of comparisons
 

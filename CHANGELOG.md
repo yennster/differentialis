@@ -7,6 +7,32 @@ All notable changes to Differentialis are documented here. The format follows
 When cutting a release, add a section here and use it as the release notes:
 `gh release create vX.Y.Z --notes "$(scripts/changelog.sh X.Y.Z)"`.
 
+
+## [Unreleased]
+
+### Added
+- **`differentialis` command-line launcher.** A thin shell script is bundled inside the app at
+  `Contents/Resources/differentialis`; install it from **Differentialis ▸ Install Command Line
+  Tool…** (one password prompt, then it's on your `$PATH`). Run `differentialis <repo>`,
+  `differentialis <a> <b>`, or `differentialis <base> <mine> <theirs>` to open a diff from any
+  directory. It talks to Differentialis by bundle id and works whether the app is already running
+  or not — the app now handles the `open` Apple Event (not just launch arguments) and registers as
+  a Viewer for folders and files so LaunchServices routes the paths instead of bouncing them. A
+  single non-repository path now shows an in-app error instead of doing nothing.
+
+### Changed
+- **Text layout (Split / Unified) and image comparison mode now persist across files and
+  launches.** Switching to Unified for one file diff used to reset to Split when you opened
+  another file. The layout choice is now a global default stored in UserDefaults — your last
+  choice carries over to the next comparison and survives app relaunch. The same applies to
+  image diff modes (⌘1–⌘4).
+
+### Improved
+- **Collapsible sidebar panels now show their title when collapsed.** The commit-history,
+  changed-files, and changeset-file-list panels display a vertical title (e.g. "HISTORY", "FILES")
+  in the collapsed rail so you can tell at a glance what each rail expands to. The expanded
+  headers now show the same title horizontally.
+
 ## [0.1.6] — 2026-06-24
 
 ### Added

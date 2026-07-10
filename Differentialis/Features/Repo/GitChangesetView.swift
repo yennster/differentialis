@@ -21,14 +21,18 @@ struct GitChangesetView: View {
         } else {
             HSplitView {
                 if listCollapsed {
-                    CollapsedRail { withAnimation(.snappy) { listCollapsed = false } }
+                    CollapsedRail(title: "Files") { withAnimation(.panel) { listCollapsed = false } }
+                        .transition(.move(edge: .leading).combined(with: .opacity))
                 } else {
                     VStack(spacing: 0) {
                         HStack {
+                            Text("Files")
+                                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                .foregroundStyle(.primary.opacity(0.7))
+                            Spacer()
                             Text("\(files.count) file\(files.count == 1 ? "" : "s")")
                                 .font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-                            Spacer()
-                            Button { withAnimation(.snappy) { listCollapsed = true } } label: {
+                            Button { withAnimation(.panel) { listCollapsed = true } } label: {
                                 Image(systemName: "sidebar.left")
                                     .frame(width: 24, height: 22)
                                     .contentShape(Rectangle())
@@ -40,6 +44,7 @@ struct GitChangesetView: View {
                         fileList
                     }
                     .frame(minWidth: 180, idealWidth: 280, maxWidth: 360)
+                    .transition(.move(edge: .leading).combined(with: .opacity))
                 }
                 detail
                     .frame(maxWidth: .infinity, maxHeight: .infinity)

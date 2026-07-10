@@ -28,7 +28,7 @@ struct ImageComparisonView: View {
     @State private var aImage: NSImage?
     @State private var bImage: NSImage?
     @State private var diffImage: NSImage?
-    @State private var mode: ImageMode = .twoUp
+    @AppStorage("imageDiffMode") private var mode = ImageMode.twoUp
     @State private var horizontal = true
     @State private var showB = false
     @State private var blinking = false
