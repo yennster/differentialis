@@ -47,7 +47,8 @@ struct ImageComparisonView: View {
         }
         .focusedSceneValue(\.diffCommands, DiffCommandActions(
             setImageMode: { mode = ImageMode(rawValue: $0) ?? mode },
-            swapAB: { showB.toggle() }))
+            swapAB: { showB.toggle() },
+            refresh: { Task { await load() } }))
         .focusable()
         .focusEffectDisabled()
         .onKeyPress(.space) { showB.toggle(); return .handled }
@@ -216,11 +217,18 @@ struct ImageComparisonView: View {
     // MARK: - Loading
 
     private func load() async {
+        // Clear stale content so the spinner shows instead of the previous pair while loading.
+        aImage = nil
+        bImage = nil
+        diffImage = nil
         loadError = nil
+        zoom.reset()
         let a = a, b = b
+        let key = taskKey
         // Read the bytes (possibly a git blob) off the main actor; NSImage decodes lazily on draw.
         // The CoreImage difference is heavy, so it runs off-main too (NSImage carried via Unchecked).
         let data = await offMain { (try? a.loadData(), try? b.loadData()) }
+        guard !Task.isCancelled, key == taskKey else { return }
         aImage = data.0.flatMap(NSImage.init(data:))
         bImage = data.1.flatMap(NSImage.init(data:))
         if aImage == nil && bImage == nil {
@@ -229,7 +237,9 @@ struct ImageComparisonView: View {
         }
         if let ai = aImage, let bi = bImage {
             let pair = Unchecked((ai, bi))
-            diffImage = await offMain { Unchecked(ImageDiffRenderer.difference(pair.value.0, pair.value.1)) }.value
+            let rendered = await offMain { Unchecked(ImageDiffRenderer.difference(pair.value.0, pair.value.1)) }.value
+            guard !Task.isCancelled, key == taskKey else { return }
+            diffImage = rendered
         }
     }
 }

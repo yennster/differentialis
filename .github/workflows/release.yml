@@ -23,6 +23,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          # Build the tagged commit, not the default branch. Without this a manual
+          # (workflow_dispatch) run checks out main and would ship whatever is on main under the
+          # requested tag's name.
+          ref: ${{ github.event.release.tag_name || github.event.inputs.tag }}
           fetch-depth: 0   # full history so the Sparkle build number (commit count) is monotonic
 
       - name: Select Xcode 26

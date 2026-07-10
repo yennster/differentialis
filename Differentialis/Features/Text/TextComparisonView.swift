@@ -22,7 +22,8 @@ struct TextComparisonView: View {
         .focusedSceneValue(\.diffCommands, DiffCommandActions(
             nextChange: { navigate(1) },
             prevChange: { navigate(-1) },
-            toggleLayout: { unified.toggle() }))
+            toggleLayout: { unified.toggle() },
+            refresh: { Task { await load() } }))
         .focusable()
         .focusEffectDisabled()
         .onKeyPress("]") { navigate(1); return .handled }
@@ -148,20 +149,37 @@ struct TextComparisonView: View {
         document = nil
         loadError = nil
         let a = a, b = b
+        let key = taskKey
         // Reading the bytes (possibly a git blob) and the Myers + character-level diff are heavy
         // for large files — run them off the main actor so the UI never freezes mid-diff.
         let outcome = await offMain { () -> (DiffDocument?, String?) in
             do { return (LineDiff.document(try a.loadText(), try b.loadText()), nil) }
             catch { return (nil, error.localizedDescription) }
         }
+        // Discard a result the user has already navigated past — otherwise an older, slower diff
+        // can land after a newer one and overwrite it.
+        guard !Task.isCancelled, key == taskKey else { return }
         if let doc = outcome.0 {
             document = doc
-            changeIDs = doc.allRows.filter { $0.kind.isChange }.map(\.id)
+            changeIDs = hunkStartIDs(doc.allRows)
             currentChange = -1
             currentChangeID = nil
         } else {
             loadError = outcome.1
         }
+    }
+
+    /// IDs of the first row of each contiguous run of changed rows, so Next/Previous jumps
+    /// hunk-to-hunk instead of stepping through every single changed line.
+    private func hunkStartIDs(_ rows: [DiffRow]) -> [UUID] {
+        var ids: [UUID] = []
+        var prevChanged = false
+        for row in rows {
+            let changed = row.kind.isChange
+            if changed && !prevChanged { ids.append(row.id) }
+            prevChanged = changed
+        }
+        return ids
     }
 }
 

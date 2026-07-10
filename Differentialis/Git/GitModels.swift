@@ -44,10 +44,13 @@ enum GitFileStatus: String, Hashable {
 }
 
 struct GitChangedFile: Identifiable, Hashable {
-    let id = UUID()
     var path: String
     var oldPath: String?
     var status: GitFileStatus
+
+    // Content-derived identity so the same file keeps its ID across reloads/refreshes — otherwise a
+    // fresh UUID per parse reset the list selection and scroll position on every refresh.
+    var id: String { "\(status.letter)\u{1f}\(oldPath ?? "")\u{1f}\(path)" }
 }
 
 enum GitRefKind: Hashable { case head, branch, remoteBranch, tag }

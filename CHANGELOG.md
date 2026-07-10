@@ -10,7 +10,46 @@ When cutting a release, add a section here and use it as the release notes:
 
 ## [Unreleased]
 
+### Fixed
+- **No more hangs or crashes on large or unusual files.** The Myers diff engine now trims common
+  prefixes/suffixes and caps its search (degrading to a block replacement past the cap) instead of
+  allocating unbounded memory on large, dissimilar files — comparing big generated files (lockfiles,
+  logs) no longer spins forever and OOM-kills the app. The same guard, plus a long-line cutoff,
+  applies to intra-line character highlighting.
+- **Fixed a crash when opening comparisons of extensionless or unknown-type files.** Content-type
+  detection no longer runs a synchronous `git` subprocess (or reads whole files) from inside a
+  SwiftUI view body — it decides from the extension and, only for on-disk files, a small bounded
+  byte sniff.
+- **Three-way merge no longer loses your work.** Saving a merge with unresolved conflicts used to
+  silently write the left side and drop the right; it now warns and writes standard
+  `<<<<<<< / ======= / >>>>>>>` conflict markers. Merge output preserves the original file's line
+  endings (CRLF/CR) and trailing newline, and **save failures now surface an error** instead of
+  being swallowed.
+- **Git integration is far more robust.** Filenames with non-ASCII characters, spaces, or renames
+  are parsed correctly (all `git` output is now read as NUL-delimited `-z` records); selecting a
+  **merge commit** shows its changes (diffed against the first parent) instead of an empty list;
+  invalid UTF-8 in git output no longer blanks the whole history; large diffs can't deadlock the
+  git subprocess; and the Custom Comparison "Unstaged"/"All Changes" scopes now mean what they say
+  (All Changes includes untracked files).
+- **UTF-16 and BOM-prefixed text files** are detected and decoded instead of rendering as mojibake.
+- **Binary files** are recognized and shown with a size/checksum comparison instead of being
+  line-diffed into garbage.
+- **Fast file switching no longer shows stale results.** Text, image, folder, and merge views
+  discard a slow load once you've moved on, reset cleanly between comparisons, and no longer flash
+  the previous file's content.
+- **Saved comparisons and recent projects survive corruption and offline drives.** One malformed
+  entry no longer wipes the whole list, a corrupt store is quarantined rather than overwritten, and
+  repositories on unmounted volumes are kept instead of being silently forgotten at launch.
+- **Pinch-to-zoom on images no longer accelerates uncontrollably**, and the drag-and-drop handler on
+  the welcome screen no longer races on concurrent file loads or scramble A/B by path.
+- Folder comparison now includes **dotfiles and symlinks**, compares files by streaming (constant
+  memory, early exit) instead of loading each whole file, and prunes `.git`.
+
 ### Added
+- **Refresh (⌘R)** re-runs the current diff, folder scan, or merge, and reloads a repository's
+  history, working changes, and refs — so on-disk changes show without reopening.
+- **Copy Left / Right / Both** from a diff row's right-click menu.
+- Next/Previous change now jumps **hunk-to-hunk** rather than line-by-line.
 - **In-app updates** — Differentialis now downloads, verifies, installs, and relaunches updates
   itself instead of opening the DMG download page in a browser. The update banner's button
   ("Update") and **Check for Updates…** both install in place; updates are verified with an

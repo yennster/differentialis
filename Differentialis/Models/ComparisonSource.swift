@@ -50,6 +50,11 @@ enum ComparisonSource: Hashable {
         return false
     }
 
+    /// Best-effort content classification. This is called from `Comparison.mode(for:)` inside
+    /// SwiftUI view bodies, so it MUST stay cheap and MUST NOT shell out to git: a synchronous
+    /// `Process.waitUntilExit` re-enters the SwiftUI update loop and crashes (see GitChangeset).
+    /// It therefore decides from the extension first, and only sniffs a bounded prefix of on-disk
+    /// sources — never the whole file, never an NSImage decode, never a git subprocess.
     var kind: ContentKind {
         if isDirectory { return .folder }
         if let ext = fileExtension, let type = UTType(filenameExtension: ext) {
@@ -58,13 +63,30 @@ enum ComparisonSource: Hashable {
                 return .text
             }
         }
-        // Fall back to sniffing bytes.
-        if let data = try? loadData() {
-            if NSImage(data: data) != nil, fileExtension != nil { return .image }
-            if looksLikeText(data) { return .text }
-            return .binary
+        // Cheap byte sniff for on-disk sources only (git blobs would require a subprocess, so they
+        // default to text). Reads at most 4 KB, so it can't beachball on a huge file.
+        if let sample = sniffPrefix() {
+            if sample.isEmpty { return .text }
+            if sample.contains(0) { return .binary }              // NUL byte ⇒ binary
+            return String(data: sample, encoding: .utf8) != nil ? .text : .binary
         }
         return .text
+    }
+
+    /// The on-disk URL backing this source, if any (nil for git blobs, in-memory text, empty).
+    private var onDiskURL: URL? {
+        switch self {
+        case .file(let url): return url
+        case .workingCopy(let repo, let path): return repo.appendingPathComponent(path)
+        default: return nil
+        }
+    }
+
+    /// Reads a bounded prefix for text/binary sniffing without loading the whole file.
+    private func sniffPrefix(_ limit: Int = 4096) -> Data? {
+        guard let url = onDiskURL, let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+        return (try? handle.read(upToCount: limit)) ?? Data()
     }
 
     func loadData() throws -> Data {
@@ -80,21 +102,33 @@ enum ComparisonSource: Hashable {
     }
 
     func loadText() throws -> String {
-        let data = try loadData()
-        return String(data: data, encoding: .utf8)
-            ?? String(data: data, encoding: .isoLatin1)
-            ?? String(decoding: data, as: UTF8.self)
+        Self.decodeText(try loadData())
+    }
+
+    /// Decodes text with BOM/UTF-16 detection so UTF-16 and BOM-prefixed files don't render as
+    /// mojibake. Latin-1 is the last resort because it round-trips any byte (never fails), which is
+    /// why it must come after the real candidates rather than swallowing them.
+    static func decodeText(_ data: Data) -> String {
+        if data.starts(with: [0xEF, 0xBB, 0xBF]) {              // UTF-8 BOM
+            return String(decoding: data.dropFirst(3), as: UTF8.self)
+        }
+        if data.starts(with: [0xFF, 0xFE]),                     // UTF-16 LE BOM
+           let s = String(data: data.dropFirst(2), encoding: .utf16LittleEndian) { return s }
+        if data.starts(with: [0xFE, 0xFF]),                     // UTF-16 BE BOM
+           let s = String(data: data.dropFirst(2), encoding: .utf16BigEndian) { return s }
+        if let s = String(data: data, encoding: .utf8) { return s }
+        // No BOM but lots of NULs ⇒ likely UTF-16 without a BOM.
+        let sample = data.prefix(4096)
+        let nulCount = sample.reduce(0) { $0 + ($1 == 0 ? 1 : 0) }
+        if nulCount > sample.count / 4 {
+            if let s = String(data: data, encoding: .utf16LittleEndian) { return s }
+            if let s = String(data: data, encoding: .utf16BigEndian) { return s }
+        }
+        return String(data: data, encoding: .isoLatin1) ?? String(decoding: data, as: UTF8.self)
     }
 
     func loadImage() -> NSImage? {
         guard let data = try? loadData() else { return nil }
         return NSImage(data: data)
-    }
-
-    private func looksLikeText(_ data: Data) -> Bool {
-        guard !data.isEmpty else { return true }
-        let sample = data.prefix(4096)
-        if sample.contains(0) { return false }
-        return String(data: sample, encoding: .utf8) != nil
     }
 }

@@ -96,25 +96,25 @@ struct WelcomeView: View {
     }
 
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
+        let selected = Array(providers.prefix(3))
+        // One slot per provider, each written only by its own completion handler (guarded by a
+        // lock) — the old code appended to one shared array from concurrent callbacks (a data race)
+        // and then reordered by path, scrambling which file became A vs B.
+        var results = [URL?](repeating: nil, count: selected.count)
+        let lock = NSLock()
         let group = DispatchGroup()
-        var urls: [URL] = []
-        for provider in providers.prefix(3) {
+        for (index, provider) in selected.enumerated() {
             group.enter()
             _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                if let url { urls.append(url) }
+                lock.lock(); results[index] = url; lock.unlock()
                 group.leave()
             }
         }
         group.notify(queue: .main) {
-            let sorted = urls.sorted { $0.path < $1.path }
-            guard sorted.count >= 2 else { return }
-            if sorted.count >= 3 {
-                self.model.open(Comparison.merge(base: .file(sorted[0]),
-                                                 left: .file(sorted[1]),
-                                                 right: .file(sorted[2])))
-            } else {
-                self.model.open(Comparison.make(a: .file(sorted[0]), b: .file(sorted[1])))
-            }
+            let urls = results.compactMap { $0 }   // preserves drop order
+            guard !urls.isEmpty else { return }
+            // Reuse the shared router: 1 = open repository, 2 = compare, 3 = merge — with errors surfaced.
+            Task { await model.open(urls: urls) }
         }
         return true
     }

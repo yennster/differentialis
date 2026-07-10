@@ -44,12 +44,18 @@ extension GitRepository {
     func customChangeset(a: CustomSide, b: CustomSide) throws -> ResolvedChangeset {
         let aRef = a.refString
         if case .workingCopy(let scope) = b {
-            let files: [GitChangedFile]
+            var files: [GitChangedFile]
             switch scope {
             case .staged:
-                files = parseNameStatus(try run(["diff", "--name-status", "-M", "--cached", aRef]))
-            case .all, .unstaged:
-                files = parseNameStatus(try run(["diff", "--name-status", "-M", aRef]))
+                // aRef vs the index.
+                files = parseNameStatus(try run(["diff", "--name-status", "-M", "-z", "--cached", aRef]))
+            case .unstaged:
+                // Only files with unstaged (worktree-vs-index) changes, diffed from aRef.
+                files = parseNameStatus(try run(["diff", "--name-status", "-M", "-z"]))
+            case .all:
+                // aRef vs the working tree, plus untracked files — matches the Files view.
+                files = parseNameStatus(try run(["diff", "--name-status", "-M", "-z", aRef]))
+                files += untrackedFiles()
             }
             return ResolvedChangeset(files: files, a: .ref(aRef), aLabel: a.label,
                                      b: .workingCopy, bLabel: b.label)
@@ -62,8 +68,15 @@ extension GitRepository {
 
     /// Files changed when viewing a single commit (parent ↔ commit).
     func changeset(forCommit commit: GitCommit) throws -> (files: [GitChangedFile], a: GitSide, b: GitSide, aLabel: String, bLabel: String) {
-        let files = try changedFiles(inCommit: commit.id)
         let parent = commit.firstParent
+        // For a merge commit, `diff-tree <sha>` emits nothing — diff against the first parent so
+        // the changeset isn't empty. `diff-tree --root` still handles the parentless root commit.
+        let files: [GitChangedFile]
+        if let parent {
+            files = try changedFiles(from: parent, to: commit.id)
+        } else {
+            files = try changedFiles(inCommit: commit.id)
+        }
         let a: GitSide = .ref(parent ?? "\(commit.id)^")
         let aLabel = parent.map { String($0.prefix(7)) } ?? "—"
         return (files, a, .ref(commit.id), aLabel, commit.shortSHA)

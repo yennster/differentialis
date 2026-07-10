@@ -283,6 +283,8 @@ struct RepositoryView: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
+            Button { Task { await refresh() } } label: { Image(systemName: "arrow.clockwise") }
+                .help("Refresh history and working changes")
             Button { revealInFinder() } label: { Image(systemName: "folder") }
                 .help("Reveal in Finder")
             Button { openTerminal() } label: { Image(systemName: "terminal") }
@@ -318,7 +320,10 @@ struct RepositoryView: View {
         loading = true
         let repo = repo
         commits = await Task.detached { (try? repo.commits(limit: 300)) ?? [] }.value
-        selectedCommit = commits.first?.id
+        // Keep the selected commit across a refresh when it's still present.
+        if selectedCommit == nil || !commits.contains(where: { $0.id == selectedCommit }) {
+            selectedCommit = commits.first?.id
+        }
         loading = false
         await loadChangeset()
     }
@@ -329,14 +334,25 @@ struct RepositoryView: View {
         }
         let repo = repo
         let result = await Task.detached { try? repo.changeset(forCommit: commit) }.value
+        // The user may have clicked another commit while this loaded — don't clobber the newer one.
+        guard commit.id == selectedCommit else { return }
         if let result {
             changeset = ResolvedChangeset(files: result.files, a: result.a, aLabel: result.aLabel,
                                           b: result.b, bLabel: result.bLabel)
-            selectedChangesetFile = result.files.first?.id
+            // Preserve the current file selection across a refresh when it still exists.
+            if selectedChangesetFile == nil || !result.files.contains(where: { $0.id == selectedChangesetFile }) {
+                selectedChangesetFile = result.files.first?.id
+            }
         } else {
             changeset = nil
             selectedChangesetFile = nil
         }
+    }
+
+    private func refresh() async {
+        await loadCommits()
+        await loadWorkingFiles()
+        model.refreshRefs()
     }
 
     private func loadWorkingFiles() async {

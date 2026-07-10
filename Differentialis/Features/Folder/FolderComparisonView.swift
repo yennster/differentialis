@@ -38,7 +38,8 @@ struct FolderComparisonView: View {
                 }
             }
         }
-        .task(id: "\(a.subtitle)|\(b.subtitle)") { await scan() }
+        .task(id: "\(aRoot?.path ?? a.displayName)|\(bRoot?.path ?? b.displayName)") { await scan() }
+        .focusedSceneValue(\.diffCommands, DiffCommandActions(refresh: { Task { await scan() } }))
     }
 
     @ViewBuilder
@@ -143,8 +144,12 @@ struct FolderComparisonView: View {
 
     private func scan() async {
         scanning = true
+        entries = []
+        selection = nil
         guard let aRoot, let bRoot else { scanning = false; return }
         let result = await Task.detached { FolderScanner.scan(a: aRoot, b: bRoot) }.value
+        // A newer comparison may have superseded this scan while it ran.
+        guard !Task.isCancelled else { return }
         entries = result
         selection = result.first(where: { $0.status.isChange })?.id
         scanning = false

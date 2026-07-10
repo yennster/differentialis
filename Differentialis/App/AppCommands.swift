@@ -9,6 +9,7 @@ struct DiffCommandActions {
     var toggleLayout: (() -> Void)? = nil
     var setImageMode: ((Int) -> Void)? = nil
     var swapAB: (() -> Void)? = nil
+    var refresh: (() -> Void)? = nil
 }
 
 struct DiffCommandsKey: FocusedValueKey {
@@ -32,6 +33,9 @@ struct AppMenuCommands: Commands {
         CommandGroup(after: .sidebar) {
             Button("Go to Welcome") { model.route = .welcome }
                 .keyboardShortcut("0", modifiers: [.command, .shift])
+            Button("Refresh") { diff?.refresh?() }
+                .keyboardShortcut("r", modifiers: .command)
+                .disabled(diff?.refresh == nil)
             Divider()
             Button("Next Change") { diff?.nextChange?() }
                 .keyboardShortcut("]", modifiers: .command)

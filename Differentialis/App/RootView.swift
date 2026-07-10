@@ -72,13 +72,17 @@ struct RootView: View {
             }
         case .comparison(let id):
             if let comparison = model.comparison(id) {
+                // .id keys the subtree to the comparison so switching tabs fully resets child state
+                // (scroll position, selection, stale content) instead of reusing the prior view.
                 ComparisonDetailView(comparison: comparison)
+                    .id(comparison.id)
             } else {
                 WelcomeView()
             }
         case .changeset(let id):
             if let changeset = model.changeset(id) {
                 ChangesetDetailView(changeset: changeset)
+                    .id(changeset.id)
             } else {
                 WelcomeView()
             }

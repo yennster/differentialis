@@ -216,14 +216,20 @@ struct CustomComparisonPopover: View {
     // MARK: - Logic
 
     private func makeA() -> CustomSide {
-        aKind == .reference ? .reference(aRef) : .commit(aCommit)
+        aKind == .reference ? .reference(trimmed(aRef)) : .commit(trimmed(aCommit))
     }
     private func makeB() -> CustomSide {
         switch bKind {
         case .workingCopy: return .workingCopy(bScope)
-        case .reference: return .reference(bRef)
-        case .commit: return .commit(bCommit)
+        case .reference: return .reference(trimmed(bRef))
+        case .commit: return .commit(trimmed(bCommit))
         }
+    }
+
+    /// Trim pasted refs/hashes — a trailing space or newline from the clipboard otherwise makes
+    /// `git` fail with "unknown revision" on an otherwise-valid hash.
+    private func trimmed(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     private var defaultName: String { "\(makeA().label) ↔ \(makeB().label)" }
 
