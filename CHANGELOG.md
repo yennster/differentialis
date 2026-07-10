@@ -10,6 +10,8 @@ When cutting a release, add a section here and use it as the release notes:
 
 ## [Unreleased]
 
+## [0.1.7] — 2026-07-10
+
 ### Fixed
 - **No more hangs or crashes on large or unusual files.** The Myers diff engine now trims common
   prefixes/suffixes and caps its search (degrading to a block replacement past the cap) instead of
@@ -162,7 +164,8 @@ When cutting a release, add a section here and use it as the release notes:
 - Native SwiftUI + Liquid Glass, **zero third-party dependencies**.
 - GitHub Actions release workflow that builds and attaches a drag-to-Applications `.dmg`.
 
-[Unreleased]: https://github.com/yennster/differentialis/compare/v0.1.6...HEAD
+[Unreleased]: https://github.com/yennster/differentialis/compare/v0.1.7...HEAD
+[0.1.7]: https://github.com/yennster/differentialis/releases/tag/v0.1.7
 [0.1.6]: https://github.com/yennster/differentialis/releases/tag/v0.1.6
 [0.1.5]: https://github.com/yennster/differentialis/releases/tag/v0.1.5
 [0.1.4]: https://github.com/yennster/differentialis/releases/tag/v0.1.4
