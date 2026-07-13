@@ -6,6 +6,9 @@ import CoreImage.CIFilterBuiltins
 /// Shared zoom/pan state so two image panes stay in sync.
 @Observable
 final class ZoomPanState {
+    static let minimumScale: CGFloat = 0.1
+    static let maximumScale: CGFloat = 24
+
     var scale: CGFloat = 1
     var offset: CGSize = .zero
 
@@ -13,17 +16,16 @@ final class ZoomPanState {
         scale = 1
         offset = .zero
     }
+
+    func zoom(by factor: CGFloat) {
+        scale = min(Self.maximumScale, max(Self.minimumScale, scale * factor))
+    }
 }
 
 /// A zoomable, pannable image that drives a shared `ZoomPanState`.
 struct ZoomableImageView: View {
     let image: NSImage
     let zoom: ZoomPanState
-
-    @State private var baseScale: CGFloat = 1
-    @State private var baseOffset: CGSize = .zero
-    @State private var isZooming = false
-    @State private var isPanning = false
 
     var body: some View {
         GeometryReader { geo in
@@ -35,33 +37,74 @@ struct ZoomableImageView: View {
                 .offset(zoom.offset)
                 .frame(width: geo.size.width, height: geo.size.height)
                 .contentShape(Rectangle())
-                .gesture(
-                    MagnifyGesture()
-                        .onChanged { value in
-                            // Capture the scale once at gesture start. Re-basing every frame (via
-                            // the shared-state onChange below) made zoom compound exponentially.
-                            if !isZooming { isZooming = true; baseScale = zoom.scale }
-                            zoom.scale = max(0.1, min(24, baseScale * value.magnification))
-                        }
-                        .onEnded { _ in isZooming = false; baseScale = zoom.scale }
-                )
-                .simultaneousGesture(
-                    DragGesture()
-                        .onChanged { value in
-                            if !isPanning { isPanning = true; baseOffset = zoom.offset }
-                            zoom.offset = CGSize(width: baseOffset.width + value.translation.width,
-                                                 height: baseOffset.height + value.translation.height)
-                        }
-                        .onEnded { _ in isPanning = false; baseOffset = zoom.offset }
-                )
-                .onChange(of: zoom.scale) { _, newValue in
-                    // Keep the other pane in sync, but never re-base the pane that's mid-gesture.
-                    if !isZooming { baseScale = newValue }
-                    if newValue == 1 && !isPanning { baseOffset = .zero }
-                }
+                .zoomPanGestures(zoom)
         }
         .background(CheckerboardBackground())
         .clipped()
+    }
+}
+
+/// One gesture implementation shared by regular image panes and the split-reveal canvas. Each
+/// consumer keeps a local gesture base, then follows external changes while idle. In a two-up view
+/// this prevents the second pane from jumping back to its stale pre-pan offset when the user starts
+/// dragging it after panning the first pane.
+private struct ZoomPanGestureModifier: ViewModifier {
+    let zoom: ZoomPanState
+
+    @State private var baseScale: CGFloat = 1
+    @State private var baseOffset: CGSize = .zero
+    @State private var isZooming = false
+    @State private var isPanning = false
+
+    func body(content: Content) -> some View {
+        content
+            .gesture(
+                MagnifyGesture()
+                    .onChanged { value in
+                        if !isZooming {
+                            isZooming = true
+                            baseScale = zoom.scale
+                        }
+                        zoom.scale = min(ZoomPanState.maximumScale,
+                                         max(ZoomPanState.minimumScale,
+                                             baseScale * value.magnification))
+                    }
+                    .onEnded { _ in
+                        isZooming = false
+                        baseScale = zoom.scale
+                    }
+            )
+            .simultaneousGesture(
+                DragGesture()
+                    .onChanged { value in
+                        if !isPanning {
+                            isPanning = true
+                            baseOffset = zoom.offset
+                        }
+                        zoom.offset = CGSize(width: baseOffset.width + value.translation.width,
+                                             height: baseOffset.height + value.translation.height)
+                    }
+                    .onEnded { _ in
+                        isPanning = false
+                        baseOffset = zoom.offset
+                    }
+            )
+            .onAppear {
+                baseScale = zoom.scale
+                baseOffset = zoom.offset
+            }
+            .onChange(of: zoom.scale) { _, newValue in
+                if !isZooming { baseScale = newValue }
+            }
+            .onChange(of: zoom.offset) { _, newValue in
+                if !isPanning { baseOffset = newValue }
+            }
+    }
+}
+
+extension View {
+    func zoomPanGestures(_ zoom: ZoomPanState) -> some View {
+        modifier(ZoomPanGestureModifier(zoom: zoom))
     }
 }
 

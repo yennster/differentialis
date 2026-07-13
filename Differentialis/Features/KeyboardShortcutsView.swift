@@ -12,6 +12,7 @@ struct KeyboardShortcutsView: View {
             Shortcut(label: "New Image Comparison", keys: ["⇧", "⌘", "N"]),
             Shortcut(label: "New Folder Comparison", keys: ["⌥", "⌘", "N"]),
             Shortcut(label: "Open Repository", keys: ["⌘", "O"]),
+            Shortcut(label: "Refresh", keys: ["⌘", "R"]),
             Shortcut(label: "Keyboard Shortcuts", keys: ["⌘", "/"]),
             Shortcut(label: "Go to Welcome", keys: ["⇧", "⌘", "0"]),
         ]),
