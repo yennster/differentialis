@@ -13,10 +13,19 @@ struct RepositoryView: View {
     @State private var changeset: ResolvedChangeset?
     @State private var selectedChangesetFile: GitChangedFile.ID?
     @State private var loading = true
+    @State private var changesetLoading = false
+    @State private var historyError: String?
+    @State private var changesetError: String?
+    @State private var historyLoadToken: UUID?
+    @State private var changesetLoadToken: UUID?
 
     @State private var workingFiles: [GitChangedFile] = []
     @State private var selectedFile: GitChangedFile.ID?
-    @State private var fileFilter = ""
+    @State private var workingFilter = GitFileFilter()
+    @State private var changesetFilter = GitFileFilter()
+    @State private var workingError: String?
+    @State private var workingLoadToken: UUID?
+    @State private var workingLoading = true
 
     @State private var showCustom = false
     @State private var leftCollapsed = false
@@ -36,6 +45,8 @@ struct RepositoryView: View {
         }
         .onChange(of: selectedCommit) { _, _ in Task { await loadChangeset() } }
         .onChange(of: mode) { _, newMode in if newMode == .files { Task { await loadWorkingFiles() } } }
+        .onChange(of: workingFilter) { _, _ in keepWorkingSelectionVisible() }
+        .onChange(of: changesetFilter) { _, _ in keepChangesetSelectionVisible() }
     }
 
     // MARK: - Layout
@@ -121,20 +132,28 @@ struct RepositoryView: View {
     private func modeButton(_ m: Mode, icon: String, help: String) -> some View {
         Button { mode = m } label: {
             Image(systemName: icon).font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(mode == m ? .white : .secondary)
+                .foregroundStyle(mode == m ? Theme.badgeForeground : Color.secondary)
                 .frame(width: 32, height: 22)
                 .background(mode == m ? Theme.brand : .clear, in: Capsule())
                 // Without this the inactive button's .clear background isn't hit-tested, so only the
                 // tiny icon is clickable and switching modes feels broken. Make the whole pill tappable.
                 .contentShape(Capsule())
         }
-        .buttonStyle(.plain).help(help)
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(mode == m ? .isSelected : [])
+        .help(help)
     }
 
     @ViewBuilder
     private var commitListContent: some View {
         if loading {
             ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if let historyError {
+            ContentUnavailableView("Couldn’t load history", systemImage: "exclamationmark.triangle",
+                                   description: Text(historyError))
+        } else if commits.isEmpty {
+            ContentUnavailableView("No commits yet", systemImage: "clock.badge.questionmark",
+                                   description: Text("This repository does not have a first commit yet."))
         } else {
             List(commits, selection: $selectedCommit) { commit in
                 CommitRow(commit: commit).tag(commit.id)
@@ -145,27 +164,33 @@ struct RepositoryView: View {
 
     @ViewBuilder
     private var filesListContent: some View {
-        if workingFiles.isEmpty {
+        if workingLoading {
+            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if let workingError {
+            ContentUnavailableView("Couldn’t load working changes", systemImage: "exclamationmark.triangle",
+                                   description: Text(workingError))
+        } else if workingFiles.isEmpty {
             ContentUnavailableView("No working changes", systemImage: "checkmark.circle",
                                    description: Text("Your working tree matches HEAD."))
         } else {
             VStack(spacing: 0) {
-                List(selection: $selectedFile) {
-                    ForEach(groupedWorkingFiles, id: \.dir) { group in
-                        Section(group.dir.isEmpty ? "/" : group.dir) {
-                            ForEach(group.files) { file in
-                                fileRow(file).tag(file.id)
+                if filteredWorkingFiles.isEmpty {
+                    ContentUnavailableView.search(text: workingFilter.query)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List(selection: $selectedFile) {
+                        ForEach(groupedWorkingFiles, id: \.dir) { group in
+                            Section(group.dir.isEmpty ? "/" : group.dir) {
+                                ForEach(group.files) { file in
+                                    fileRow(file).tag(file.id)
+                                }
                             }
                         }
                     }
+                    .listStyle(.inset)
                 }
-                .listStyle(.inset)
-                HStack(spacing: 6) {
-                    Image(systemName: "line.3.horizontal.decrease.circle").font(.system(size: 12)).foregroundStyle(.secondary)
-                    TextField("Filter files", text: $fileFilter).textFieldStyle(.plain).font(.system(size: 12))
-                }
-                .padding(.horizontal, 12).padding(.vertical, 7)
-                .background(.ultraThinMaterial)
+                GitFileFilterBar(filter: $workingFilter, files: workingFiles,
+                                 resultCount: filteredWorkingFiles.count)
             }
         }
     }
@@ -174,7 +199,7 @@ struct RepositoryView: View {
         HStack(spacing: 8) {
             Text(file.status.letter)
                 .font(.system(size: 10, weight: .bold, design: .monospaced))
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.badgeForeground)
                 .frame(width: 18, height: 18)
                 .background(file.status.tint, in: RoundedRectangle(cornerRadius: 4))
             Text((file.path as NSString).lastPathComponent)
@@ -184,8 +209,7 @@ struct RepositoryView: View {
     }
 
     private var filteredWorkingFiles: [GitChangedFile] {
-        let query = fileFilter.trimmingCharacters(in: .whitespaces).lowercased()
-        return query.isEmpty ? workingFiles : workingFiles.filter { $0.path.lowercased().contains(query) }
+        workingFilter.apply(to: workingFiles)
     }
 
     private var groupedWorkingFiles: [(dir: String, files: [GitChangedFile])] {
@@ -198,7 +222,7 @@ struct RepositoryView: View {
     // The selected commit's changed files (middle pane in commits mode), with a header that can
     // collapse the pane to a rail to give the diff more room.
     private var changesetFilesColumn: some View {
-        let count = changeset?.files.count ?? 0
+        let count = filteredChangesetFiles.count
         return VStack(spacing: 0) {
             HStack {
                 Text("Files")
@@ -218,16 +242,31 @@ struct RepositoryView: View {
             Divider().opacity(0.4)
             changesetFilesList
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if let files = changeset?.files, !files.isEmpty {
+                GitFileFilterBar(filter: $changesetFilter, files: files,
+                                 resultCount: filteredChangesetFiles.count)
+            }
         }
+    }
+
+    private var filteredChangesetFiles: [GitChangedFile] {
+        changesetFilter.apply(to: changeset?.files ?? [])
     }
 
     @ViewBuilder
     private var changesetFilesList: some View {
-        if let changeset, !changeset.files.isEmpty {
-            List(changeset.files, selection: $selectedChangesetFile) { file in
+        if changesetLoading {
+            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if let changesetError {
+            ContentUnavailableView("Couldn’t load changes", systemImage: "exclamationmark.triangle",
+                                   description: Text(changesetError))
+        } else if changeset != nil, !filteredChangesetFiles.isEmpty {
+            List(filteredChangesetFiles, selection: $selectedChangesetFile) { file in
                 fileRow(file).tag(file.id)
             }
             .listStyle(.inset)
+        } else if let changeset, !changeset.files.isEmpty {
+            ContentUnavailableView.search(text: changesetFilter.query)
         } else if loading {
             ProgressView()
         } else {
@@ -238,8 +277,13 @@ struct RepositoryView: View {
     // The selected file's diff, under a header for the selected commit (trailing pane in commits mode).
     @ViewBuilder
     private var changesetDiffColumn: some View {
-        if let commit = commits.first(where: { $0.id == selectedCommit }), let changeset,
-           let file = changeset.files.first(where: { $0.id == selectedChangesetFile }) ?? changeset.files.first {
+        if changesetLoading {
+            ProgressView("Loading changes…").frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if let changesetError {
+            ContentUnavailableView("Couldn’t load this commit", systemImage: "exclamationmark.triangle",
+                                   description: Text(changesetError))
+        } else if let commit = commits.first(where: { $0.id == selectedCommit }), let changeset,
+           let file = filteredChangesetFiles.first(where: { $0.id == selectedChangesetFile }) ?? filteredChangesetFiles.first {
             VStack(spacing: 0) {
                 commitHeader(commit)
                 Divider().opacity(0.4)
@@ -248,6 +292,9 @@ struct RepositoryView: View {
                     b: changeset.b, bLabel: changeset.bLabel))
                     .id(file.id)
             }
+        } else if commits.isEmpty, !loading, historyError == nil {
+            ContentUnavailableView("No commits yet", systemImage: "clock.badge.questionmark",
+                                   description: Text("Switch to Files to review changes before the first commit."))
         } else {
             ContentUnavailableView("Select a commit", systemImage: "point.3.filled.connected.trianglepath.dotted",
                                    description: Text("Choose a commit to review its changes, or open a Custom Comparison."))
@@ -256,7 +303,12 @@ struct RepositoryView: View {
 
     @ViewBuilder
     private var workingFileDetail: some View {
-        if let file = filteredWorkingFiles.first(where: { $0.id == selectedFile }) ?? filteredWorkingFiles.first {
+        if workingLoading {
+            ProgressView("Loading working changes…").frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if let workingError {
+            ContentUnavailableView("Couldn’t load working changes", systemImage: "exclamationmark.triangle",
+                                   description: Text(workingError))
+        } else if let file = filteredWorkingFiles.first(where: { $0.id == selectedFile }) ?? filteredWorkingFiles.first {
             ComparisonDetailView(comparison: repo.makeComparison(
                 file: file, a: .ref("HEAD"), aLabel: "HEAD", b: .workingCopy, bLabel: "Working Copy"))
                 .id(file.id)
@@ -317,35 +369,71 @@ struct RepositoryView: View {
     // is hopped off the main thread via Task.detached and only the results land back on it.
 
     private func loadCommits() async {
+        let token = UUID()
+        historyLoadToken = token
         loading = true
+        historyError = nil
+        let previousSelection = selectedCommit
         let repo = repo
-        commits = await Task.detached { (try? repo.commits(limit: 300)) ?? [] }.value
+        let outcome = await Task.detached { () -> ([GitCommit]?, String?) in
+            do { return (try repo.commits(limit: 300), nil) }
+            catch { return (nil, error.localizedDescription) }
+        }.value
+        guard !Task.isCancelled, token == historyLoadToken else { return }
+        guard let loadedCommits = outcome.0 else {
+            commits = []
+            selectedCommit = nil
+            changeset = nil
+            historyError = outcome.1
+            loading = false
+            return
+        }
+        commits = loadedCommits
         // Keep the selected commit across a refresh when it's still present.
         if selectedCommit == nil || !commits.contains(where: { $0.id == selectedCommit }) {
             selectedCommit = commits.first?.id
         }
         loading = false
-        await loadChangeset()
+        // A changed selection triggers loadChangeset through onChange. Refreshing an already
+        // selected commit does not, so reload it explicitly without doubling the initial work.
+        if selectedCommit == previousSelection { await loadChangeset() }
     }
 
     private func loadChangeset() async {
+        let token = UUID()
+        changesetLoadToken = token
+        let previousFileSelection = selectedChangesetFile
+        changesetError = nil
         guard let commit = commits.first(where: { $0.id == selectedCommit }) else {
-            changeset = nil; selectedChangesetFile = nil; return
+            changeset = nil
+            selectedChangesetFile = nil
+            changesetLoading = false
+            return
         }
+        changesetLoading = true
+        changeset = nil
         let repo = repo
-        let result = await Task.detached { try? repo.changeset(forCommit: commit) }.value
+        let outcome = await Task.detached { () -> ((files: [GitChangedFile], a: GitSide, b: GitSide, aLabel: String, bLabel: String)?, String?) in
+            do { return (try repo.changeset(forCommit: commit), nil) }
+            catch { return (nil, error.localizedDescription) }
+        }.value
         // The user may have clicked another commit while this loaded — don't clobber the newer one.
-        guard commit.id == selectedCommit else { return }
-        if let result {
+        guard !Task.isCancelled, token == changesetLoadToken,
+              commit.id == selectedCommit else { return }
+        changesetLoading = false
+        if let result = outcome.0 {
             changeset = ResolvedChangeset(files: result.files, a: result.a, aLabel: result.aLabel,
                                           b: result.b, bLabel: result.bLabel)
             // Preserve the current file selection across a refresh when it still exists.
+            selectedChangesetFile = previousFileSelection
             if selectedChangesetFile == nil || !result.files.contains(where: { $0.id == selectedChangesetFile }) {
                 selectedChangesetFile = result.files.first?.id
             }
+            keepChangesetSelectionVisible()
         } else {
             changeset = nil
             selectedChangesetFile = nil
+            changesetError = outcome.1
         }
     }
 
@@ -356,12 +444,39 @@ struct RepositoryView: View {
     }
 
     private func loadWorkingFiles() async {
+        let token = UUID()
+        workingLoadToken = token
+        workingLoading = true
+        workingError = nil
         let repo = repo
-        let files = await Task.detached { (try? repo.workingChanges(scope: .all)) ?? [] }.value
+        let outcome = await Task.detached { () -> ([GitChangedFile]?, String?) in
+            do { return (try repo.workingChanges(scope: .all), nil) }
+            catch { return (nil, error.localizedDescription) }
+        }.value
+        guard !Task.isCancelled, token == workingLoadToken else { return }
+        guard let files = outcome.0 else {
+            workingFiles = []
+            selectedFile = nil
+            workingError = outcome.1
+            workingLoading = false
+            return
+        }
         workingFiles = files
         if selectedFile == nil || !files.contains(where: { $0.id == selectedFile }) {
             selectedFile = files.first?.id
         }
+        keepWorkingSelectionVisible()
+        workingLoading = false
+    }
+
+    private func keepWorkingSelectionVisible() {
+        guard !filteredWorkingFiles.contains(where: { $0.id == selectedFile }) else { return }
+        selectedFile = filteredWorkingFiles.first?.id
+    }
+
+    private func keepChangesetSelectionVisible() {
+        guard !filteredChangesetFiles.contains(where: { $0.id == selectedChangesetFile }) else { return }
+        selectedChangesetFile = filteredChangesetFiles.first?.id
     }
 }
 
