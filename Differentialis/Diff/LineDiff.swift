@@ -1,5 +1,30 @@
 import Foundation
 
+enum WhitespacePolicy: String, CaseIterable, Hashable {
+    case significant
+    case trimEdges
+    case ignoreAll
+
+    var label: String {
+        switch self {
+        case .significant: return "Compare Exactly"
+        case .trimEdges: return "Ignore Edge Whitespace"
+        case .ignoreAll: return "Ignore All Whitespace"
+        }
+    }
+
+    fileprivate func comparisonKey(for line: String) -> String {
+        switch self {
+        case .significant:
+            return line
+        case .trimEdges:
+            return line.trimmingCharacters(in: .whitespaces)
+        case .ignoreAll:
+            return String(line.filter { !$0.isWhitespace })
+        }
+    }
+}
+
 enum LineDiff {
     /// Number of unchanged context lines kept around each change before collapsing.
     static let context = 3
@@ -18,10 +43,13 @@ enum LineDiff {
     }
 
     /// Build aligned side-by-side rows from two texts.
-    static func rows(_ aText: String, _ bText: String) -> [DiffRow] {
+    static func rows(_ aText: String, _ bText: String,
+                     whitespace: WhitespacePolicy = .significant) -> [DiffRow] {
         let a = split(aText)
         let b = split(bText)
-        let edits = myersDiff(a, b)
+        let aKeys = a.map(whitespace.comparisonKey)
+        let bKeys = b.map(whitespace.comparisonKey)
+        let edits = myersDiff(aKeys, bKeys)
 
         var rows: [DiffRow] = []
         var pendingDeletes: [(Int, String)] = []
@@ -36,12 +64,26 @@ enum LineDiff {
                 case let (d?, n?):
                     // One char diff yields both the similarity gate and the highlight ranges.
                     let cd = charDiff(d.1, n.1)
-                    let similar = cd.similarity > 0.25
-                    rows.append(DiffRow(kind: .modified,
-                                        leftNumber: d.0 + 1, rightNumber: n.0 + 1,
-                                        leftText: d.1, rightText: n.1,
-                                        leftHighlights: similar ? cd.left : [],
-                                        rightHighlights: similar ? cd.right : []))
+                    // A case-only edit has a zero case-sensitive LCS score but is still an obvious
+                    // line modification rather than an unrelated delete/insert pair.
+                    let similar = cd.similarity > 0.25 || d.1.caseInsensitiveCompare(n.1) == .orderedSame
+                    if similar {
+                        rows.append(DiffRow(kind: .modified,
+                                            leftNumber: d.0 + 1, rightNumber: n.0 + 1,
+                                            leftText: d.1, rightText: n.1,
+                                            leftHighlights: cd.left,
+                                            rightHighlights: cd.right))
+                    } else {
+                        // Unrelated lines only happen to be adjacent in the edit script. Keeping
+                        // them as separate rows avoids presenting a semantic replacement where
+                        // there is no useful correspondence between the two sides.
+                        rows.append(DiffRow(kind: .deleted,
+                                            leftNumber: d.0 + 1, rightNumber: nil,
+                                            leftText: d.1, rightText: nil))
+                        rows.append(DiffRow(kind: .inserted,
+                                            leftNumber: nil, rightNumber: n.0 + 1,
+                                            leftText: nil, rightText: n.1))
+                    }
                 case let (d?, nil):
                     rows.append(DiffRow(kind: .deleted,
                                         leftNumber: d.0 + 1, rightNumber: nil,
@@ -76,8 +118,9 @@ enum LineDiff {
     }
 
     /// Build a full diff document with collapsible gaps and statistics.
-    static func document(_ aText: String, _ bText: String) -> DiffDocument {
-        let rows = rows(aText, bText)
+    static func document(_ aText: String, _ bText: String,
+                         whitespace: WhitespacePolicy = .significant) -> DiffDocument {
+        let rows = rows(aText, bText, whitespace: whitespace)
 
         var insertions = 0, deletions = 0, modifications = 0
         for row in rows {

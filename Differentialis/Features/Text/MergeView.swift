@@ -1,6 +1,12 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+func containsConflictMarkerFragment(_ text: String) -> Bool {
+    text.components(separatedBy: .newlines).contains { line in
+        line.hasPrefix("<<<<<<<") || line == "=======" || line.hasPrefix(">>>>>>>")
+    }
+}
+
 struct MergeView: View {
     let base: ComparisonSource
     let left: ComparisonSource
@@ -11,8 +17,20 @@ struct MergeView: View {
     @State private var loaded = false
     @State private var lineEnding = "\n"
     @State private var finalNewline = false
+    @State private var presentation = Presentation.review
+    @State private var resultText = ""
+    @State private var resultDirty = false
+    @State private var baseLineStyle = TextLineStyle(ending: "\n", finalNewline: false)
+    @State private var leftLineStyle = TextLineStyle(ending: "\n", finalNewline: false)
+    @State private var rightLineStyle = TextLineStyle(ending: "\n", finalNewline: false)
+    @State private var lineStyleConflict = false
+    @State private var loadToken: UUID?
 
-    private var unresolvedConflicts: Int { hunks.filter { $0.isConflict && !$0.resolved }.count }
+    private enum Presentation: Hashable { case review, result }
+
+    private var unresolvedConflicts: Int {
+        hunks.filter { $0.isConflict && !$0.resolved }.count + (lineStyleConflict ? 1 : 0)
+    }
 
     private var taskKey: String {
         "\(base.displayName)|\(base.subtitle)|\(left.displayName)|\(left.subtitle)|\(right.displayName)|\(right.subtitle)"
@@ -33,9 +51,15 @@ struct MergeView: View {
                                        description: Text(loadError))
             } else if !loaded {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
+            } else if presentation == .review {
                 ScrollView {
                     LazyVStack(spacing: 0) {
+                        if lineStyleConflict {
+                            LineStyleConflictBlock(base: baseLineStyle,
+                                                   left: leftLineStyle,
+                                                   right: rightLineStyle,
+                                                   choose: resolveLineStyle)
+                        }
                         ForEach($hunks) { $hunk in
                             HunkBlock(hunk: $hunk)
                         }
@@ -43,10 +67,15 @@ struct MergeView: View {
                     .padding(.vertical, 6)
                 }
                 .background(.black.opacity(0.18))
+            } else {
+                resultEditor
             }
         }
         .task(id: taskKey) { await load() }
         .focusedSceneValue(\.diffCommands, DiffCommandActions(refresh: { Task { await load() } }))
+        .onChange(of: hunks) { _, _ in
+            if !resultDirty { synchronizeResult() }
+        }
     }
 
     private var header: some View {
@@ -59,11 +88,24 @@ struct MergeView: View {
                 legend("Right", Theme.modified)
             }
             Spacer()
+            if loaded {
+                GlassSegmentedControl(
+                    selection: $presentation,
+                    options: [
+                        .init(value: .review, title: "Review", systemImage: "list.bullet.rectangle"),
+                        .init(value: .result, title: "Result", systemImage: "square.and.pencil"),
+                    ],
+                    compact: true)
+                .fixedSize()
+            }
             if unresolvedConflicts > 0 {
                 StatChip(text: "\(unresolvedConflicts) conflict\(unresolvedConflicts == 1 ? "" : "s")",
                          color: Theme.conflict, systemImage: "exclamationmark.triangle.fill")
             } else if loaded {
                 StatChip(text: "Resolved", color: Theme.added, systemImage: "checkmark.seal.fill")
+            }
+            if resultDirty {
+                StatChip(text: "Edited", color: Theme.brandAlt, systemImage: "pencil")
             }
             Button {
                 save()
@@ -76,6 +118,41 @@ struct MergeView: View {
         .padding(.horizontal, 14).padding(.vertical, 10)
     }
 
+    private var resultEditor: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Text(resultDirty
+                     ? "Manual edits take precedence over the hunk selections."
+                     : "This is the exact text that will be saved.")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if resultDirty {
+                    Button("Reset from Review") {
+                        resultDirty = false
+                        synchronizeResult()
+                    }
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
+                }
+            }
+            .padding(.horizontal, 14).padding(.vertical, 7)
+            .background(.ultraThinMaterial)
+
+            TextEditor(text: Binding(
+                get: { resultText },
+                set: { newValue in
+                    resultText = newValue
+                    resultDirty = true
+                }))
+                .font(Theme.codeFont)
+                .scrollContentBackground(.hidden)
+                .padding(8)
+                .background(.black.opacity(0.18))
+                .accessibilityLabel("Merged result")
+        }
+    }
+
     private func legend(_ text: String, _ color: Color) -> some View {
         HStack(spacing: 4) {
             Circle().fill(color).frame(width: 7, height: 7)
@@ -84,30 +161,42 @@ struct MergeView: View {
     }
 
     private func load() async {
+        let token = UUID()
+        loadToken = token
         loaded = false
         loadError = nil
         let base = base, left = left, right = right
         let key = taskKey
         // Read all three files and run the diff3 merge off the main actor — for large files this
         // is heavy and would otherwise freeze the UI.
-        let outcome: (([MergeHunk], String, Bool)?, String?) = await offMain {
+        let outcome: (([MergeHunk], MergeLineStyleDecision)?, String?) = await offMain {
             do {
                 let baseText = try base.loadText()
                 let leftText = try left.loadText()
                 let rightText = try right.loadText()
                 let hunks = ThreeWayMerge.merge(base: baseText, left: leftText, right: rightText)
-                let style = ThreeWayMerge.lineStyle(of: baseText)
-                return ((hunks, style.ending, style.finalNewline), nil)
+                let style = ThreeWayMerge.lineStyleDecision(base: baseText,
+                                                            left: leftText,
+                                                            right: rightText)
+                return ((hunks, style), nil)
             } catch {
                 return (nil, error.localizedDescription)
             }
         }
         // Ignore a result from a comparison the user has already navigated away from.
-        guard key == taskKey else { return }
+        guard !Task.isCancelled, token == loadToken, key == taskKey else { return }
         if let result = outcome.0 {
             hunks = result.0
-            lineEnding = result.1
-            finalNewline = result.2
+            let style = result.1
+            lineEnding = style.selected.ending
+            finalNewline = style.selected.finalNewline
+            baseLineStyle = style.base
+            leftLineStyle = style.left
+            rightLineStyle = style.right
+            lineStyleConflict = style.hasConflict
+            resultDirty = false
+            resultText = ThreeWayMerge.mergedText(result.0, lineEnding: style.selected.ending,
+                                                   finalNewline: style.selected.finalNewline)
             loaded = true
         } else {
             loadError = outcome.1
@@ -115,13 +204,29 @@ struct MergeView: View {
     }
 
     private func save() {
+        if lineStyleConflict && !resultDirty {
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = "Choose an output line-ending style"
+            alert.informativeText = "Left and right use different line endings. Resolve the formatting conflict in Review before saving."
+            alert.addButton(withTitle: "Review")
+            alert.runModal()
+            presentation = .review
+            return
+        }
+
         // Never silently write the left side over an unresolved conflict — warn, then emit
         // standard conflict markers so nothing is lost.
-        if unresolvedConflicts > 0 {
+        let conflictMarkersRemain = containsConflictMarkerFragment(resultText)
+        if (!resultDirty && unresolvedConflicts > 0) || conflictMarkersRemain {
             let alert = NSAlert()
             alert.alertStyle = .warning
             alert.messageText = "Unresolved conflicts"
-            alert.informativeText = "\(unresolvedConflicts) conflict\(unresolvedConflicts == 1 ? " is" : "s are") still unresolved. They'll be written with «<<<<<<< / ======= / >>>>>>>» markers so you can finish resolving them in your editor."
+            if conflictMarkersRemain {
+                alert.informativeText = "The result still contains conflict markers. They will be saved as shown so you can finish resolving them later."
+            } else {
+                alert.informativeText = "\(unresolvedConflicts) conflict\(unresolvedConflicts == 1 ? " is" : "s are") still unresolved. It will be written with conflict markers so no content is lost."
+            }
             alert.addButton(withTitle: "Save with Markers")
             alert.addButton(withTitle: "Cancel")
             guard alert.runModal() == .alertFirstButtonReturn else { return }
@@ -132,9 +237,8 @@ struct MergeView: View {
         panel.canCreateDirectories = true
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
-        let text = ThreeWayMerge.mergedText(hunks, lineEnding: lineEnding, finalNewline: finalNewline)
         do {
-            try text.write(to: url, atomically: true, encoding: .utf8)
+            try resultText.write(to: url, atomically: true, encoding: .utf8)
         } catch {
             let alert = NSAlert()
             alert.alertStyle = .warning
@@ -143,6 +247,57 @@ struct MergeView: View {
             alert.addButton(withTitle: "OK")
             alert.runModal()
         }
+    }
+
+    private func synchronizeResult() {
+        resultText = ThreeWayMerge.mergedText(hunks, lineEnding: lineEnding,
+                                               finalNewline: finalNewline)
+    }
+
+    private func resolveLineStyle(_ style: TextLineStyle) {
+        lineEnding = style.ending
+        finalNewline = style.finalNewline
+        lineStyleConflict = false
+        if !resultDirty { synchronizeResult() }
+    }
+}
+
+private struct LineStyleConflictBlock: View {
+    let base: TextLineStyle
+    let left: TextLineStyle
+    let right: TextLineStyle
+    let choose: (TextLineStyle) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Line-ending conflict — choose the output style",
+                  systemImage: "exclamationmark.triangle.fill")
+                .font(.system(size: 11.5, weight: .semibold))
+                .foregroundStyle(Theme.conflict)
+            HStack(spacing: 8) {
+                choice("Base", style: base)
+                choice("Left", style: left)
+                choice("Right", style: right)
+            }
+        }
+        .padding(12)
+        .background(Theme.conflict.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Theme.conflict.opacity(0.4)))
+        .padding(.horizontal, 12).padding(.vertical, 4)
+    }
+
+    private func choice(_ title: String, style: TextLineStyle) -> some View {
+        Button {
+            choose(style)
+        } label: {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.system(size: 10.5, weight: .bold))
+                Text(style.label).font(.system(size: 10)).foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(7)
+        }
+        .buttonStyle(.bordered)
     }
 }
 

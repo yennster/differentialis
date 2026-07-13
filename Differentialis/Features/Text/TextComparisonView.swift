@@ -1,16 +1,81 @@
 import SwiftUI
 
+func textFormatDifferences(_ a: String, _ b: String) -> [String] {
+    let aStyle = ThreeWayMerge.lineStyle(of: a)
+    let bStyle = ThreeWayMerge.lineStyle(of: b)
+    var differences: [String] = []
+
+    var aEndings = lineEndingSequence(in: a)
+    var bEndings = lineEndingSequence(in: b)
+    // A missing final newline is reported separately. Remove that one unmatched terminator before
+    // comparing styles so the UI does not describe the same difference twice.
+    if aStyle.finalNewline != bStyle.finalNewline {
+        if aStyle.finalNewline { aEndings.removeLast() }
+        if bStyle.finalNewline { bEndings.removeLast() }
+    }
+    if aEndings != bEndings {
+        let aKinds = Set(aEndings)
+        let bKinds = Set(bEndings)
+        if aKinds.count == 1, bKinds.count == 1,
+           let aEnding = aKinds.first, let bEnding = bKinds.first {
+            differences.append("Line endings: A uses \(lineEndingName(aEnding)); B uses \(lineEndingName(bEnding)).")
+        } else {
+            differences.append("Line ending sequences differ between A and B.")
+        }
+    }
+    if aStyle.finalNewline != bStyle.finalNewline {
+        differences.append(aStyle.finalNewline
+                           ? "A has a final newline; B does not."
+                           : "B has a final newline; A does not.")
+    }
+    return differences
+}
+
+private func lineEndingSequence(in text: String) -> [String] {
+    var result: [String] = []
+    var pendingCR = false
+    for scalar in text.unicodeScalars {
+        if pendingCR {
+            if scalar.value == 0x0A {
+                result.append("\r\n")
+                pendingCR = false
+                continue
+            }
+            result.append("\r")
+            pendingCR = false
+        }
+        if scalar.value == 0x0D {
+            pendingCR = true
+        } else if scalar.value == 0x0A {
+            result.append("\n")
+        }
+    }
+    if pendingCR { result.append("\r") }
+    return result
+}
+
+private func lineEndingName(_ ending: String) -> String {
+    switch ending {
+    case "\r\n": return "CRLF"
+    case "\r": return "CR"
+    default: return "LF"
+    }
+}
+
 struct TextComparisonView: View {
     let a: ComparisonSource
     let b: ComparisonSource
 
     @State private var document: DiffDocument?
     @AppStorage("diffLayoutUnified") private var unified = false
+    @AppStorage("textWhitespacePolicy") private var whitespacePolicy = WhitespacePolicy.significant
     @State private var expandedGaps: Set<String> = []
     @State private var changeIDs: [UUID] = []
     @State private var currentChange = -1
     @State private var currentChangeID: UUID?
     @State private var loadError: String?
+    @State private var formatDifferences: [String] = []
+    @State private var loadRequest: UUID?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -30,13 +95,17 @@ struct TextComparisonView: View {
         .onKeyPress("[") { navigate(-1); return .handled }
     }
 
-    private var taskKey: String { "\(a.displayName)|\(b.displayName)|\(a.subtitle)|\(b.subtitle)" }
+    private var taskKey: String {
+        "\(a.displayName)|\(b.displayName)|\(a.subtitle)|\(b.subtitle)|\(whitespacePolicy.rawValue)"
+    }
 
     @ViewBuilder
     private var content: some View {
         if let document {
-            if document.isIdentical {
+            if document.isIdentical && formatDifferences.isEmpty {
                 identicalState
+            } else if document.isIdentical {
+                formatOnlyState
             } else {
                 diffScroll(document)
             }
@@ -49,11 +118,23 @@ struct TextComparisonView: View {
 
     private var identicalState: some View {
         ContentUnavailableView {
-            Label("Files are identical", systemImage: "checkmark.seal.fill")
+            Label("No differences", systemImage: "checkmark.seal.fill")
         } description: {
-            Text("No differences between A and B.")
+            Text(whitespacePolicy == .significant
+                 ? "A and B are identical."
+                 : "A and B match with \(whitespacePolicy.label.lowercased()).")
         }
         .foregroundStyle(Theme.added)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var formatOnlyState: some View {
+        ContentUnavailableView {
+            Label("Text matches, formatting differs", systemImage: "textformat")
+        } description: {
+            Text(formatDifferences.joined(separator: "\n"))
+        }
+        .foregroundStyle(Theme.modified)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -62,8 +143,9 @@ struct TextComparisonView: View {
     @ViewBuilder
     private var toolbar: some View {
         if let document {
-            StatChip(text: document.stats.summary,
-                     color: document.stats.isIdentical ? Theme.added : .primary)
+            StatChip(text: document.stats.isIdentical && !formatDifferences.isEmpty
+                     ? "Formatting differs" : document.stats.summary,
+                     color: document.stats.isIdentical && formatDifferences.isEmpty ? Theme.added : .primary)
         }
         HStack(spacing: 6) {
             Button { navigate(-1) } label: { Image(systemName: "chevron.up") }
@@ -71,6 +153,27 @@ struct TextComparisonView: View {
         }
         .buttonStyle(.borderless)
         .disabled(changeIDs.isEmpty)
+
+        Menu {
+            ForEach(WhitespacePolicy.allCases, id: \.self) { policy in
+                Button {
+                    whitespacePolicy = policy
+                } label: {
+                    if whitespacePolicy == policy {
+                        Label(policy.label, systemImage: "checkmark")
+                    } else {
+                        Text(policy.label)
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: whitespacePolicy == .significant ? "space" : "space.circle.fill")
+                .foregroundStyle(whitespacePolicy == .significant ? Color.gray : Theme.brandAlt)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help(whitespacePolicy.label)
+        .accessibilityLabel("Whitespace comparison policy")
 
         GlassSegmentedControl(
             selection: $unified,
@@ -146,26 +249,41 @@ struct TextComparisonView: View {
     // MARK: - Loading
 
     private func load() async {
+        let request = UUID()
+        loadRequest = request
         document = nil
         loadError = nil
+        formatDifferences = []
+        changeIDs = []
+        expandedGaps = []
+        currentChange = -1
+        currentChangeID = nil
         let a = a, b = b
+        let whitespacePolicy = whitespacePolicy
         let key = taskKey
         // Reading the bytes (possibly a git blob) and the Myers + character-level diff are heavy
         // for large files — run them off the main actor so the UI never freezes mid-diff.
-        let outcome = await offMain { () -> (DiffDocument?, String?) in
-            do { return (LineDiff.document(try a.loadText(), try b.loadText()), nil) }
-            catch { return (nil, error.localizedDescription) }
+        let outcome = await offMain { () -> (DiffDocument?, [String], String?) in
+            do {
+                let aText = try a.loadText()
+                let bText = try b.loadText()
+                return (LineDiff.document(aText, bText, whitespace: whitespacePolicy),
+                        textFormatDifferences(aText, bText), nil)
+            } catch {
+                return (nil, [], error.localizedDescription)
+            }
         }
         // Discard a result the user has already navigated past — otherwise an older, slower diff
         // can land after a newer one and overwrite it.
-        guard !Task.isCancelled, key == taskKey else { return }
+        guard !Task.isCancelled, request == loadRequest, key == taskKey else { return }
         if let doc = outcome.0 {
             document = doc
+            formatDifferences = outcome.1
             changeIDs = hunkStartIDs(doc.allRows)
             currentChange = -1
             currentChangeID = nil
         } else {
-            loadError = outcome.1
+            loadError = outcome.2
         }
     }
 
