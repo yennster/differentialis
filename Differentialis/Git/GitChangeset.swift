@@ -11,14 +11,34 @@ extension GitRepository {
     private func source(_ side: GitSide, path: String, label: String) -> ComparisonSource {
         switch side {
         case .ref(let ref): return .gitBlob(repo: rootURL, ref: ref, path: path, label: label)
+        case .index: return .gitIndex(repo: rootURL, path: path)
+        case .indexStage(let stage):
+            // `git show :2:path` / `:3:path` addresses the two unmerged index sides. Representing
+            // these as git blobs also keeps file properties and content classification working.
+            return .gitBlob(repo: rootURL, ref: ":\(stage)", path: path, label: label)
         case .workingCopy: return .workingCopy(repo: rootURL, path: path)
         }
+    }
+
+    private func source(_ side: GitSide?, path: String, label: String) -> ComparisonSource {
+        guard let side else {
+            let name = (path as NSString).lastPathComponent
+            return .empty(name: "\(name) — \(label) (absent)")
+        }
+        return source(side, path: path, label: label)
     }
 
     /// Build a file-level `Comparison` for a changed file between two git sides.
     func makeComparison(file: GitChangedFile,
                         a: GitSide, aLabel: String,
                         b: GitSide, bLabel: String) -> Comparison {
+        if let endpoints = file.comparison {
+            return Comparison.make(
+                a: source(endpoints.a, path: endpoints.aPath, label: endpoints.aLabel),
+                b: source(endpoints.b, path: endpoints.bPath, label: endpoints.bLabel),
+                title: file.path)
+        }
+
         let aPath = file.oldPath ?? file.path
         let bPath = file.path
 
@@ -44,21 +64,20 @@ extension GitRepository {
     func customChangeset(a: CustomSide, b: CustomSide) throws -> ResolvedChangeset {
         let aRef = a.refString
         if case .workingCopy(let scope) = b {
-            var files: [GitChangedFile]
             switch scope {
             case .staged:
-                // aRef vs the index.
-                files = parseNameStatus(try run(["diff", "--name-status", "-M", "-z", "--cached", aRef]))
+                let files = try changedFilesFromReferenceToIndex(aRef)
+                return ResolvedChangeset(files: files, a: .ref(aRef), aLabel: a.label,
+                                         b: .index, bLabel: "Index")
             case .unstaged:
-                // Only files with unstaged (worktree-vs-index) changes, diffed from aRef.
-                files = parseNameStatus(try run(["diff", "--name-status", "-M", "-z"]))
+                let files = try changedFilesFromIndexToWorkingTree()
+                return ResolvedChangeset(files: files, a: .index, aLabel: "Index",
+                                         b: .workingCopy, bLabel: "Working Copy")
             case .all:
-                // aRef vs the working tree, plus untracked files — matches the Files view.
-                files = parseNameStatus(try run(["diff", "--name-status", "-M", "-z", aRef]))
-                files += untrackedFiles()
+                let files = try changedFilesAcrossWorkingLayers(aRef, refLabel: a.label)
+                return ResolvedChangeset(files: files, a: .ref(aRef), aLabel: a.label,
+                                         b: .workingCopy, bLabel: b.label)
             }
-            return ResolvedChangeset(files: files, a: .ref(aRef), aLabel: a.label,
-                                     b: .workingCopy, bLabel: b.label)
         } else {
             let files = try changedFiles(from: aRef, to: b.refString)
             return ResolvedChangeset(files: files, a: .ref(aRef), aLabel: a.label,
