@@ -44,7 +44,8 @@ struct GlassSegmentedControl<Value: Hashable>: View {
             .padding(.horizontal, compact ? 10 : 14)
             .padding(.vertical, compact ? 5 : 7)
             .frame(maxWidth: .infinity)
-            .foregroundStyle(isSelected ? .white : .secondary)
+            .foregroundStyle(isSelected ? Theme.badgeForeground : Color.secondary)
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
             .background {
                 if isSelected {
                     Capsule()
