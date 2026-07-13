@@ -1,6 +1,28 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+private final class DropURLCollector: @unchecked Sendable {
+    private var values: [URL?]
+    private let lock = NSLock()
+
+    init(count: Int) {
+        values = [URL?](repeating: nil, count: count)
+    }
+
+    func store(_ url: URL?, at index: Int) {
+        lock.lock()
+        values[index] = url
+        lock.unlock()
+    }
+
+    func completedURLs() -> [URL]? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard values.allSatisfy({ $0 != nil }) else { return nil }
+        return values.map { $0! }
+    }
+}
+
 struct WelcomeView: View {
     @Environment(AppModel.self) private var model
     @State private var dropTargeted = false
@@ -96,25 +118,34 @@ struct WelcomeView: View {
     }
 
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
-        let selected = Array(providers.prefix(3))
+        guard !providers.isEmpty else { return false }
+        guard providers.count <= 3 else {
+            model.errorMessage = "Open one repository, two items to compare, or three files to merge."
+            return true
+        }
+        let selected = providers
         // One slot per provider, each written only by its own completion handler (guarded by a
         // lock) — the old code appended to one shared array from concurrent callbacks (a data race)
         // and then reordered by path, scrambling which file became A vs B.
-        var results = [URL?](repeating: nil, count: selected.count)
-        let lock = NSLock()
+        let results = DropURLCollector(count: selected.count)
         let group = DispatchGroup()
         for (index, provider) in selected.enumerated() {
             group.enter()
             _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                lock.lock(); results[index] = url; lock.unlock()
+                results.store(url, at: index)
                 group.leave()
             }
         }
         group.notify(queue: .main) {
-            let urls = results.compactMap { $0 }   // preserves drop order
-            guard !urls.isEmpty else { return }
-            // Reuse the shared router: 1 = open repository, 2 = compare, 3 = merge — with errors surfaced.
-            Task { await model.open(urls: urls) }
+            let urls = results.completedURLs()
+            Task { @MainActor in
+                guard let urls else {
+                    model.errorMessage = "One or more dropped items couldn’t be accessed."
+                    return
+                }
+                // Reuse the shared router: 1 = repository, 2 = comparison, 3 = merge.
+                await model.open(urls: urls)
+            }
         }
         return true
     }
