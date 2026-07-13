@@ -10,6 +10,42 @@ When cutting a release, add a section here and use it as the release notes:
 
 ## [Unreleased]
 
+### Added
+- **Whitespace-aware text comparison.** Choose exact matching, ignore leading/trailing whitespace,
+  or ignore all whitespace; the preference carries across comparisons. Files that differ only by
+  line endings or their final newline now show that distinction instead of appearing identical.
+- **Fast file filtering** for folder comparisons, repository working changes, and commit
+  changesets, including name, extension, and status filters with live result counts.
+- **Editable merge results.** The Result view is now the exact text that will be saved, supports
+  direct edits, clearly marks manual changes, and can be reset from the hunk selections.
+- Image comparison now includes explicit **zoom in, zoom out, and Fit** controls, shared pan/zoom
+  in Split mode, and a keyboard- and VoiceOver-adjustable split divider.
+
+### Fixed
+- **Git staged and unstaged comparisons now use the correct snapshots.** Staged changes compare a
+  reference with the index, unstaged changes compare the index with the working tree, and All
+  Changes keeps a coherent layer-aware row even when staged and working edits cancel each other.
+  Conflict stages, repositories without a first commit, and SHA-256 repositories are handled too.
+- Three-way merge no longer reports conflicts for adjacent independent edits, and text diff no
+  longer pairs unrelated neighboring lines as an in-place modification. Single-newline files,
+  one-sided formatting edits, and mixed line endings round-trip correctly; incompatible line-ending
+  choices are now resolved explicitly.
+- Image Split mode now reveals A and B with one shared viewport, while Swap consistently swaps the
+  actual sides in every mode. Difference images are rendered only when that mode is selected.
+- Folder scans include package contents, report unreadable files and enumeration failures instead
+  of calling them identical, and retain stable selection while filtering.
+- Opening too many or mismatched inputs now reports a precise error, and a slow repository open can
+  no longer replace a newer request. Repository history and diff failures remain visible instead of
+  turning into misleading empty states.
+- Binary checksums stream from disk and file metadata no longer loads an entire large file merely
+  to inspect it.
+
+### Improved
+- Comparison controls, status badges, segmented selections, and the image divider have stronger
+  contrast and more complete accessibility labels and selected-state traits.
+- Comparison headers give both source paths room to breathe and move controls to a second row when
+  needed, instead of truncating paths beside unused space or crowding narrow windows.
+
 ## [0.1.7] — 2026-07-10
 
 ### Fixed

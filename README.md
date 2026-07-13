@@ -28,16 +28,16 @@ new version in place.
 
 ## Features
 
-- **Text diff** — a from-scratch Myers diff engine with **character-level** intra-line highlights, **side-by-side and unified** layouts, change bars, collapsible unchanged regions, next/previous-change navigation, and live insertion/deletion stats.
+- **Text diff** — a from-scratch Myers diff engine with **character-level** intra-line highlights, **side-by-side and unified** layouts, exact or whitespace-insensitive matching, line-ending/final-newline diagnostics, change bars, collapsible unchanged regions, next/previous-change navigation, and live insertion/deletion stats.
 - **Image diff** — four comparison modes with `⌘1`–`⌘4`:
   - **Two-Up** (side-by-side, horizontal or vertical)
   - **One-Up** (A/B with auto-blink)
   - **Split** (draggable slider reveal)
   - **Difference** (false-color — only the changed pixels glow)
-  - …with synced zoom/pan and a pixel-dimension readout.
-- **Folder diff** — recursive scan classifying every file as **Added / Removed / Modified / Identical**, a changes-only filter, and click-through to the right diff for each file.
-- **3-way merge** — base / left / right with an editable result, per-hunk **take left / right / both / base**, conflict detection, and save-merged output.
-- **Git integration** — open any repository to browse its **commit history** or flip to a **changed-files** view (working copy vs HEAD, grouped by folder and filterable), then diff individual files. A persistent **Projects** sidebar keeps your opened repositories one click away. Uses the system `git`, no libgit2.
+  - …with synced zoom/pan, explicit Fit/zoom controls, an accessible split divider, and a pixel-dimension readout.
+- **Folder diff** — recursive scan classifying every file as **Added / Removed / Modified / Identical**, with changes-only, name, and status filters plus click-through to the right diff for each file.
+- **3-way merge** — base / left / right with an editable result, per-hunk **take left / right / both / base**, content and line-ending conflict resolution, and save-merged output.
+- **Git integration** — open any repository to browse its **commit history** or flip to a **changed-files** view with correct reference/index/working-tree snapshots, grouped by folder and filterable by name, extension, or status. A persistent **Projects** sidebar keeps your opened repositories one click away. Uses the system `git`, no libgit2.
 - **Custom Comparison** — a Liquid Glass popover to compare **any** _Reference_ or _Commit_ (pick from history or **paste a commit hash**) against the **Working Copy**, another _Reference_, or _Commit_ — with swap, and **Save** to revisit named comparisons later.
 - **Liquid Glass throughout** — glass toolbars, mode switchers, popovers, and panels native to macOS 26 Tahoe.
 - **In-app updates** — a quiet banner (Skip / Later / **Update**) offers new versions and installs them in place — download, EdDSA-verify, swap, and relaunch — without leaving the app, plus **Check for Updates…** in the app menu. Powered by [Sparkle](https://sparkle-project.org) reading an appcast attached to the latest GitHub release.
@@ -125,7 +125,9 @@ The diff and merge engines have **no dependencies** — `MyersDiff` powers both 
 xcodebuild -project Differentialis.xcodeproj -scheme Differentialis test
 ```
 
-Covers the Myers algorithm, line diff (including intra-line highlights), and three-way merge (clean merges, conflict detection, and identical-edit deduplication).
+Covers Myers and line diff behavior, intra-line highlights, three-way merge, folder scanning and
+filtering, git status parsing, and real temporary-repository checks for reference/index/working-tree
+comparisons.
 
 ## Roadmap
 
