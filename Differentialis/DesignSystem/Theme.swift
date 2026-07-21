@@ -18,6 +18,8 @@ enum Theme {
 
     static let brand = Color(red: 0.62, green: 0.45, blue: 0.96)
     static let brandAlt = Color(red: 0.36, green: 0.78, blue: 0.98)
+    /// Semantic colors are intentionally bright; near-black text keeps their compact badges legible.
+    static let badgeForeground = Color(red: 0.035, green: 0.035, blue: 0.055)
 
     static let codeFont = Font.system(size: 12, weight: .regular, design: .monospaced)
     static let codeFontSize: CGFloat = 12

@@ -10,13 +10,28 @@ enum ComparisonSource: Hashable {
     case workingCopy(repo: URL, path: String)
     case empty(name: String)
 
+    /// `ComparisonSource` is exhaustively switched over by a few presentation helpers. Keeping the
+    /// index representation behind this explicit constructor lets Git comparisons model the index
+    /// without making those unrelated switches aware of Git's storage layers.
+    private static let indexReference = "\u{1f}differentialis-index\u{1f}"
+
+    static func gitIndex(repo: URL, path: String) -> ComparisonSource {
+        .gitBlob(repo: repo, ref: indexReference, path: path, label: "Index")
+    }
+
+    static func isIndexReference(_ ref: String) -> Bool {
+        ref == indexReference
+    }
+
     enum ContentKind { case text, image, folder, binary }
 
     var displayName: String {
         switch self {
         case .file(let url): return url.lastPathComponent
         case .text(_, let name): return name
-        case .gitBlob(_, _, let path, let label): return "\((path as NSString).lastPathComponent) — \(label)"
+        case .gitBlob(_, let ref, let path, let label):
+            let sourceLabel = Self.isIndexReference(ref) ? "Index" : label
+            return "\((path as NSString).lastPathComponent) — \(sourceLabel)"
         case .workingCopy(_, let path): return "\((path as NSString).lastPathComponent) — Working Copy"
         case .empty(let name): return name
         }
@@ -27,7 +42,10 @@ enum ComparisonSource: Hashable {
         switch self {
         case .file(let url): return url.deletingLastPathComponent().path
         case .text: return "In-memory text"
-        case .gitBlob(_, let ref, let path, _): return "\(ref):\(path)"
+        case .gitBlob(_, let ref, let path, let label):
+            if Self.isIndexReference(ref) { return "Index · \(path)" }
+            if ref == ":2" || ref == ":3" { return "\(label) · \(path)" }
+            return "\(ref):\(path)"
         case .workingCopy(_, let path): return path
         case .empty: return ""
         }
@@ -94,6 +112,9 @@ enum ComparisonSource: Hashable {
         case .file(let url): return try Data(contentsOf: url)
         case .text(let content, _): return Data(content.utf8)
         case .gitBlob(let repo, let ref, let path, _):
+            if Self.isIndexReference(ref) {
+                return try GitRepository(url: repo).indexData(path: path)
+            }
             return try GitRepository(url: repo).blobData(ref: ref, path: path)
         case .workingCopy(let repo, let path):
             return try Data(contentsOf: repo.appendingPathComponent(path))

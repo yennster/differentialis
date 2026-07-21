@@ -6,6 +6,12 @@ struct GitRepository {
 
     static let gitPath = "/usr/bin/git"
 
+    private struct WorkingLayers {
+        var staged: GitChangedFile?
+        var unstaged: GitChangedFile?
+        var untracked: GitChangedFile?
+    }
+
     static func isRepository(_ url: URL) -> Bool {
         (try? GitRepository(url: url).run(["rev-parse", "--is-inside-work-tree"]))?
             .trimmingCharacters(in: .whitespacesAndNewlines) == "true"
@@ -23,6 +29,9 @@ struct GitRepository {
     // MARK: - Commits
 
     func commits(limit: Int = 200) throws -> [GitCommit] {
+        // `git log` exits non-zero in a valid repository whose HEAD is still unborn. Treat that as
+        // an empty history; working/index comparisons remain fully usable before the first commit.
+        guard (try? run(["rev-parse", "--verify", "--quiet", "HEAD"])) != nil else { return [] }
         // Fields separated by US (0x1f), records terminated by RS (0x1e).
         let format = "%H\u{1f}%h\u{1f}%an\u{1f}%aI\u{1f}%P\u{1f}%s\u{1e}"
         let out = try run(["log", "--pretty=tformat:\(format)", "-n", "\(limit)"])
@@ -58,8 +67,8 @@ struct GitRepository {
     }
 
     /// Untracked files (used to complete "All Changes"), each surfaced as an added/untracked entry.
-    func untrackedFiles() -> [GitChangedFile] {
-        guard let out = try? run(["ls-files", "--others", "--exclude-standard", "-z"]) else { return [] }
+    func untrackedFiles() throws -> [GitChangedFile] {
+        let out = try run(["ls-files", "--others", "--exclude-standard", "-z"])
         return out.split(separator: "\u{0}", omittingEmptySubsequences: true).map {
             GitChangedFile(path: String($0), oldPath: nil, status: .untracked)
         }
@@ -69,14 +78,110 @@ struct GitRepository {
     func workingChanges(scope: WorkingScope) throws -> [GitChangedFile] {
         switch scope {
         case .staged:
-            return parseNameStatus(try run(["diff", "--name-status", "-M", "-z", "--cached"]))
+            return try changedFilesFromReferenceToIndex("HEAD")
         case .unstaged:
-            return parseNameStatus(try run(["diff", "--name-status", "-M", "-z"]))
+            return try changedFilesFromIndexToWorkingTree()
         case .all:
-            // -uall expands untracked directories to individual files (a bare "dir/" row can't be
-            // diffed); the rewritten porcelain parser handles renames without phantom entries.
-            return parsePorcelain(try run(["status", "--porcelain", "-uall", "-z"]))
+            return try changedFilesAcrossWorkingLayers("HEAD", refLabel: "HEAD")
         }
+    }
+
+    /// Files changed from a selected reference to the index snapshot.
+    func changedFilesFromReferenceToIndex(_ ref: String) throws -> [GitChangedFile] {
+        let base = try diffBase(for: ref)
+        let files = parseNameStatus(try run([
+            "diff", "--name-status", "-M", "-z", "--cached", base, "--",
+        ]))
+        return try applyingCurrentConflicts(to: files)
+    }
+
+    /// Files changed from the index snapshot to the working tree.
+    func changedFilesFromIndexToWorkingTree() throws -> [GitChangedFile] {
+        let files = parseNameStatus(try run([
+            "diff", "--name-status", "-M", "-z", "--",
+        ]))
+        return try applyingCurrentConflicts(to: files)
+    }
+
+    /// One coherent row per path across the reference→index and index→working-copy layers.
+    ///
+    /// A path changed in only one layer compares that layer's exact endpoints. When both layers
+    /// changed, the row compares Index→Working Copy: the staged bytes remain visible even when the
+    /// worktree happens to match the reference, and a staged deletion followed by a restored file
+    /// becomes one inspectable row instead of contradictory Deleted + Untracked rows.
+    func changedFilesAcrossWorkingLayers(_ ref: String, refLabel: String) throws -> [GitChangedFile] {
+        let staged = try changedFilesFromReferenceToIndex(ref)
+        let unstaged = try changedFilesFromIndexToWorkingTree()
+        let untracked = try untrackedFiles()
+
+        var layersByPath: [String: WorkingLayers] = [:]
+        for file in staged { layersByPath[file.path, default: WorkingLayers()].staged = file }
+        for file in unstaged { layersByPath[file.path, default: WorkingLayers()].unstaged = file }
+        for file in untracked { layersByPath[file.path, default: WorkingLayers()].untracked = file }
+
+        return layersByPath.keys.sorted().compactMap { path in
+            guard let layers = layersByPath[path] else { return nil }
+            return combinedWorkingFile(path: path, layers: layers, ref: ref, refLabel: refLabel)
+        }
+    }
+
+    private func combinedWorkingFile(
+        path: String,
+        layers: WorkingLayers,
+        ref: String,
+        refLabel: String
+    ) -> GitChangedFile? {
+        // Conflict normalization already attached loadable Ours/Theirs stage endpoints. Prefer it
+        // over ordinary layer composition and emit it only once even though both diffs may list it.
+        if let conflict = [layers.staged, layers.unstaged]
+            .compactMap({ $0 })
+            .first(where: { $0.status == .conflicted }) {
+            return conflict
+        }
+
+        let workLayer = layers.unstaged ?? layers.untracked
+        if let staged = layers.staged, let workLayer {
+            let indexPath = workLayer.oldPath ?? staged.path
+            let indexSide: GitSide? = staged.status == .deleted ? nil : .index
+            let workingSide: GitSide? = workLayer.status == .deleted ? nil : .workingCopy
+            return GitChangedFile(
+                path: path,
+                oldPath: workLayer.oldPath,
+                status: workLayer.status,
+                comparison: GitFileComparison(
+                    a: indexSide, aPath: indexPath, aLabel: "Index",
+                    b: workingSide, bPath: workLayer.path, bLabel: "Working Copy"))
+        }
+
+        if var staged = layers.staged {
+            staged.comparison = GitFileComparison(
+                a: staged.status == .added ? nil : .ref(ref),
+                aPath: staged.oldPath ?? staged.path,
+                aLabel: refLabel,
+                b: staged.status == .deleted ? nil : .index,
+                bPath: staged.path,
+                bLabel: "Index")
+            return staged
+        }
+
+        if var unstaged = layers.unstaged {
+            unstaged.comparison = GitFileComparison(
+                a: unstaged.status == .added ? nil : .index,
+                aPath: unstaged.oldPath ?? unstaged.path,
+                aLabel: "Index",
+                b: unstaged.status == .deleted ? nil : .workingCopy,
+                bPath: unstaged.path,
+                bLabel: "Working Copy")
+            return unstaged
+        }
+
+        if var untracked = layers.untracked {
+            untracked.comparison = GitFileComparison(
+                a: nil, aPath: untracked.path, aLabel: "Index",
+                b: .workingCopy, bPath: untracked.path, bLabel: "Working Copy")
+            return untracked
+        }
+        return nil
     }
 
     // MARK: - Refs
@@ -112,6 +217,13 @@ struct GitRepository {
         try runData(["show", "\(ref):\(path)"])
     }
 
+    /// Reads the stage-0 blob for a path directly from the index, independent of both HEAD and the
+    /// working tree. Unmerged paths intentionally fail because they have multiple index stages and
+    /// therefore no single index snapshot to display.
+    func indexData(path: String) throws -> Data {
+        try runData(["show", ":\(path)"])
+    }
+
     // MARK: - Parsing
 
     /// Parses NUL-delimited `git diff --name-status -z` output. `-z` is essential: without it git
@@ -145,6 +257,7 @@ struct GitRepository {
     /// the reverse of `diff -z`). The previous tab/line parser produced phantom garbled entries from
     /// that trailing token and dropped rename origins.
     func parsePorcelain(_ out: String) -> [GitChangedFile] {
+        let unmergedCodes: Set<String> = ["DD", "AU", "UD", "UA", "DU", "AA", "UU"]
         var files: [GitChangedFile] = []
         let tokens = out.split(separator: "\u{0}", omittingEmptySubsequences: false).map(String.init)
         var i = 0
@@ -161,11 +274,90 @@ struct GitRepository {
                 oldPath = tokens[i]   // the rename/copy origin
                 i += 1
             }
-            let letter: Character = (x != " " && x != "?") ? x : (x == "?" ? "?" : y)
-            let status = GitFileStatus(letter: letter == " " ? "M" : letter)
+            let xy = String([x, y])
+            let status: GitFileStatus
+            if unmergedCodes.contains(xy) {
+                status = .conflicted
+            } else {
+                let letter: Character = (x != " " && x != "?") ? x : (x == "?" ? "?" : y)
+                status = GitFileStatus(letter: letter == " " ? "M" : letter)
+            }
             files.append(GitChangedFile(path: path, oldPath: oldPath, status: status))
         }
         return files
+    }
+
+    /// Resolves HEAD to this repository's empty-tree object when it has no commits yet. Asking Git
+    /// to hash empty tree input derives the correct object ID for both SHA-1 and SHA-256 repos.
+    /// Other references retain normal Git error behavior rather than becoming an empty tree.
+    private func diffBase(for ref: String) throws -> String {
+        guard ref == "HEAD" else { return ref }
+        guard (try? run(["rev-parse", "--verify", "--quiet", "HEAD^{tree}"])) != nil else {
+            let hash = try run(["hash-object", "-t", "tree", "--stdin"])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !hash.isEmpty else {
+                throw GitError.commandFailed("Git did not return an empty-tree object ID.")
+            }
+            return hash
+        }
+        return ref
+    }
+
+    /// Porcelain is authoritative for unmerged state, while `git diff <ref>` may report the same
+    /// path as merely modified and `git diff` can emit both U and M records. Replace all records for
+    /// a conflicted path with exactly one conflicted entry, and include index-only conflicts that a
+    /// net reference-to-worktree diff might otherwise omit.
+    private func applyingCurrentConflicts(to files: [GitChangedFile]) throws -> [GitChangedFile] {
+        let status = try run(["status", "--porcelain", "-uall", "-z"])
+        let parsedConflicts = parsePorcelain(status).filter { $0.status == .conflicted }
+        guard !parsedConflicts.isEmpty else { return files }
+        let stagesByPath = try unmergedStages()
+        let conflicts = parsedConflicts.map { file -> GitChangedFile in
+            var file = file
+            let stages = stagesByPath[file.path, default: []]
+            file.comparison = GitFileComparison(
+                a: stages.contains(2) ? .indexStage(2) : nil,
+                aPath: file.path,
+                aLabel: "Ours",
+                b: stages.contains(3) ? .indexStage(3) : nil,
+                bPath: file.path,
+                bLabel: "Theirs")
+            return file
+        }
+
+        let conflictsByPath = Dictionary(uniqueKeysWithValues: conflicts.map { ($0.path, $0) })
+        var emitted = Set<String>()
+        var result: [GitChangedFile] = []
+        result.reserveCapacity(files.count + conflicts.count)
+
+        for file in files {
+            guard let conflict = conflictsByPath[file.path] else {
+                result.append(file)
+                continue
+            }
+            if emitted.insert(file.path).inserted { result.append(conflict) }
+        }
+        for conflict in conflicts where emitted.insert(conflict.path).inserted {
+            result.append(conflict)
+        }
+        return result
+    }
+
+    /// Index stages present for each unresolved path. Stage 2 is ours and stage 3 is theirs; a
+    /// missing stage represents a deletion and is intentionally modeled as an empty comparison
+    /// source rather than making `git show :path` fail on the absent stage-0 entry.
+    private func unmergedStages() throws -> [String: Set<Int>] {
+        let out = try run(["ls-files", "--unmerged", "-z", "--"])
+        var result: [String: Set<Int>] = [:]
+        for record in out.split(separator: "\u{0}", omittingEmptySubsequences: true) {
+            guard let tab = record.firstIndex(of: "\t") else { continue }
+            let header = record[..<tab]
+            guard let stageText = header.split(separator: " ").last,
+                  let stage = Int(stageText) else { continue }
+            let path = String(record[record.index(after: tab)...])
+            result[path, default: []].insert(stage)
+        }
+        return result
     }
 
     // MARK: - Process

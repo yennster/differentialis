@@ -25,7 +25,13 @@ final class AppModel {
         case changeset(UUID)
     }
 
-    var route: Route = .welcome
+    var route: Route = .welcome {
+        didSet {
+            // Navigating elsewhere is itself a newer user intent. Cancel the authority of any
+            // repository probe that is still running so it cannot pull the app back afterward.
+            if route != oldValue { repositoryOpenRequest = UUID() }
+        }
+    }
     var comparisons: [Comparison] = []
     var changesets: [OpenChangeset] = []
 
@@ -40,6 +46,7 @@ final class AppModel {
     let updater = SparkleUpdater()
     var openRepoPath: String?
     private var didProcessLaunchArguments = false
+    private var repositoryOpenRequest = UUID()
 
     // MARK: - Opening from paths (command line or `open` Apple Event)
 
@@ -49,16 +56,35 @@ final class AppModel {
     func open(urls: [URL]) async {
         guard !urls.isEmpty else { return }
 
-        if urls.count == 1 {
+        switch urls.count {
+        case 1:
             // openRepositoryImpl re-checks isRepository and surfaces "'X' is not a git
             // repository." as an in-app error, so CLI users get feedback instead of a
             // silent no-op on a single non-repo path.
             openRepository(at: urls[0])
-        } else if urls.count >= 3 {
-            open(Comparison.merge(base: .file(urls[0]), left: .file(urls[1]), right: .file(urls[2])))
-        } else {
+        case 2:
+            let firstIsDirectory = isDirectory(urls[0])
+            let secondIsDirectory = isDirectory(urls[1])
+            guard firstIsDirectory == secondIsDirectory else {
+                errorMessage = "Choose either two files or two folders to compare."
+                return
+            }
             open(Comparison.make(a: .file(urls[0]), b: .file(urls[1])))
+        case 3:
+            guard urls.allSatisfy({ !isDirectory($0) }) else {
+                errorMessage = "A 3-way merge requires three files: base, left, and right."
+                return
+            }
+            open(Comparison.merge(base: .file(urls[0]), left: .file(urls[1]), right: .file(urls[2])))
+        default:
+            errorMessage = "Open one repository, two items to compare, or three files to merge."
         }
+    }
+
+    private func isDirectory(_ url: URL) -> Bool {
+        var isDirectory: ObjCBool = false
+        return FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
+            && isDirectory.boolValue
     }
 
     func openFromLaunchArguments() async {
@@ -111,19 +137,24 @@ final class AppModel {
     // Opening a repository runs several git commands (rev-parse, refs). They are hopped off the
     // main actor so the sidebar click never blocks the run loop. The route flips once they finish.
     func openRepository(at url: URL) {
-        Task { await openRepositoryImpl(at: url) }
+        let request = UUID()
+        repositoryOpenRequest = request
+        Task { await openRepositoryImpl(at: url, request: request) }
     }
 
-    private func openRepositoryImpl(at url: URL) async {
+    private func openRepositoryImpl(at url: URL, request: UUID) async {
         guard await offMain({ GitRepository.isRepository(url) }) else {
+            guard request == repositoryOpenRequest else { return }
             errorMessage = "“\(url.lastPathComponent)” is not a git repository."
             return
         }
+        guard request == repositoryOpenRequest else { return }
         let probe = GitRepository(url: url)
         let info = await offMain { () -> (name: String, refs: [GitRef], root: URL) in
             let root = (try? probe.root()) ?? url
             return (root.lastPathComponent, (try? probe.refs()) ?? [], root)
         }
+        guard request == repositoryOpenRequest else { return }
         // Store the repository keyed on its working-tree root, so `rootURL` (used by makeComparison
         // in view bodies) is just `url` and never has to run git on the main thread.
         repo = GitRepository(url: info.root)
@@ -142,6 +173,7 @@ final class AppModel {
         guard let repo else { return }
         Task {
             let refs = await offMain { (try? repo.refs()) ?? [] }
+            guard self.repo?.url == repo.url else { return }
             repoRefs = refs
         }
     }
@@ -155,6 +187,7 @@ final class AppModel {
                 do { return (try repo.customChangeset(a: a, b: b), nil) }
                 catch { return (nil, error.localizedDescription) }
             }
+            guard self.repo?.url == repo.url else { return }
             if let resolved = outcome.0 {
                 let title = name ?? "\(a.label) ↔ \(b.label)"
                 openChangeset(OpenChangeset(title: title, subtitle: repoName, repo: repo, resolved: resolved))
@@ -173,31 +206,40 @@ final class AppModel {
     }
 
     func openSaved(_ saved: SavedComparison) {
-        Task { await openSavedImpl(saved) }
+        let request = UUID()
+        repositoryOpenRequest = request
+        Task { await openSavedImpl(saved, request: request) }
     }
 
-    private func openSavedImpl(_ saved: SavedComparison) async {
+    private func openSavedImpl(_ saved: SavedComparison, request: UUID) async {
         let probe = GitRepository(url: saved.repoURL)
         guard await offMain({ GitRepository.isRepository(saved.repoURL) }) else {
+            guard request == repositoryOpenRequest else { return }
             errorMessage = "The repository for “\(saved.name)” could not be found."
             return
         }
+        guard request == repositoryOpenRequest else { return }
         let info = await offMain { () -> (name: String, refs: [GitRef], root: URL) in
             let root = (try? probe.root()) ?? saved.repoURL
             return (root.lastPathComponent, (try? probe.refs()) ?? [], root)
         }
+        guard request == repositoryOpenRequest else { return }
         // Keyed on the working-tree root so makeComparison's rootURL never runs git (see GitChangeset).
         let repository = GitRepository(url: info.root)
-        repo = repository
-        repoName = info.name
-        repoRefs = info.refs
-        openRepoPath = info.root.standardizedFileURL.path
-        projects.record(name: info.name, url: info.root)
         let outcome = await offMain { () -> (ResolvedChangeset?, String?) in
             do { return (try repository.customChangeset(a: saved.a, b: saved.b), nil) }
             catch { return (nil, error.localizedDescription) }
         }
+        guard request == repositoryOpenRequest else { return }
         if let resolved = outcome.0 {
+            // Commit repository state only after every fallible/async step has succeeded. A saved
+            // comparison that was cancelled by newer navigation must not leave its repository
+            // installed behind the currently visible route.
+            repo = repository
+            repoName = info.name
+            repoRefs = info.refs
+            openRepoPath = info.root.standardizedFileURL.path
+            projects.record(name: info.name, url: info.root)
             openChangeset(OpenChangeset(title: saved.name, subtitle: saved.repoName,
                                         repo: repository, resolved: resolved))
         } else {

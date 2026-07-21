@@ -9,12 +9,21 @@ struct FolderComparisonView: View {
     @State private var selection: FolderEntry.ID?
     @State private var changesOnly = true
     @State private var scanning = true
+    @State private var query = ""
+    @State private var statusFilter: FolderStatus?
+    @State private var scanIssues: [String] = []
+    @State private var scanRequest: UUID?
 
     private var aRoot: URL? { if case .file(let url) = a { return url }; return nil }
     private var bRoot: URL? { if case .file(let url) = b { return url }; return nil }
 
     private var filtered: [FolderEntry] {
-        changesOnly ? entries.filter { $0.status.isChange } : entries
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
+        return entries.filter { entry in
+            if changesOnly && !entry.status.isChange { return false }
+            if let statusFilter, entry.status != statusFilter { return false }
+            return needle.isEmpty || entry.relativePath.localizedLowercase.contains(needle)
+        }
     }
 
     private var stats: (added: Int, removed: Int, modified: Int) {
@@ -23,12 +32,19 @@ struct FolderComparisonView: View {
          entries.filter { $0.status == .modified }.count)
     }
 
+    private var modeEntryCount: Int {
+        changesOnly ? entries.filter { $0.status.isChange }.count : entries.count
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             PathBar(a: a, b: b, leftAccent: Theme.brandAlt, rightAccent: Theme.brandAlt) { toolbar }
             Divider().opacity(0.4)
             if scanning {
                 ProgressView("Scanning folders…").frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if entries.isEmpty, let issue = scanIssues.first {
+                ContentUnavailableView("Couldn’t scan folders", systemImage: "folder.badge.questionmark",
+                                       description: Text(issue))
             } else {
                 HSplitView {
                     fileList
@@ -40,17 +56,28 @@ struct FolderComparisonView: View {
         }
         .task(id: "\(aRoot?.path ?? a.displayName)|\(bRoot?.path ?? b.displayName)") { await scan() }
         .focusedSceneValue(\.diffCommands, DiffCommandActions(refresh: { Task { await scan() } }))
+        .onChange(of: query) { _, _ in keepSelectionVisible() }
+        .onChange(of: statusFilter) { _, _ in keepSelectionVisible() }
+        .onChange(of: changesOnly) { _, _ in keepSelectionVisible() }
     }
 
     @ViewBuilder
     private var toolbar: some View {
-        let s = stats
-        HStack(spacing: 6) {
-            if s.added > 0 { StatChip(text: "+\(s.added)", color: Theme.added) }
-            if s.removed > 0 { StatChip(text: "−\(s.removed)", color: Theme.removed) }
-            if s.modified > 0 { StatChip(text: "~\(s.modified)", color: Theme.modified) }
-            if s.added == 0 && s.removed == 0 && s.modified == 0 {
-                StatChip(text: "Identical", color: Theme.added)
+        if scanning {
+            StatChip(text: "Scanning…", color: .secondary, systemImage: "arrow.triangle.2.circlepath")
+        } else {
+            let s = stats
+            HStack(spacing: 6) {
+                if s.added > 0 { StatChip(text: "+\(s.added)", color: Theme.added) }
+                if s.removed > 0 { StatChip(text: "−\(s.removed)", color: Theme.removed) }
+                if s.modified > 0 { StatChip(text: "~\(s.modified)", color: Theme.modified) }
+                if s.added == 0 && s.removed == 0 && s.modified == 0 && scanIssues.isEmpty {
+                    StatChip(text: "Identical", color: Theme.added)
+                }
+                if !scanIssues.isEmpty {
+                    StatChip(text: "\(scanIssues.count) issue\(scanIssues.count == 1 ? "" : "s")",
+                             color: Theme.conflict, systemImage: "exclamationmark.triangle.fill")
+                }
             }
         }
         GlassSegmentedControl(
@@ -61,30 +88,75 @@ struct FolderComparisonView: View {
     }
 
     private var fileList: some View {
-        List(filtered, selection: $selection) { entry in
-            HStack(spacing: 8) {
-                Text(entry.status.letter)
-                    .font(.system(size: 10, weight: .bold, design: .monospaced))
-                    .foregroundStyle(.white)
-                    .frame(width: 18, height: 18)
-                    .background(color(entry.status), in: RoundedRectangle(cornerRadius: 4))
-                VStack(alignment: .leading, spacing: 1) {
-                    HStack(spacing: 5) {
-                        Image(systemName: entry.isImage ? "photo" : "doc.text")
-                            .font(.system(size: 10)).foregroundStyle(.secondary)
-                        Text(entry.name).font(.system(size: 12.5, weight: .medium)).lineLimit(1)
+        VStack(spacing: 0) {
+            if filtered.isEmpty {
+                ContentUnavailableView.search(text: query)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List(filtered, selection: $selection) { entry in
+                    HStack(spacing: 8) {
+                        Text(entry.error == nil ? entry.status.letter : "!")
+                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                            .foregroundStyle(Theme.badgeForeground)
+                            .frame(width: 18, height: 18)
+                            .background(entry.error == nil ? color(entry.status) : Theme.conflict,
+                                        in: RoundedRectangle(cornerRadius: 4))
+                        VStack(alignment: .leading, spacing: 1) {
+                            HStack(spacing: 5) {
+                                Image(systemName: entry.isImage ? "photo" : "doc.text")
+                                    .font(.system(size: 10)).foregroundStyle(.secondary)
+                                Text(entry.name).font(.system(size: 12.5, weight: .medium)).lineLimit(1)
+                            }
+                            if !entry.directory.isEmpty {
+                                Text(entry.directory).font(.system(size: 10)).foregroundStyle(.secondary)
+                                    .lineLimit(1).truncationMode(.middle)
+                            }
+                            if let error = entry.error {
+                                Text(error).font(.system(size: 9.5)).foregroundStyle(Theme.conflict).lineLimit(1)
+                            }
+                        }
+                        Spacer()
                     }
-                    if !entry.directory.isEmpty {
-                        Text(entry.directory).font(.system(size: 10)).foregroundStyle(.secondary)
-                            .lineLimit(1).truncationMode(.middle)
+                    .tag(entry.id)
+                    .contextMenu { fileMenu(for: entry) }
+                }
+                .listStyle(.inset)
+            }
+            folderFilterBar
+        }
+    }
+
+    private var folderFilterBar: some View {
+        HStack(spacing: 7) {
+            Image(systemName: "magnifyingglass").font(.system(size: 11.5)).foregroundStyle(.secondary)
+            TextField("Filter files", text: $query).textFieldStyle(.plain).font(.system(size: 12))
+            Menu {
+                Button("All Statuses") { statusFilter = nil }
+                Divider()
+                ForEach(FolderStatus.allCases, id: \.self) { status in
+                    Button {
+                        statusFilter = status
+                        if status == .identical { changesOnly = false }
+                    } label: {
+                        Label(status.label, systemImage: statusFilter == status ? "checkmark" : "circle.fill")
                     }
                 }
-                Spacer()
+            } label: {
+                Image(systemName: "line.3.horizontal.decrease.circle")
+                    .foregroundStyle(statusFilter == nil ? Color.gray : color(statusFilter!))
             }
-            .tag(entry.id)
-            .contextMenu { fileMenu(for: entry) }
+            .menuStyle(.borderlessButton).fixedSize().help("Filter by status")
+            if !query.isEmpty || statusFilter != nil {
+                Button {
+                    query = ""; statusFilter = nil
+                } label: { Image(systemName: "xmark.circle.fill") }
+                    .buttonStyle(.borderless).foregroundStyle(.secondary).help("Clear filters")
+            }
+            Text((query.isEmpty && statusFilter == nil) ? "\(modeEntryCount)" : "\(filtered.count)/\(modeEntryCount)")
+                .font(.system(size: 10.5, weight: .medium, design: .monospaced)).foregroundStyle(.secondary)
         }
-        .listStyle(.inset)
+        .padding(.horizontal, 10).padding(.vertical, 7)
+        .background(.ultraThinMaterial)
     }
 
     @ViewBuilder
@@ -143,15 +215,32 @@ struct FolderComparisonView: View {
     }
 
     private func scan() async {
+        let request = UUID()
+        scanRequest = request
         scanning = true
         entries = []
-        selection = nil
-        guard let aRoot, let bRoot else { scanning = false; return }
-        let result = await Task.detached { FolderScanner.scan(a: aRoot, b: bRoot) }.value
-        // A newer comparison may have superseded this scan while it ran.
-        guard !Task.isCancelled else { return }
-        entries = result
-        selection = result.first(where: { $0.status.isChange })?.id
+        scanIssues = []
+        guard let aRoot, let bRoot else {
+            guard request == scanRequest else { return }
+            selection = nil
+            scanning = false
+            return
+        }
+        let result = await Task.detached { FolderScanner.scanDetailed(a: aRoot, b: bRoot) }.value
+        // A newer refresh of the same folders is just as authoritative as navigating to a new pair.
+        // The task key alone cannot distinguish those overlapping, same-key requests.
+        guard !Task.isCancelled, request == scanRequest else { return }
+        entries = result.entries
+        scanIssues = result.issues
+        if selection == nil || !result.entries.contains(where: { $0.id == selection }) {
+            selection = result.entries.first(where: { $0.status.isChange })?.id
+        }
+        keepSelectionVisible()
         scanning = false
+    }
+
+    private func keepSelectionVisible() {
+        guard !filtered.contains(where: { $0.id == selection }) else { return }
+        selection = filtered.first?.id
     }
 }

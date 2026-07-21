@@ -152,6 +152,39 @@ struct LineDiffTests {
         #expect(modified != nil)
         #expect(!(modified?.rightHighlights.isEmpty ?? true))
     }
+
+    @Test("dissimilar adjacent lines stay a deletion and insertion")
+    func dissimilarLines() {
+        let doc = LineDiff.document("apple", "zzzzz")
+        #expect(doc.allRows.map(\.kind) == [.deleted, .inserted])
+        #expect(doc.stats.deletions == 1)
+        #expect(doc.stats.insertions == 1)
+        #expect(doc.stats.modifications == 0)
+    }
+
+    @Test("whitespace policies ignore only the requested differences")
+    func whitespacePolicies() {
+        let edgeOnly = LineDiff.document("  value  ", "value", whitespace: .trimEdges)
+        #expect(edgeOnly.isIdentical)
+        #expect(edgeOnly.allRows.first?.leftText == "  value  ")
+        #expect(edgeOnly.allRows.first?.rightText == "value")
+
+        let internalSpacing = LineDiff.document("let value = 1", "letvalue=1",
+                                                whitespace: .trimEdges)
+        #expect(!internalSpacing.isIdentical)
+        #expect(LineDiff.document("let value = 1", "letvalue=1",
+                                  whitespace: .ignoreAll).isIdentical)
+        #expect(!LineDiff.document("a b", "ab", whitespace: .significant).isIdentical)
+    }
+
+    @Test("format diagnostics catch mixed line endings and final newlines")
+    func textFormatDiagnostics() {
+        let mixed = textFormatDifferences("a\nb\r\n", "a\r\nb\n")
+        #expect(mixed.contains("Line ending sequences differ between A and B."))
+
+        let finalOnly = textFormatDifferences("value\n", "value")
+        #expect(finalOnly == ["A has a final newline; B does not."])
+    }
 }
 
 @Suite("Git parsing")
@@ -204,6 +237,21 @@ struct ThreeWayMergeTests {
         #expect(merged.contains("LINE3"))
     }
 
+    @Test("adjacent independent edits merge without a stable separator")
+    func adjacentIndependentEdits() {
+        let hunks = ThreeWayMerge.merge(base: "a\nb", left: "A\nb", right: "a\nB")
+        #expect(ThreeWayMerge.conflictCount(hunks) == 0)
+        #expect(hunks.map(\.resolution) == [.takeLeft, .takeRight])
+        #expect(ThreeWayMerge.mergedText(hunks) == "A\nB")
+    }
+
+    @Test("a shared edit and an adjacent one-sided edit merge cleanly")
+    func sharedAndAdjacentEdits() {
+        let hunks = ThreeWayMerge.merge(base: "a\nb", left: "A\nB", right: "A\nb")
+        #expect(ThreeWayMerge.conflictCount(hunks) == 0)
+        #expect(ThreeWayMerge.mergedText(hunks) == "A\nB")
+    }
+
     @Test("overlapping edits produce a conflict")
     func conflict() {
         let base = "value = 1"
@@ -243,5 +291,58 @@ struct ThreeWayMergeTests {
         #expect(output.hasSuffix("\r\n"))
         #expect(output.contains("A\r\n"))
         #expect(!output.contains("\n\n"))   // no bare-LF lines leaked in
+    }
+
+    @Test("a file containing exactly one newline round-trips")
+    func singleNewlinePreserved() {
+        let hunks = ThreeWayMerge.merge(base: "\n", left: "\n", right: "\n")
+        let style = ThreeWayMerge.lineStyle(of: "\n")
+        #expect(ThreeWayMerge.mergedText(hunks, lineEnding: style.ending,
+                                         finalNewline: style.finalNewline) == "\n")
+        #expect(ThreeWayMerge.mergedText([], finalNewline: true) == "")
+    }
+
+    @Test("line style chooses the most frequent terminator")
+    func dominantLineEnding() {
+        let lfDominant = ThreeWayMerge.lineStyle(of: "a\nb\nc\r\n")
+        #expect(lfDominant.ending == "\n")
+        #expect(lfDominant.finalNewline)
+
+        let crDominant = ThreeWayMerge.lineStyle(of: "a\rb\rc\n")
+        #expect(crDominant.ending == "\r")
+        #expect(crDominant.finalNewline)
+    }
+
+    @Test("one-sided line-ending and final-newline edits are preserved")
+    func oneSidedLineStyleEdits() {
+        let crlf = ThreeWayMerge.lineStyleDecision(base: "", left: "added\r\n", right: "")
+        #expect(crlf.selected.ending == "\r\n")
+        #expect(crlf.selected.finalNewline)
+        #expect(!crlf.hasConflict)
+        let added = ThreeWayMerge.merge(base: "", left: "added\r\n", right: "")
+        #expect(ThreeWayMerge.mergedText(added, lineEnding: crlf.selected.ending,
+                                         finalNewline: crlf.selected.finalNewline) == "added\r\n")
+
+        let finalNewline = ThreeWayMerge.lineStyleDecision(base: "x", left: "x\n", right: "x")
+        #expect(finalNewline.selected.finalNewline)
+        #expect(!finalNewline.hasConflict)
+        let unchangedContent = ThreeWayMerge.merge(base: "x", left: "x\n", right: "x")
+        #expect(ThreeWayMerge.mergedText(unchangedContent,
+                                         lineEnding: finalNewline.selected.ending,
+                                         finalNewline: finalNewline.selected.finalNewline) == "x\n")
+    }
+
+    @Test("different two-sided line styles require resolution")
+    func conflictingLineStyles() {
+        let decision = ThreeWayMerge.lineStyleDecision(base: "x", left: "x\r\n", right: "x\r")
+        #expect(decision.hasConflict)
+        #expect(decision.selected == decision.left)
+    }
+
+    @Test("partial conflict markers are still detected before saving")
+    func partialConflictMarkers() {
+        #expect(containsConflictMarkerFragment("<<<<<<< left\nvalue"))
+        #expect(containsConflictMarkerFragment("value\n=======\nother"))
+        #expect(!containsConflictMarkerFragment("ordinary text"))
     }
 }

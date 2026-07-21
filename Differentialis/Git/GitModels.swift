@@ -47,10 +47,24 @@ struct GitChangedFile: Identifiable, Hashable {
     var path: String
     var oldPath: String?
     var status: GitFileStatus
+    /// Optional snapshot pair for working-tree rows whose meaningful endpoints differ from the
+    /// changeset-wide defaults. This keeps a single coherent row per path while still exposing the
+    /// index layer, and lets unresolved conflicts point at index stages 2/3 without running git
+    /// from a SwiftUI view body. A nil side represents an absent file at that snapshot.
+    var comparison: GitFileComparison? = nil
 
     // Content-derived identity so the same file keeps its ID across reloads/refreshes — otherwise a
     // fresh UUID per parse reset the list selection and scroll position on every refresh.
     var id: String { "\(status.letter)\u{1f}\(oldPath ?? "")\u{1f}\(path)" }
+}
+
+struct GitFileComparison: Hashable {
+    var a: GitSide?
+    var aPath: String
+    var aLabel: String
+    var b: GitSide?
+    var bPath: String
+    var bLabel: String
 }
 
 enum GitRefKind: Hashable { case head, branch, remoteBranch, tag }
@@ -74,6 +88,8 @@ struct GitRef: Identifiable, Hashable {
 /// One side of a git comparison.
 enum GitSide: Hashable {
     case ref(String)        // SHA or ref name
+    case index              // the staged snapshot (stage-0 entries)
+    case indexStage(Int)    // an unmerged index stage (2 = ours, 3 = theirs)
     case workingCopy
 }
 
