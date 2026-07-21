@@ -245,8 +245,12 @@ struct CustomComparisonPopover: View {
     private var defaultName: String { "\(makeA().label) ↔ \(makeB().label)" }
 
     private func compare() {
-        model.runCustomComparison(a: makeA(), b: makeB())
+        let a = makeA()
+        let b = makeB()
+        // Commit dismissal first so the AppKit popover is gone before a fast git operation can
+        // replace RepositoryView (and therefore dismantle the popover's positioning view).
         onClose()
+        model.runCustomComparison(a: a, b: b)
     }
 
     private func swap() {

@@ -29,7 +29,7 @@ struct SemitransientPopoverPresenter<Content: View>: NSViewRepresentable {
     }
 
     static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
-        coordinator.close()
+        coordinator.dismantle()
     }
 
     @MainActor
@@ -56,13 +56,30 @@ struct SemitransientPopoverPresenter<Content: View>: NSViewRepresentable {
                 guard !popover.isShown, view.window != nil else { return }
                 popover.show(relativeTo: view.bounds, of: view, preferredEdge: preferredEdge)
             } else if popover.isShown {
-                popover.close()
+                closeWithoutAnimation()
             }
         }
 
-        func close() {
-            if popover.isShown { popover.close() }
+        /// SwiftUI can dismantle the positioning view as soon as its binding becomes false. An
+        /// animated `close()` outlives that view and leaves AppKit driving a hosting controller
+        /// whose representable/coordinator have already been removed. Finish programmatic closes
+        /// synchronously so the popover never straddles that teardown boundary.
+        private func closeWithoutAnimation() {
+            guard popover.isShown else { return }
+            let previouslyAnimated = popover.animates
+            popover.animates = false
+            popover.close()
+            popover.animates = previouslyAnimated
+        }
+
+        func dismantle() {
+            // Invalidate callbacks before closing: `close()` may deliver `popoverDidClose`
+            // synchronously when animation is disabled, and a dismantled representable must not
+            // write through its stale SwiftUI binding.
             presentation = nil
+            popover.delegate = nil
+            closeWithoutAnimation()
+            hostingController.rootView = AnyView(EmptyView())
         }
 
         func popoverDidClose(_ notification: Notification) {

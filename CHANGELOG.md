@@ -10,6 +10,12 @@ When cutting a release, add a section here and use it as the release notes:
 
 ## [Unreleased]
 
+## [0.1.9] — 2026-07-22
+
+### Fixed
+- Opening a Custom Comparison no longer risks leaving the app unresponsive when the popover and
+  repository view are dismissed in the same update.
+
 ## [0.1.8] — 2026-07-22
 
 ### Added
@@ -205,7 +211,8 @@ When cutting a release, add a section here and use it as the release notes:
 - Native SwiftUI + Liquid Glass, **zero third-party dependencies**.
 - GitHub Actions release workflow that builds and attaches a drag-to-Applications `.dmg`.
 
-[Unreleased]: https://github.com/yennster/differentialis/compare/v0.1.8...HEAD
+[Unreleased]: https://github.com/yennster/differentialis/compare/v0.1.9...HEAD
+[0.1.9]: https://github.com/yennster/differentialis/releases/tag/v0.1.9
 [0.1.8]: https://github.com/yennster/differentialis/releases/tag/v0.1.8
 [0.1.7]: https://github.com/yennster/differentialis/releases/tag/v0.1.7
 [0.1.6]: https://github.com/yennster/differentialis/releases/tag/v0.1.6
