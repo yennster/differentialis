@@ -345,9 +345,11 @@ struct RepositoryView: View {
                 Image(systemName: "arrow.triangle.branch")
             }
             .help("Custom Comparison")
-            .popover(isPresented: $showCustom, arrowEdge: .bottom) {
-                CustomComparisonPopover(repo: repo, commits: commits) { showCustom = false }
-                    .environment(model)
+            .background {
+                SemitransientPopoverPresenter(isPresented: $showCustom) {
+                    CustomComparisonPopover(repo: repo, commits: commits) { showCustom = false }
+                        .environment(model)
+                }
             }
         }
     }

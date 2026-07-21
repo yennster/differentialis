@@ -10,6 +10,8 @@ When cutting a release, add a section here and use it as the release notes:
 
 ## [Unreleased]
 
+## [0.1.8] — 2026-07-22
+
 ### Added
 - **Whitespace-aware text comparison.** Choose exact matching, ignore leading/trailing whitespace,
   or ignore all whitespace; the preference carries across comparisons. Files that differ only by
@@ -22,6 +24,9 @@ When cutting a release, add a section here and use it as the release notes:
   in Split mode, and a keyboard- and VoiceOver-adjustable split divider.
 
 ### Fixed
+- The Custom Comparison popover stays open when switching to another app, while still dismissing
+  after an in-app outside click. Pasted commit hashes are remembered per repository across popover
+  openings and app launches.
 - **Git staged and unstaged comparisons now use the correct snapshots.** Staged changes compare a
   reference with the index, unstaged changes compare the index with the working tree, and All
   Changes keeps a coherent layer-aware row even when staged and working edits cancel each other.
@@ -200,7 +205,8 @@ When cutting a release, add a section here and use it as the release notes:
 - Native SwiftUI + Liquid Glass, **zero third-party dependencies**.
 - GitHub Actions release workflow that builds and attaches a drag-to-Applications `.dmg`.
 
-[Unreleased]: https://github.com/yennster/differentialis/compare/v0.1.7...HEAD
+[Unreleased]: https://github.com/yennster/differentialis/compare/v0.1.8...HEAD
+[0.1.8]: https://github.com/yennster/differentialis/releases/tag/v0.1.8
 [0.1.7]: https://github.com/yennster/differentialis/releases/tag/v0.1.7
 [0.1.6]: https://github.com/yennster/differentialis/releases/tag/v0.1.6
 [0.1.5]: https://github.com/yennster/differentialis/releases/tag/v0.1.5

@@ -13,12 +13,21 @@ struct CustomComparisonPopover: View {
     @State private var aKind: ASideKind = .reference
     @State private var bKind: BSideKind = .workingCopy
     @State private var aRef = "HEAD"
-    @State private var aCommit = ""
+    @AppStorage private var aCommit: String
     @State private var bRef = "HEAD"
-    @State private var bCommit = ""
+    @AppStorage private var bCommit: String
     @State private var bScope: WorkingScope = .all
     @State private var saving = false
     @State private var saveName = ""
+
+    init(repo: GitRepository, commits: [GitCommit], onClose: @escaping () -> Void) {
+        self.repo = repo
+        self.commits = commits
+        self.onClose = onClose
+        let draftKey = "customComparison.\(repo.url.standardizedFileURL.path)"
+        _aCommit = AppStorage(wrappedValue: "", "\(draftKey).aCommit")
+        _bCommit = AppStorage(wrappedValue: "", "\(draftKey).bCommit")
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -35,8 +44,10 @@ struct CustomComparisonPopover: View {
         .padding(.vertical, 16)
         .frame(width: 580)
         .onAppear {
-            aCommit = commits.first?.id ?? "HEAD"
-            bCommit = commits.first?.id ?? "HEAD"
+            // Preserve anything the user pasted here across presentations and app launches. Only
+            // seed a side from history when that repository has never had a saved draft value.
+            if trimmed(aCommit).isEmpty { aCommit = commits.first?.id ?? "HEAD" }
+            if trimmed(bCommit).isEmpty { bCommit = commits.first?.id ?? "HEAD" }
         }
         .task {
             bRef = await offMain { repo.currentBranch() ?? "HEAD" }
