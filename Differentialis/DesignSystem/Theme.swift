@@ -1,32 +1,64 @@
 import SwiftUI
 
 /// Centralized colors, fonts, and spacing for Differentialis.
+///
+/// Every accessor reads through `ThemeManager.shared`, so views that use them
+/// re-render automatically when the appearance, color theme, or font size changes.
+@MainActor
 enum Theme {
-    // Diff semantic colors (tuned to read well over dark glass).
-    static let added = Color(red: 0.30, green: 0.82, blue: 0.50)
-    static let removed = Color(red: 0.96, green: 0.40, blue: 0.50)
-    static let modified = Color(red: 0.42, green: 0.66, blue: 1.00)
-    static let conflict = Color(red: 1.00, green: 0.70, blue: 0.28)
+    private static var palette: ColorTheme { ThemeManager.shared.activeTheme }
 
-    static let addedFill = added.opacity(0.16)
-    static let removedFill = removed.opacity(0.16)
-    static let modifiedFill = modified.opacity(0.16)
-    static let highlightFill = Color.yellow.opacity(0.001) // replaced per-side below
+    // Diff semantic colors (tuned per theme to read well over the canvas).
+    static var added: Color { palette.added }
+    static var removed: Color { palette.removed }
+    static var modified: Color { palette.modified }
+    static var conflict: Color { palette.conflict }
 
-    static let addedHighlight = added.opacity(0.38)
-    static let removedHighlight = removed.opacity(0.38)
+    static var addedFill: Color { added.opacity(palette.fillOpacity) }
+    static var removedFill: Color { removed.opacity(palette.fillOpacity) }
+    static var modifiedFill: Color { modified.opacity(palette.fillOpacity) }
 
-    static let brand = Color(red: 0.62, green: 0.45, blue: 0.96)
-    static let brandAlt = Color(red: 0.36, green: 0.78, blue: 0.98)
-    /// Semantic colors are intentionally bright; near-black text keeps their compact badges legible.
-    static let badgeForeground = Color(red: 0.035, green: 0.035, blue: 0.055)
+    static var addedHighlight: Color { added.opacity(palette.highlightOpacity) }
+    static var removedHighlight: Color { removed.opacity(palette.highlightOpacity) }
 
-    static let codeFont = Font.system(size: 12, weight: .regular, design: .monospaced)
-    static let codeFontSize: CGFloat = 12
-    static let gutterFont = Font.system(size: 10.5, weight: .regular, design: .monospaced)
+    // Recessed "well" backgrounds (tracks, panes, chips). A dark canvas can absorb a heavy
+    // darkening; over a light canvas the same wash turns the whole surface gray and kills
+    // text contrast, so wells fade to a hint of shade there.
+    static var well: Color { .black.opacity(palette.isDark ? 0.18 : 0.02) }
+    static var wellDeep: Color { .black.opacity(palette.isDark ? 0.22 : 0.035) }
+    static var wellStrong: Color { .black.opacity(palette.isDark ? 0.40 : 0.10) }
 
-    static let canvasTop = Color(red: 0.06, green: 0.07, blue: 0.11)
-    static let canvasBottom = Color(red: 0.02, green: 0.02, blue: 0.04)
+    static var brand: Color { palette.brand }
+    static var brandAlt: Color { palette.brandAlt }
+    /// Semantic colors are intentionally saturated; the per-theme badge foreground
+    /// keeps their compact badges legible.
+    static var badgeForeground: Color { palette.badgeForeground }
+
+    static var codeFontSize: CGFloat { ThemeManager.shared.codeFontSize }
+    static var codeFont: Font { monospacedFont(size: codeFontSize) }
+    static var gutterFont: Font { monospacedFont(size: max(8, codeFontSize - 1.5)) }
+
+    /// The user's chosen code font family at the given size, or the system mono font.
+    private static func monospacedFont(size: CGFloat) -> Font {
+        if let name = ThemeManager.shared.codeFontName {
+            return .custom(name, fixedSize: size)
+        }
+        return .system(size: size, weight: .regular, design: .monospaced)
+    }
+    /// Placeholder height for the absent side of a one-sided diff row — tracks the
+    /// code font so both halves keep matching heights at any size (17pt at 12pt).
+    static var codeEmptyLineHeight: CGFloat { (17 * codeFontSize / 12).rounded() }
+
+    static var canvasTop: Color { palette.canvasTop }
+    /// The theme's bottom color scaled by the user's per-appearance gradient setting:
+    /// 0 = flat canvas, 1 = the authored shading, up to 2 = double (extrapolated).
+    static var canvasBottom: Color {
+        canvasBottom(for: palette, strength: ThemeManager.shared.activeCanvasGradient)
+    }
+
+    static func canvasBottom(for theme: ColorTheme, strength: Double) -> Color {
+        RGB(theme.canvasTop).interpolated(to: RGB(theme.canvasBottom), amount: strength).color
+    }
 
     static var canvas: LinearGradient {
         LinearGradient(colors: [canvasTop, canvasBottom], startPoint: .top, endPoint: .bottom)
@@ -52,7 +84,7 @@ enum Theme {
 }
 
 extension MergeResolution {
-    var tint: Color {
+    @MainActor var tint: Color {
         switch self {
         case .unchanged: return .secondary
         case .takeLeft: return Theme.removed
@@ -74,7 +106,7 @@ extension MergeResolution {
 }
 
 extension GitFileStatus {
-    var tint: Color {
+    @MainActor var tint: Color {
         switch self {
         case .added, .untracked: return Theme.added
         case .deleted: return Theme.removed

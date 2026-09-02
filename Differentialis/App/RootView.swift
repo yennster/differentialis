@@ -38,6 +38,7 @@ struct RootView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task {
             await model.openFromLaunchArguments()
+            await model.restoreOpenChangesets()
         }
         .alert("Something went wrong",
                isPresented: Binding(get: { model.errorMessage != nil },
@@ -102,6 +103,14 @@ struct SidebarView: View {
             Section {
                 ForEach(model.projects.projects) { project in
                     ProjectRow(project: project)
+                    ForEach(openChangesets(for: project)) { changeset in
+                        changesetRow(changeset)
+                            .padding(.leading, 14)
+                    }
+                    ForEach(savedComparisons(for: project)) { saved in
+                        SavedComparisonRow(saved: saved)
+                            .padding(.leading, 14)
+                    }
                 }
                 Button {
                     model.chooseFiles(mode: .repository)
@@ -115,7 +124,7 @@ struct SidebarView: View {
                 Text("Projects")
             }
 
-            if !model.comparisons.isEmpty || !model.changesets.isEmpty {
+            if !model.comparisons.isEmpty || !orphanChangesets.isEmpty {
                 Section("Open") {
                     ForEach(model.comparisons) { comparison in
                         Label(comparison.title, systemImage: comparison.symbol)
@@ -125,23 +134,15 @@ struct SidebarView: View {
                                 Button("Close", role: .destructive) { model.closeComparison(comparison.id) }
                             }
                     }
-                    ForEach(model.changesets) { changeset in
-                        Label {
-                            Text(changeset.title).lineLimit(1)
-                        } icon: {
-                            Image(systemName: "square.stack.3d.up").foregroundStyle(Theme.brandAlt)
-                        }
-                        .tag(AppModel.Route.changeset(changeset.id))
-                        .contextMenu {
-                            Button("Close", role: .destructive) { model.closeChangeset(changeset.id) }
-                        }
+                    ForEach(orphanChangesets) { changeset in
+                        changesetRow(changeset)
                     }
                 }
             }
 
-            if !model.store.saved.isEmpty {
+            if !orphanedSaved.isEmpty {
                 Section("Saved Comparisons") {
-                    ForEach(model.store.saved) { saved in
+                    ForEach(orphanedSaved) { saved in
                         SavedComparisonRow(saved: saved)
                     }
                 }
@@ -151,6 +152,41 @@ struct SidebarView: View {
         .scrollContentBackground(.hidden)
         .background(Theme.canvasTop)
         .safeAreaInset(edge: .top) { sidebarHeader }
+    }
+
+    private func changesetRow(_ changeset: OpenChangeset) -> some View {
+        Label {
+            Text(changeset.title).lineLimit(1)
+        } icon: {
+            Image(systemName: "square.stack.3d.up").foregroundStyle(Theme.brandAlt)
+        }
+        .tag(AppModel.Route.changeset(changeset.id))
+        .contextMenu {
+            Button("Close", role: .destructive) { model.closeChangeset(changeset.id) }
+        }
+    }
+
+    /// Open changesets nested under the project they belong to.
+    private func openChangesets(for project: RecentProject) -> [OpenChangeset] {
+        model.changesets.filter { $0.repoPath == project.path }
+    }
+
+    /// Open changesets whose repository isn't in the Projects list; they stay in "Open".
+    private var orphanChangesets: [OpenChangeset] {
+        let projectPaths = Set(model.projects.projects.map(\.path))
+        return model.changesets.filter { !projectPaths.contains($0.repoPath) }
+    }
+
+    /// Saved comparisons that belong to a project in the Projects list, shown nested
+    /// under that project's row.
+    private func savedComparisons(for project: RecentProject) -> [SavedComparison] {
+        model.store.saved.filter { $0.repoPath == project.path }
+    }
+
+    /// Saved comparisons whose repository is no longer in the Projects list.
+    private var orphanedSaved: [SavedComparison] {
+        let projectPaths = Set(model.projects.projects.map(\.path))
+        return model.store.saved.filter { !projectPaths.contains($0.repoPath) }
     }
 
     private var sidebarHeader: some View {

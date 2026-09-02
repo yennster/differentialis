@@ -82,6 +82,7 @@ struct TextComparisonView: View {
             PathBar(a: a, b: b) { toolbar }
             Divider().opacity(0.4)
             content
+                .codeFontZoomGesture()
         }
         .task(id: taskKey) { await load() }
         .focusedSceneValue(\.diffCommands, DiffCommandActions(
@@ -203,7 +204,7 @@ struct TextComparisonView: View {
                 withAnimation(.easeInOut(duration: 0.25)) { proxy.scrollTo(id, anchor: .center) }
             }
         }
-        .background(.black.opacity(0.18))
+        .background(Theme.well)
     }
 
     @ViewBuilder

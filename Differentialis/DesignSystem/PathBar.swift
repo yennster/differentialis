@@ -1,57 +1,79 @@
 import SwiftUI
 
-private struct AdaptivePathBarLayout: Layout {
-    var minimumSourceWidth: CGFloat = 640
+/// Lays out [A chip] [arrow + B chip] [controls] so the A side fills the left half of the
+/// bar and the B group starts exactly at the midpoint — lining the headings up with the
+/// two columns of a split comparison below. Controls sit at the trailing edge of B's half;
+/// when they would crowd the B heading, they drop to a second trailing row instead.
+private struct PathBarLayout: Layout {
+    var minimumSideWidth: CGFloat = 160
     var horizontalSpacing: CGFloat = 16
     var rowSpacing: CGFloat = 10
+    /// Breathing room between the A-side arrow and the midpoint where B begins.
+    var midGap: CGFloat = 10
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews,
                      cache: inout ()) -> CGSize {
-        guard subviews.count == 2 else { return .zero }
-        let sourceNatural = subviews[0].sizeThatFits(.unspecified)
-        let controlSize = subviews[1].sizeThatFits(.unspecified)
-        let naturalWidth = sourceNatural.width + (hasControls(controlSize) ? horizontalSpacing + controlSize.width : 0)
-        let width = proposal.width.flatMap { $0.isFinite ? $0 : nil } ?? naturalWidth
+        guard subviews.count == 3 else { return .zero }
+        let controlSize = subviews[2].sizeThatFits(.unspecified)
 
-        if shouldStack(width: width, controls: controlSize) {
-            let sourceSize = subviews[0].sizeThatFits(.init(width: width, height: nil))
-            return CGSize(width: width, height: sourceSize.height + rowSpacing + controlSize.height)
+        guard let width = proposal.width.flatMap({ $0.isFinite ? $0 : nil }) else {
+            let leftNatural = subviews[0].sizeThatFits(.unspecified)
+            let rightNatural = subviews[1].sizeThatFits(.unspecified)
+            let naturalWidth = leftNatural.width + midGap + rightNatural.width
+                + (hasControls(controlSize) ? horizontalSpacing + controlSize.width : 0)
+            return CGSize(width: naturalWidth,
+                          height: max(leftNatural.height, rightNatural.height, controlSize.height))
         }
 
-        let sourceWidth = max(0, width - (hasControls(controlSize) ? horizontalSpacing + controlSize.width : 0))
-        let sourceSize = subviews[0].sizeThatFits(.init(width: sourceWidth, height: nil))
-        return CGSize(width: width, height: max(sourceSize.height, controlSize.height))
+        let halfWidth = width / 2
+        if shouldStack(width: width, controls: controlSize) {
+            let rowHeight = sideRowHeight(halfWidth: halfWidth, rightWidth: halfWidth, subviews: subviews)
+            return CGSize(width: width, height: rowHeight + rowSpacing + controlSize.height)
+        }
+        let rightWidth = rightSideWidth(halfWidth: halfWidth, controls: controlSize)
+        let rowHeight = sideRowHeight(halfWidth: halfWidth, rightWidth: rightWidth, subviews: subviews)
+        return CGSize(width: width, height: max(rowHeight, controlSize.height))
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews,
                        cache: inout ()) {
-        guard subviews.count == 2 else { return }
-        let controlSize = subviews[1].sizeThatFits(.unspecified)
+        guard subviews.count == 3 else { return }
+        let controlSize = subviews[2].sizeThatFits(.unspecified)
+        let halfWidth = bounds.width / 2
 
         if shouldStack(width: bounds.width, controls: controlSize) {
-            let sourceProposal = ProposedViewSize(width: bounds.width, height: nil)
-            let sourceSize = subviews[0].sizeThatFits(sourceProposal)
-            subviews[0].place(at: bounds.origin, anchor: .topLeading, proposal: sourceProposal)
-            subviews[1].place(
-                at: CGPoint(x: bounds.maxX, y: bounds.minY + sourceSize.height + rowSpacing),
-                anchor: .topTrailing,
-                proposal: .unspecified)
+            let rowHeight = sideRowHeight(halfWidth: halfWidth, rightWidth: halfWidth, subviews: subviews)
+            let rowMidY = bounds.minY + rowHeight / 2
+            subviews[0].place(at: CGPoint(x: bounds.minX, y: rowMidY), anchor: .leading,
+                              proposal: .init(width: halfWidth - midGap, height: nil))
+            subviews[1].place(at: CGPoint(x: bounds.minX + halfWidth, y: rowMidY), anchor: .leading,
+                              proposal: .init(width: halfWidth, height: nil))
+            subviews[2].place(at: CGPoint(x: bounds.maxX, y: bounds.minY + rowHeight + rowSpacing),
+                              anchor: .topTrailing, proposal: .unspecified)
             return
         }
 
-        let sourceWidth = max(0, bounds.width - (hasControls(controlSize) ? horizontalSpacing + controlSize.width : 0))
-        subviews[0].place(
-            at: CGPoint(x: bounds.minX, y: bounds.midY),
-            anchor: .leading,
-            proposal: .init(width: sourceWidth, height: nil))
-        subviews[1].place(
-            at: CGPoint(x: bounds.maxX, y: bounds.midY),
-            anchor: .trailing,
-            proposal: .unspecified)
+        let rightWidth = rightSideWidth(halfWidth: halfWidth, controls: controlSize)
+        subviews[0].place(at: CGPoint(x: bounds.minX, y: bounds.midY), anchor: .leading,
+                          proposal: .init(width: halfWidth - midGap, height: nil))
+        subviews[1].place(at: CGPoint(x: bounds.minX + halfWidth, y: bounds.midY), anchor: .leading,
+                          proposal: .init(width: rightWidth, height: nil))
+        subviews[2].place(at: CGPoint(x: bounds.maxX, y: bounds.midY), anchor: .trailing,
+                          proposal: .unspecified)
+    }
+
+    private func rightSideWidth(halfWidth: CGFloat, controls: CGSize) -> CGFloat {
+        max(0, halfWidth - (hasControls(controls) ? horizontalSpacing + controls.width : 0))
+    }
+
+    private func sideRowHeight(halfWidth: CGFloat, rightWidth: CGFloat, subviews: Subviews) -> CGFloat {
+        let left = subviews[0].sizeThatFits(.init(width: halfWidth - midGap, height: nil))
+        let right = subviews[1].sizeThatFits(.init(width: rightWidth, height: nil))
+        return max(left.height, right.height)
     }
 
     private func shouldStack(width: CGFloat, controls: CGSize) -> Bool {
-        hasControls(controls) && width < minimumSourceWidth + horizontalSpacing + controls.width
+        hasControls(controls) && rightSideWidth(halfWidth: width / 2, controls: controls) < minimumSideWidth
     }
 
     private func hasControls(_ size: CGSize) -> Bool {
@@ -68,8 +90,17 @@ struct PathBar<Trailing: View>: View {
     @ViewBuilder var trailing: Trailing
 
     var body: some View {
-        AdaptivePathBarLayout {
-            sources
+        PathBarLayout {
+            sideChip(a, accent: leftAccent, label: "A")
+            // The arrow leads the B group so the whole B heading starts flush with the
+            // right column's left edge instead of the arrow dangling over the left column.
+            HStack(spacing: 12) {
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+                sideChip(b, accent: rightAccent, label: "B")
+            }
             controls
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -83,17 +114,6 @@ struct PathBar<Trailing: View>: View {
     private var controls: some View {
         HStack(spacing: 12) { trailing }
             .fixedSize(horizontal: true, vertical: false)
-    }
-
-    private var sources: some View {
-        HStack(spacing: 14) {
-            sideChip(a, accent: leftAccent, label: "A")
-            Image(systemName: "arrow.right")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
-            sideChip(b, accent: rightAccent, label: "B")
-        }
     }
 
     private func sideChip(_ source: ComparisonSource, accent: Color, label: String) -> some View {
@@ -114,7 +134,7 @@ struct PathBar<Trailing: View>: View {
                     .truncationMode(.middle)
             }
         }
-        .frame(minWidth: 150, idealWidth: 280, maxWidth: .infinity, alignment: .leading)
+        .frame(minWidth: 120, maxWidth: .infinity, alignment: .leading)
     }
 }
 

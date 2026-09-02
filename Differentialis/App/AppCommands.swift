@@ -62,6 +62,13 @@ struct AppMenuCommands: Commands {
             Button("Swap A / B Side") { diff?.swapAB?() }
                 .keyboardShortcut("s", modifiers: [.command, .shift])
                 .disabled(diff?.swapAB == nil)
+            Divider()
+            Button("Increase Font Size") { ThemeManager.shared.adjustFontSize(by: 1) }
+                .keyboardShortcut("+", modifiers: .command)
+            Button("Decrease Font Size") { ThemeManager.shared.adjustFontSize(by: -1) }
+                .keyboardShortcut("-", modifiers: .command)
+            Button("Reset Font Size") { ThemeManager.shared.resetFontSize() }
+                .keyboardShortcut("0", modifiers: .command)
         }
 
         CommandGroup(replacing: .help) {

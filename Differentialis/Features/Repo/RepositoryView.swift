@@ -112,7 +112,7 @@ struct RepositoryView: View {
                 modeButton(.files, icon: "list.bullet", help: "Changed files")
             }
             .padding(2)
-            .background(.black.opacity(0.22), in: Capsule())
+            .background(Theme.wellDeep, in: Capsule())
             Text(leftCollapsedTitle)
                 .font(.system(size: 11, weight: .semibold, design: .rounded))
                 .foregroundStyle(.primary.opacity(0.7))
@@ -126,7 +126,9 @@ struct RepositoryView: View {
             }
             .buttonStyle(.borderless).help("Hide list")
         }
-        .padding(.horizontal, 12).padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        // Fixed height shared with the Files pane header so the two rows align across panes.
+        .frame(height: 42)
     }
 
     private func modeButton(_ m: Mode, icon: String, help: String) -> some View {
@@ -238,7 +240,8 @@ struct RepositoryView: View {
                 }
                 .buttonStyle(.borderless).help("Hide files")
             }
-            .padding(.horizontal, 12).padding(.vertical, 7)
+            .padding(.horizontal, 12)
+            .frame(height: 42)  // matches leftHeader
             Divider().opacity(0.4)
             changesetFilesList
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -275,8 +278,16 @@ struct RepositoryView: View {
     }
 
     // The selected file's diff, under a header for the selected commit (trailing pane in commits mode).
-    @ViewBuilder
+    // ZStack-wrapped for the same reason as workingFileDetail: a stable pane identity keeps
+    // the HSplitView divider where the user dragged it across commit and file selections.
     private var changesetDiffColumn: some View {
+        ZStack {
+            changesetDiffContent
+        }
+    }
+
+    @ViewBuilder
+    private var changesetDiffContent: some View {
         if changesetLoading {
             ProgressView("Loading changes…").frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let changesetError {
@@ -301,20 +312,25 @@ struct RepositoryView: View {
         }
     }
 
-    @ViewBuilder
+    // The detail panes are wrapped in a ZStack so the HSplitView child keeps one stable view
+    // identity while its contents change. Handing the split view a bare if/else (or a view
+    // keyed with .id) makes every selection change replace the pane's NSView, which resets
+    // the user's divider position back to the ideal widths.
     private var workingFileDetail: some View {
-        if workingLoading {
-            ProgressView("Loading working changes…").frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if let workingError {
-            ContentUnavailableView("Couldn’t load working changes", systemImage: "exclamationmark.triangle",
-                                   description: Text(workingError))
-        } else if let file = filteredWorkingFiles.first(where: { $0.id == selectedFile }) ?? filteredWorkingFiles.first {
-            ComparisonDetailView(comparison: repo.makeComparison(
-                file: file, a: .ref("HEAD"), aLabel: "HEAD", b: .workingCopy, bLabel: "Working Copy"))
-                .id(file.id)
-        } else {
-            ContentUnavailableView("Working copy", systemImage: "pencil.and.list.clipboard",
-                                   description: Text("Select a changed file to see its diff against HEAD."))
+        ZStack {
+            if workingLoading {
+                ProgressView("Loading working changes…").frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let workingError {
+                ContentUnavailableView("Couldn’t load working changes", systemImage: "exclamationmark.triangle",
+                                       description: Text(workingError))
+            } else if let file = filteredWorkingFiles.first(where: { $0.id == selectedFile }) ?? filteredWorkingFiles.first {
+                ComparisonDetailView(comparison: repo.makeComparison(
+                    file: file, a: .ref("HEAD"), aLabel: "HEAD", b: .workingCopy, bLabel: "Working Copy"))
+                    .id(file.id)
+            } else {
+                ContentUnavailableView("Working copy", systemImage: "pencil.and.list.clipboard",
+                                       description: Text("Select a changed file to see its diff against HEAD."))
+            }
         }
     }
 
@@ -341,8 +357,14 @@ struct RepositoryView: View {
                 .help("Reveal in Finder")
             Button { openTerminal() } label: { Image(systemName: "terminal") }
                 .help("Open in Terminal")
+        }
+        // Keeps the repo utilities and the comparison action in separate glass groups; the
+        // label marks Custom Comparison as the primary action rather than a lone glyph.
+        ToolbarSpacer(.fixed, placement: .primaryAction)
+        ToolbarItem(placement: .primaryAction) {
             Button { showCustom.toggle() } label: {
-                Image(systemName: "arrow.triangle.branch")
+                Label("Compare…", systemImage: "arrow.triangle.branch")
+                    .labelStyle(.titleAndIcon)
             }
             .help("Custom Comparison")
             .background {

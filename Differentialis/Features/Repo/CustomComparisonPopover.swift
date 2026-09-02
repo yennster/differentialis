@@ -153,8 +153,8 @@ struct CustomComparisonPopover: View {
             }
             .padding(.horizontal, 12).padding(.vertical, 8)
             .frame(maxWidth: .infinity)
-            .background(.black.opacity(0.22), in: RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.white.opacity(0.08)))
+            .background(Theme.wellDeep, in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.primary.opacity(0.08)))
 
             if let subject = resolvedSubject(for: selection.wrappedValue) {
                 Text(subject).font(.system(size: 10.5)).foregroundStyle(.secondary)
@@ -192,8 +192,8 @@ struct CustomComparisonPopover: View {
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
         .frame(maxWidth: .infinity)
-        .background(.black.opacity(0.22), in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.white.opacity(0.08)))
+        .background(Theme.wellDeep, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.primary.opacity(0.08)))
     }
 
     // MARK: - Footer
@@ -205,7 +205,7 @@ struct CustomComparisonPopover: View {
                     .frame(width: 34, height: 34)
             }
             .buttonStyle(.borderless)
-            .background(.black.opacity(0.25), in: Circle())
+            .background(Theme.wellDeep, in: Circle())
             .help("Swap sides")
 
             Spacer()

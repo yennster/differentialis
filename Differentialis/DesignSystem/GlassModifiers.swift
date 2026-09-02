@@ -82,7 +82,7 @@ struct CollapsedRail: View {
         }
         .frame(width: 34, alignment: .top)
         .frame(maxHeight: .infinity)
-        .background(.black.opacity(0.18))
+        .background(Theme.well)
     }
 }
 

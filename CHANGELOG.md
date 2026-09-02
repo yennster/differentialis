@@ -10,6 +10,52 @@ When cutting a release, add a section here and use it as the release notes:
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-09-02
+
+### Added
+- **Settings window** (⌘,) in the application menu, covering appearance, color themes, and the
+  code font size.
+- **Light and Dark appearance with an Auto mode** that follows the system setting (the default).
+  The whole UI — canvas, hairlines, keycaps, welcome screen — now adapts to either appearance.
+- **Color themes**, chosen per appearance: Differentialis, Mariana, Monokai, One Dark, and
+  Solarized for dark; Differentialis, Solarized, and GitHub for light.
+- **Adjustable code font size** for text comparisons and merges — ⌘+ / ⌘− / ⌘0 in the View menu,
+  or from Settings.
+- The sidebar now lists **saved comparisons and open changesets under their project**; entries
+  whose repository is no longer in Projects keep their own section.
+- **Open changesets persist across launches** — custom comparisons you had open are re-resolved
+  against their repository on the next start (skipped quietly if the repo is unavailable).
+- **Choose the code font family** in Settings — any installed fixed-pitch font, alongside the
+  size controls.
+- **Theme import and export.** Themes are simple JSON files (export the current theme from
+  Settings to get an editable template); imported themes live in Application Support and can be
+  removed from their card's context menu.
+- **`.tmTheme` import** — bring in any TextMate-format color scheme (e.g. from
+  colorsublime.github.io). The importer uses the theme's own `markup.inserted/deleted/changed`
+  diff colors when defined and otherwise hue-matches its accent colors onto
+  added/removed/modified/conflict slots.
+- **A custom theme editor** in Settings — build a theme with color pickers over a live diff
+  preview, then save to apply; right-click any theme card to start a new theme from it or edit
+  a custom one.
+- **Pinch-to-zoom on text comparisons and merges** resizes the code font with the trackpad,
+  matching the existing image zoom gesture.
+- **Adjustable background gradient** in Settings — separate Light and Dark sliders (with live
+  swatches) control how much the canvas shades from top to bottom, from flat up to double the
+  theme's own shading.
+
+### Fixed
+- The A and B column headings above a split comparison now align with the two columns: A owns the
+  left half and B starts at the midpoint, with the view controls tucked into B's half (dropping to
+  a second row in narrow windows).
+- The repository toolbar separates the repo utilities (refresh, Finder, Terminal) from the Custom
+  Comparison action instead of merging all four into one glass group.
+- Light appearance readability: recessed backgrounds (diff scroller, segmented controls, commit
+  fields, image checkerboard) no longer gray out the whole surface on a light canvas.
+- The History and Files pane headers in the repository view share one fixed height, so
+  "300 commits" and "Files" sit on the same line across panes.
+- Selecting a file or commit no longer resets the repository view's pane widths — the detail
+  pane keeps a stable identity, so the split dividers stay where you dragged them.
+
 ## [0.1.9] — 2026-07-22
 
 ### Fixed

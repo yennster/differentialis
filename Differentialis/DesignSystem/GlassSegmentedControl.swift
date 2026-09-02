@@ -24,7 +24,7 @@ struct GlassSegmentedControl<Value: Hashable>: View {
             }
         }
         .padding(3)
-        .background(.black.opacity(0.18), in: Capsule())
+        .background(Theme.well, in: Capsule())
         .glassEffect(.regular, in: .capsule)
     }
 

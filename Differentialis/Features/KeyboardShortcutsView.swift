@@ -15,11 +15,15 @@ struct KeyboardShortcutsView: View {
             Shortcut(label: "Refresh", keys: ["⌘", "R"]),
             Shortcut(label: "Keyboard Shortcuts", keys: ["⌘", "/"]),
             Shortcut(label: "Go to Welcome", keys: ["⇧", "⌘", "0"]),
+            Shortcut(label: "Settings", keys: ["⌘", ","]),
         ]),
         Group(title: "Text Diff", items: [
             Shortcut(label: "Next change", keys: ["⌘", "]"]),
             Shortcut(label: "Previous change", keys: ["⌘", "["]),
             Shortcut(label: "Toggle Split / Unified", keys: ["⌘", "U"]),
+            Shortcut(label: "Increase font size", keys: ["⌘", "+"]),
+            Shortcut(label: "Decrease font size", keys: ["⌘", "−"]),
+            Shortcut(label: "Reset font size", keys: ["⌘", "0"]),
         ]),
         Group(title: "Image Diff", items: [
             Shortcut(label: "Two-Up", keys: ["⌘", "1"]),
@@ -76,8 +80,8 @@ struct KeyboardShortcutsView: View {
             .font(.system(size: 12.5, weight: .semibold, design: .rounded))
             .frame(minWidth: 26, minHeight: 26)
             .padding(.horizontal, 4)
-            .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 7))
-            .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(.white.opacity(0.16)))
+            .background(.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 7))
+            .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(.primary.opacity(0.16)))
             .foregroundStyle(.primary)
     }
 }

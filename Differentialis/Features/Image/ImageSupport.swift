@@ -119,12 +119,12 @@ struct CheckerboardBackground: View {
                 for col in 0..<cols {
                     if (row + col).isMultiple(of: 2) {
                         let rect = CGRect(x: CGFloat(col) * tile, y: CGFloat(row) * tile, width: tile, height: tile)
-                        context.fill(Path(rect), with: .color(.white.opacity(0.035)))
+                        context.fill(Path(rect), with: .color(.primary.opacity(0.035)))
                     }
                 }
             }
         }
-        .background(.black.opacity(0.22))
+        .background(Theme.wellDeep)
     }
 }
 

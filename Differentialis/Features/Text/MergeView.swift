@@ -66,11 +66,12 @@ struct MergeView: View {
                     }
                     .padding(.vertical, 6)
                 }
-                .background(.black.opacity(0.18))
+                .background(Theme.well)
             } else {
                 resultEditor
             }
         }
+        .codeFontZoomGesture()
         .task(id: taskKey) { await load() }
         .focusedSceneValue(\.diffCommands, DiffCommandActions(refresh: { Task { await load() } }))
         .onChange(of: hunks) { _, _ in
@@ -148,7 +149,7 @@ struct MergeView: View {
                 .font(Theme.codeFont)
                 .scrollContentBackground(.hidden)
                 .padding(8)
-                .background(.black.opacity(0.18))
+                .background(Theme.well)
                 .accessibilityLabel("Merged result")
         }
     }

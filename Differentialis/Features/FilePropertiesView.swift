@@ -204,7 +204,7 @@ struct FilePropertiesView: View {
             value(row.b, differs: row.differs).frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.vertical, 7).padding(.horizontal, 16)
-        .overlay(Rectangle().fill(.white.opacity(0.06)).frame(height: 1), alignment: .bottom)
+        .overlay(Rectangle().fill(.primary.opacity(0.06)).frame(height: 1), alignment: .bottom)
     }
 
     private func value(_ string: String, differs: Bool) -> some View {

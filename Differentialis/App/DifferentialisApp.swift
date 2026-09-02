@@ -7,14 +7,17 @@ struct DifferentialisApp: App {
     @State private var cliInstalled = CommandLineToolInstaller.isInstalled
     @NSApplicationDelegateAdaptor private var appDelegate: AppDelegate
 
+    init() {
+        // Applies the persisted appearance (via NSApp.appearance) before any window appears,
+        // so AppKit-hosted chrome — popovers, menus, alerts — matches from the first frame.
+        _ = ThemeManager.shared
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environment(model)
                 .frame(minWidth: 980, minHeight: 640)
-                // The UI is a deliberately dark, glass-on-gradient design with hard-coded white/black
-                // overlays; it's unreadable under the Light system appearance, so pin it to dark.
-                .preferredColorScheme(.dark)
         }
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unified(showsTitle: false))
@@ -48,6 +51,11 @@ struct DifferentialisApp: App {
                     .keyboardShortcut("o", modifiers: .command)
             }
             AppMenuCommands(model: model)
+        }
+
+        // Adds "Settings…" (⌘,) to the application menu.
+        Settings {
+            SettingsView()
         }
     }
 }

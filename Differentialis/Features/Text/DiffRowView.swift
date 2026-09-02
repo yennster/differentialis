@@ -23,7 +23,7 @@ struct DiffRowView: View {
         HStack(spacing: 0) {
             half(number: row.leftNumber, text: row.leftText, highlights: row.leftHighlights,
                  kind: leftKind, side: .left)
-            Rectangle().fill(.white.opacity(0.06)).frame(width: 1)
+            Rectangle().fill(.primary.opacity(0.06)).frame(width: 1)
             half(number: row.rightNumber, text: row.rightText, highlights: row.rightHighlights,
                  kind: rightKind, side: .right)
         }
@@ -82,7 +82,7 @@ struct DiffRowView: View {
                 .fixedSize(horizontal: false, vertical: true)
         } else {
             // empty placeholder for the absent side
-            Color.clear.frame(height: 17)
+            Color.clear.frame(height: Theme.codeEmptyLineHeight)
                 .frame(maxWidth: .infinity)
         }
     }
@@ -130,11 +130,11 @@ struct DiffGapView: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 5)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.white.opacity(0.03))
+            .background(.primary.opacity(0.03))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .overlay(Rectangle().fill(.white.opacity(0.06)).frame(height: 1), alignment: .top)
-        .overlay(Rectangle().fill(.white.opacity(0.06)).frame(height: 1), alignment: .bottom)
+        .overlay(Rectangle().fill(.primary.opacity(0.06)).frame(height: 1), alignment: .top)
+        .overlay(Rectangle().fill(.primary.opacity(0.06)).frame(height: 1), alignment: .bottom)
     }
 }

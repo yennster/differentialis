@@ -8,7 +8,14 @@ struct OpenChangeset: Identifiable {
     var title: String
     var subtitle: String
     var repo: GitRepository
+    // The defining sides are kept so the changeset can be persisted and re-resolved
+    // on the next launch (see OpenChangesetStore / restoreOpenChangesets).
+    var a: CustomSide
+    var b: CustomSide
     var resolved: ResolvedChangeset
+
+    /// Matches RecentProject.path (both standardize the working-tree root) for sidebar nesting.
+    var repoPath: String { repo.url.standardizedFileURL.path }
 }
 
 @MainActor
@@ -43,6 +50,7 @@ final class AppModel {
     var showShortcuts = false
     let store = ComparisonStore()
     let projects = RecentProjectsStore()
+    let openStore = OpenChangesetStore()
     let updater = SparkleUpdater()
     var openRepoPath: String?
     private var didProcessLaunchArguments = false
@@ -110,6 +118,33 @@ final class AppModel {
     func openChangeset(_ changeset: OpenChangeset) {
         changesets.append(changeset)
         route = .changeset(changeset.id)
+        persistOpenChangesets()
+    }
+
+    private func persistOpenChangesets() {
+        openStore.replace(with: changesets.map {
+            PersistedChangeset(title: $0.title, subtitle: $0.subtitle,
+                               repoPath: $0.repoPath, a: $0.a, b: $0.b)
+        })
+    }
+
+    /// Reopens the changesets from the last session, re-resolving each against its repository.
+    /// Failures (repo missing or offline, unresolvable sides) are skipped quietly — a launch
+    /// should never start with an error alert — and stay persisted for a later launch.
+    func restoreOpenChangesets() async {
+        guard changesets.isEmpty else { return }
+        for item in openStore.items {
+            let url = URL(fileURLWithPath: item.repoPath)
+            let repository = GitRepository(url: url)
+            let resolved = await offMain { () -> ResolvedChangeset? in
+                guard GitRepository.isRepository(url) else { return nil }
+                return try? repository.customChangeset(a: item.a, b: item.b)
+            }
+            guard let resolved else { continue }
+            changesets.append(OpenChangeset(title: item.title, subtitle: item.subtitle,
+                                            repo: repository, a: item.a, b: item.b,
+                                            resolved: resolved))
+        }
     }
 
     func comparison(_ id: UUID) -> Comparison? { comparisons.first { $0.id == id } }
@@ -130,6 +165,7 @@ final class AppModel {
     func closeChangeset(_ id: UUID) {
         changesets.removeAll { $0.id == id }
         if route == .changeset(id) { route = .welcome }
+        persistOpenChangesets()
     }
 
     // MARK: - Repository
@@ -190,7 +226,8 @@ final class AppModel {
             guard self.repo?.url == repo.url else { return }
             if let resolved = outcome.0 {
                 let title = name ?? "\(a.label) ↔ \(b.label)"
-                openChangeset(OpenChangeset(title: title, subtitle: repoName, repo: repo, resolved: resolved))
+                openChangeset(OpenChangeset(title: title, subtitle: repoName, repo: repo,
+                                            a: a, b: b, resolved: resolved))
             } else {
                 errorMessage = outcome.1
             }
@@ -241,7 +278,8 @@ final class AppModel {
             openRepoPath = info.root.standardizedFileURL.path
             projects.record(name: info.name, url: info.root)
             openChangeset(OpenChangeset(title: saved.name, subtitle: saved.repoName,
-                                        repo: repository, resolved: resolved))
+                                        repo: repository, a: saved.a, b: saved.b,
+                                        resolved: resolved))
         } else {
             errorMessage = outcome.1
         }

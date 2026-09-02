@@ -130,7 +130,7 @@ struct ImageComparisonView: View {
     }
 
     private var divider: some View {
-        Rectangle().fill(.white.opacity(0.12))
+        Rectangle().fill(.primary.opacity(0.12))
             .frame(width: horizontal ? 1 : nil, height: horizontal ? nil : 1)
     }
 
@@ -159,7 +159,7 @@ struct ImageComparisonView: View {
         let layout = horizontal ? AnyLayout(HStackLayout(spacing: 1)) : AnyLayout(VStackLayout(spacing: 1))
         return layout {
             ZoomableImageView(image: a, zoom: zoom)
-            Rectangle().fill(.white.opacity(0.12)).frame(width: horizontal ? 1 : nil, height: horizontal ? nil : 1)
+            Rectangle().fill(.primary.opacity(0.12)).frame(width: horizontal ? 1 : nil, height: horizontal ? nil : 1)
             ZoomableImageView(image: b, zoom: zoom)
         }
     }
@@ -189,7 +189,7 @@ struct ImageComparisonView: View {
             .font(.system(size: 11, weight: .bold))
             .foregroundStyle(active ? Theme.badgeForeground : Color.secondary)
             .padding(.horizontal, 10).padding(.vertical, 4)
-            .background(active ? color : Color.black.opacity(0.4), in: Capsule())
+            .background(active ? color : Theme.wellStrong, in: Capsule())
     }
 
     // MARK: - Toolbar
