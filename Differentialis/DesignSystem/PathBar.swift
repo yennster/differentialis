@@ -1,14 +1,20 @@
 import SwiftUI
 
-/// Lays out [A chip] [arrow + B chip] [controls] so the A side fills the left half of the
-/// bar and the B group starts exactly at the midpoint — lining the headings up with the
-/// two columns of a split comparison below. Controls sit at the trailing edge of B's half;
-/// when they would crowd the B heading, they drop to a second trailing row instead.
+/// Lays out [A chip] [arrow + B chip] [controls] so the A side fills the bar up to the
+/// column boundary and the B group starts exactly there — lining the headings up with the
+/// two columns of a split comparison below, including a user-dragged split. Controls sit
+/// at the trailing edge of B's side; when they would crowd the B heading, they drop to a
+/// second trailing row instead.
 private struct PathBarLayout: Layout {
+    /// Fraction of the FULL comparison width where the columns split (0.5 = centered).
+    var fraction: CGFloat = 0.5
+    /// The bar's total horizontal inset from the comparison's edges (card + inner padding),
+    /// used to convert `fraction` from window coordinates into this layout's bounds.
+    var horizontalInset: CGFloat = 28
     var minimumSideWidth: CGFloat = 160
     var horizontalSpacing: CGFloat = 16
     var rowSpacing: CGFloat = 10
-    /// Breathing room between the A-side arrow and the midpoint where B begins.
+    /// Breathing room between the A side and the boundary where B begins.
     var midGap: CGFloat = 10
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews,
@@ -25,13 +31,13 @@ private struct PathBarLayout: Layout {
                           height: max(leftNatural.height, rightNatural.height, controlSize.height))
         }
 
-        let halfWidth = width / 2
+        let boundary = boundary(in: width)
         if shouldStack(width: width, controls: controlSize) {
-            let rowHeight = sideRowHeight(halfWidth: halfWidth, rightWidth: halfWidth, subviews: subviews)
+            let rowHeight = sideRowHeight(boundary: boundary, rightWidth: width - boundary, subviews: subviews)
             return CGSize(width: width, height: rowHeight + rowSpacing + controlSize.height)
         }
-        let rightWidth = rightSideWidth(halfWidth: halfWidth, controls: controlSize)
-        let rowHeight = sideRowHeight(halfWidth: halfWidth, rightWidth: rightWidth, subviews: subviews)
+        let rightWidth = rightSideWidth(boundary: boundary, width: width, controls: controlSize)
+        let rowHeight = sideRowHeight(boundary: boundary, rightWidth: rightWidth, subviews: subviews)
         return CGSize(width: width, height: max(rowHeight, controlSize.height))
     }
 
@@ -39,41 +45,51 @@ private struct PathBarLayout: Layout {
                        cache: inout ()) {
         guard subviews.count == 3 else { return }
         let controlSize = subviews[2].sizeThatFits(.unspecified)
-        let halfWidth = bounds.width / 2
+        let boundary = boundary(in: bounds.width)
 
         if shouldStack(width: bounds.width, controls: controlSize) {
-            let rowHeight = sideRowHeight(halfWidth: halfWidth, rightWidth: halfWidth, subviews: subviews)
+            let rightWidth = bounds.width - boundary
+            let rowHeight = sideRowHeight(boundary: boundary, rightWidth: rightWidth, subviews: subviews)
             let rowMidY = bounds.minY + rowHeight / 2
             subviews[0].place(at: CGPoint(x: bounds.minX, y: rowMidY), anchor: .leading,
-                              proposal: .init(width: halfWidth - midGap, height: nil))
-            subviews[1].place(at: CGPoint(x: bounds.minX + halfWidth, y: rowMidY), anchor: .leading,
-                              proposal: .init(width: halfWidth, height: nil))
+                              proposal: .init(width: boundary - midGap, height: nil))
+            subviews[1].place(at: CGPoint(x: bounds.minX + boundary, y: rowMidY), anchor: .leading,
+                              proposal: .init(width: rightWidth, height: nil))
             subviews[2].place(at: CGPoint(x: bounds.maxX, y: bounds.minY + rowHeight + rowSpacing),
                               anchor: .topTrailing, proposal: .unspecified)
             return
         }
 
-        let rightWidth = rightSideWidth(halfWidth: halfWidth, controls: controlSize)
+        let rightWidth = rightSideWidth(boundary: boundary, width: bounds.width, controls: controlSize)
         subviews[0].place(at: CGPoint(x: bounds.minX, y: bounds.midY), anchor: .leading,
-                          proposal: .init(width: halfWidth - midGap, height: nil))
-        subviews[1].place(at: CGPoint(x: bounds.minX + halfWidth, y: bounds.midY), anchor: .leading,
+                          proposal: .init(width: boundary - midGap, height: nil))
+        subviews[1].place(at: CGPoint(x: bounds.minX + boundary, y: bounds.midY), anchor: .leading,
                           proposal: .init(width: rightWidth, height: nil))
         subviews[2].place(at: CGPoint(x: bounds.maxX, y: bounds.midY), anchor: .trailing,
                           proposal: .unspecified)
     }
 
-    private func rightSideWidth(halfWidth: CGFloat, controls: CGSize) -> CGFloat {
-        max(0, halfWidth - (hasControls(controls) ? horizontalSpacing + controls.width : 0))
+    /// Where B begins inside the bar: the columns split at `fraction` of the full width
+    /// (bar width + insets), shifted back into bar coordinates and kept off the edges.
+    private func boundary(in width: CGFloat) -> CGFloat {
+        let raw = (width + 2 * horizontalInset) * fraction - horizontalInset
+        let minimum = min(minimumSideWidth, width / 2)
+        return min(max(raw, minimum), width - minimum)
     }
 
-    private func sideRowHeight(halfWidth: CGFloat, rightWidth: CGFloat, subviews: Subviews) -> CGFloat {
-        let left = subviews[0].sizeThatFits(.init(width: halfWidth - midGap, height: nil))
+    private func rightSideWidth(boundary: CGFloat, width: CGFloat, controls: CGSize) -> CGFloat {
+        max(0, width - boundary - (hasControls(controls) ? horizontalSpacing + controls.width : 0))
+    }
+
+    private func sideRowHeight(boundary: CGFloat, rightWidth: CGFloat, subviews: Subviews) -> CGFloat {
+        let left = subviews[0].sizeThatFits(.init(width: boundary - midGap, height: nil))
         let right = subviews[1].sizeThatFits(.init(width: rightWidth, height: nil))
         return max(left.height, right.height)
     }
 
     private func shouldStack(width: CGFloat, controls: CGSize) -> Bool {
-        hasControls(controls) && rightSideWidth(halfWidth: width / 2, controls: controls) < minimumSideWidth
+        hasControls(controls)
+            && rightSideWidth(boundary: boundary(in: width), width: width, controls: controls) < minimumSideWidth
     }
 
     private func hasControls(_ size: CGSize) -> Bool {
@@ -87,10 +103,13 @@ struct PathBar<Trailing: View>: View {
     let b: ComparisonSource
     var leftAccent: Color = Theme.removed
     var rightAccent: Color = Theme.modified
+    /// Where the comparison's columns split (fraction of the full width); the B heading
+    /// tracks it so a dragged split keeps the headings over their columns.
+    var splitFraction: CGFloat = 0.5
     @ViewBuilder var trailing: Trailing
 
     var body: some View {
-        PathBarLayout {
+        PathBarLayout(fraction: splitFraction) {
             sideChip(a, accent: leftAccent, label: "A")
             // The arrow leads the B group so the whole B heading starts flush with the
             // right column's left edge instead of the arrow dangling over the left column.

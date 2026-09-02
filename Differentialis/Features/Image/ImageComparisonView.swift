@@ -34,6 +34,8 @@ struct ImageComparisonView: View {
     @State private var blinking = false
     @State private var swapped = false
     @State private var splitFraction: CGFloat = 0.5
+    @State private var twoUpFraction: CGFloat = 0.5
+    @State private var twoUpDragBase: CGFloat?
     @State private var zoom = ZoomPanState()
     @State private var loadError: String?
     @State private var loadToken: UUID?
@@ -113,55 +115,60 @@ struct ImageComparisonView: View {
         }
     }
 
-    /// Lay the one available image beside a placeholder describing why the other side is absent.
+    /// One side has no image (an added or deleted file, or an undecodable side): give the
+    /// existing image the full canvas, with a status chip describing the absent side,
+    /// instead of spending half the view on a placeholder pane.
     private func singleSided(_ image: NSImage, presentIsA: Bool) -> some View {
-        let layout = horizontal ? AnyLayout(HStackLayout(spacing: 1)) : AnyLayout(VStackLayout(spacing: 1))
-        return layout {
-            if presentIsA {
-                ZoomableImageView(image: image, zoom: zoom)
-                divider
-                absentPanel(side: "B")
-            } else {
-                absentPanel(side: "A")
-                divider
-                ZoomableImageView(image: image, zoom: zoom)
+        let absentSource = presentIsA ? displayedB : displayedA
+        let absentIsEmpty = { if case .empty = absentSource { return true } else { return false } }()
+        let label = absentIsEmpty
+            ? (presentIsA ? "Removed — this file doesn’t exist on side B"
+                          : "Added — this file doesn’t exist on side A")
+            : "Side \(presentIsA ? "B" : "A") couldn’t be decoded as an image"
+        let color = absentIsEmpty ? (presentIsA ? Theme.removed : Theme.added) : Theme.conflict
+        return ZStack(alignment: .top) {
+            ZoomableImageView(image: image, zoom: zoom)
+            StatChip(text: label, color: color,
+                     systemImage: presentIsA ? "minus.circle.fill" : "plus.circle.fill")
+                .background(.ultraThinMaterial, in: Capsule())
+                .padding(.top, 10)
+        }
+    }
+
+    private func twoUp(_ a: NSImage, _ b: NSImage) -> some View {
+        GeometryReader { geo in
+            let total = max(horizontal ? geo.size.width : geo.size.height, 1)
+            let firstLength = max(0, total * twoUpFraction - 4.5)
+            let layout = horizontal ? AnyLayout(HStackLayout(spacing: 0)) : AnyLayout(VStackLayout(spacing: 0))
+            layout {
+                ZoomableImageView(image: a, zoom: zoom)
+                    .frame(width: horizontal ? firstLength : nil,
+                           height: horizontal ? nil : firstLength)
+                twoUpDivider(total: total)
+                ZoomableImageView(image: b, zoom: zoom)
             }
         }
     }
 
-    private var divider: some View {
+    /// The draggable boundary between the Two-Up panes; double-click recenters.
+    private func twoUpDivider(total: CGFloat) -> some View {
         Rectangle().fill(.primary.opacity(0.12))
             .frame(width: horizontal ? 1 : nil, height: horizontal ? nil : 1)
-    }
-
-    private func absentPanel(side: String) -> some View {
-        let source = side == "A" ? displayedA : displayedB
-        let isEmpty = { if case .empty = source { return true } else { return false } }()
-        let title = isEmpty ? (side == "A" ? "Added" : "Removed") : "No image"
-        let subtitle = isEmpty
-            ? "This file doesn’t exist on side \(side)"
-            : "Side \(side) couldn’t be decoded as an image"
-        return VStack(spacing: 8) {
-            Image(systemName: side == "A" ? "a.square" : "b.square")
-                .font(.system(size: 34, weight: .light))
-                .foregroundStyle(.secondary)
-            Text(title).font(.headline)
-            Text(subtitle).font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .padding()
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(CheckerboardBackground())
-    }
-
-    private func twoUp(_ a: NSImage, _ b: NSImage) -> some View {
-        let layout = horizontal ? AnyLayout(HStackLayout(spacing: 1)) : AnyLayout(VStackLayout(spacing: 1))
-        return layout {
-            ZoomableImageView(image: a, zoom: zoom)
-            Rectangle().fill(.primary.opacity(0.12)).frame(width: horizontal ? 1 : nil, height: horizontal ? nil : 1)
-            ZoomableImageView(image: b, zoom: zoom)
-        }
+            .padding(horizontal ? .horizontal : .vertical, 4)
+            .contentShape(Rectangle())
+            .pointerStyle(horizontal ? .columnResize : .rowResize)
+            .gesture(
+                DragGesture()
+                    .onChanged { value in
+                        if twoUpDragBase == nil { twoUpDragBase = twoUpFraction }
+                        let base = twoUpDragBase ?? twoUpFraction
+                        let delta = (horizontal ? value.translation.width : value.translation.height) / total
+                        twoUpFraction = min(0.85, max(0.15, base + delta))
+                    }
+                    .onEnded { _ in twoUpDragBase = nil }
+            )
+            .onTapGesture(count: 2) { withAnimation(.snappy) { twoUpFraction = 0.5 } }
+            .help("Drag to resize the panes · double-click to recenter")
     }
 
     private func oneUp(_ a: NSImage, _ b: NSImage) -> some View {

@@ -104,14 +104,19 @@ struct GitChangesetView: View {
         pasteboard.setString(string, forType: .string)
     }
 
-    @ViewBuilder
+    // ZStack-wrapped so the HSplitView pane keeps one stable view identity while its
+    // contents change — a bare if/else (or .id-keyed) pane is replaced on every file
+    // selection, which snaps the divider back to the ideal widths (same fix as
+    // RepositoryView's detail panes).
     private var detail: some View {
-        if let file = filteredFiles.first(where: { $0.id == selection }) ?? filteredFiles.first {
-            ComparisonDetailView(comparison: repo.makeComparison(file: file, a: a, aLabel: aLabel, b: b, bLabel: bLabel))
-                .id(file.id)
-        } else {
-            ContentUnavailableView("Select a file", systemImage: "sidebar.left")
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        ZStack {
+            if let file = filteredFiles.first(where: { $0.id == selection }) ?? filteredFiles.first {
+                ComparisonDetailView(comparison: repo.makeComparison(file: file, a: a, aLabel: aLabel, b: b, bLabel: bLabel))
+                    .id(file.id)
+            } else {
+                ContentUnavailableView("Select a file", systemImage: "sidebar.left")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
     }
 

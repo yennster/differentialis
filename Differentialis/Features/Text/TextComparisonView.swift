@@ -68,6 +68,10 @@ struct TextComparisonView: View {
 
     @State private var document: DiffDocument?
     @AppStorage("diffLayoutUnified") private var unified = false
+    /// Where the split columns divide, as a fraction of the view width. Shared across
+    /// comparisons and persisted; the PathBar headings track the same value.
+    @AppStorage("diffSplitFraction") private var splitFraction = 0.5
+    @State private var splitDragBase: Double?
     @AppStorage("textWhitespacePolicy") private var whitespacePolicy = WhitespacePolicy.significant
     @State private var expandedGaps: Set<String> = []
     @State private var changeIDs: [UUID] = []
@@ -79,7 +83,7 @@ struct TextComparisonView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            PathBar(a: a, b: b) { toolbar }
+            PathBar(a: a, b: b, splitFraction: unified ? 0.5 : splitFraction) { toolbar }
             Divider().opacity(0.4)
             content
                 .codeFontZoomGesture()
@@ -191,30 +195,64 @@ struct TextComparisonView: View {
     // MARK: - Diff scroll
 
     private func diffScroll(_ document: DiffDocument) -> some View {
-        ScrollViewReader { proxy in
-            ScrollView(.vertical) {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(document.sections) { section in
-                        sectionView(section)
+        // The GeometryReader turns the shared split fraction into a concrete left-column
+        // width for every row, so all rows (and the PathBar) divide at the same x.
+        GeometryReader { geo in
+            ScrollViewReader { proxy in
+                ScrollView(.vertical) {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(document.sections) { section in
+                            sectionView(section, leftWidth: unified ? nil : leftColumnWidth(in: geo.size.width))
+                        }
                     }
                 }
+                .onChange(of: currentChangeID) { _, id in
+                    guard let id else { return }
+                    withAnimation(.easeInOut(duration: 0.25)) { proxy.scrollTo(id, anchor: .center) }
+                }
             }
-            .onChange(of: currentChangeID) { _, id in
-                guard let id else { return }
-                withAnimation(.easeInOut(duration: 0.25)) { proxy.scrollTo(id, anchor: .center) }
+            .overlay(alignment: .topLeading) {
+                if !unified {
+                    splitDividerHandle(width: geo.size.width)
+                }
             }
         }
         .background(Theme.well)
     }
 
+    private func leftColumnWidth(in width: CGFloat) -> CGFloat {
+        max(0, (width * splitFraction - 0.5).rounded())
+    }
+
+    /// The draggable strip over the column divider; double-click recenters.
+    private func splitDividerHandle(width: CGFloat) -> some View {
+        Color.clear
+            .frame(width: 9)
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .pointerStyle(.columnResize)
+            .gesture(
+                DragGesture()
+                    .onChanged { value in
+                        if splitDragBase == nil { splitDragBase = splitFraction }
+                        let base = splitDragBase ?? splitFraction
+                        splitFraction = min(0.8, max(0.2, base + value.translation.width / max(width, 1)))
+                    }
+                    .onEnded { _ in splitDragBase = nil }
+            )
+            .onTapGesture(count: 2) { withAnimation(.snappy) { splitFraction = 0.5 } }
+            .help("Drag to resize the columns · double-click to recenter")
+            .offset(x: width * splitFraction - 4.5)
+    }
+
     @ViewBuilder
-    private func sectionView(_ section: DiffDocument.Section) -> some View {
+    private func sectionView(_ section: DiffDocument.Section, leftWidth: CGFloat?) -> some View {
         switch section {
         case .rows(let rows):
-            ForEach(rows) { row in rowView(row) }
+            ForEach(rows) { row in rowView(row, leftWidth: leftWidth) }
         case .gap(_, let hiddenCount, let rows):
             if expandedGaps.contains(section.id) {
-                ForEach(rows) { row in rowView(row) }
+                ForEach(rows) { row in rowView(row, leftWidth: leftWidth) }
             } else {
                 DiffGapView(count: hiddenCount) {
                     _ = expandedGaps.insert(section.id)
@@ -224,12 +262,12 @@ struct TextComparisonView: View {
     }
 
     @ViewBuilder
-    private func rowView(_ row: DiffRow) -> some View {
+    private func rowView(_ row: DiffRow, leftWidth: CGFloat?) -> some View {
         Group {
             if unified {
                 UnifiedRowView(row: row, isCurrent: row.id == currentChangeID)
             } else {
-                DiffRowView(row: row, isCurrent: row.id == currentChangeID)
+                DiffRowView(row: row, isCurrent: row.id == currentChangeID, leftWidth: leftWidth)
             }
         }
         .id(row.id)

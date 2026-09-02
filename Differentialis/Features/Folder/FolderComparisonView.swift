@@ -178,16 +178,20 @@ struct FolderComparisonView: View {
         pasteboard.setString(string, forType: .string)
     }
 
-    @ViewBuilder
+    // ZStack-wrapped so the HSplitView pane keeps one stable view identity while its
+    // contents change — otherwise every selection replaces the pane's NSView and resets
+    // the divider the user dragged (same fix as RepositoryView's detail panes).
     private var detail: some View {
-        if let entry = filtered.first(where: { $0.id == selection }) ?? filtered.first,
-           let comparison = comparison(for: entry) {
-            ComparisonDetailView(comparison: comparison)
-                .id(entry.id)
-        } else {
-            ContentUnavailableView("Select a file", systemImage: "sidebar.left",
-                                   description: Text("Choose a file to see its differences."))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        ZStack {
+            if let entry = filtered.first(where: { $0.id == selection }) ?? filtered.first,
+               let comparison = comparison(for: entry) {
+                ComparisonDetailView(comparison: comparison)
+                    .id(entry.id)
+            } else {
+                ContentUnavailableView("Select a file", systemImage: "sidebar.left",
+                                       description: Text("Choose a file to see its differences."))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
     }
 

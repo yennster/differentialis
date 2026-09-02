@@ -10,6 +10,22 @@ When cutting a release, add a section here and use it as the release notes:
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-09-02
+
+### Changed
+- An **added or deleted image now uses the full canvas**: the existing side fills the view with
+  a status chip ("Added — this file doesn't exist on side A"), instead of half the view going to
+  a placeholder pane.
+- The **Two-Up image divider is draggable** (in both orientations) to resize the panes;
+  double-click it to recenter.
+- The **split text diff's column divider is draggable** too — the A/B headings follow the
+  split, the width is remembered across comparisons, and double-click recenters.
+
+### Fixed
+- Selecting a file in a custom comparison, saved comparison, or folder comparison no longer
+  resets the file-list pane width (the same stable-pane fix 0.2.0 applied to the repository
+  view now covers every split view).
+
 ## [0.2.0] — 2026-09-02
 
 ### Added

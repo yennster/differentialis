@@ -18,11 +18,14 @@ func highlightedLine(_ text: String, ranges: [Range<Int>], color: Color) -> Attr
 struct DiffRowView: View {
     let row: DiffRow
     var isCurrent: Bool = false
+    /// Fixed width for the left half (the draggable column split); nil splits evenly.
+    var leftWidth: CGFloat? = nil
 
     var body: some View {
         HStack(spacing: 0) {
             half(number: row.leftNumber, text: row.leftText, highlights: row.leftHighlights,
                  kind: leftKind, side: .left)
+                .frame(width: leftWidth)
             Rectangle().fill(.primary.opacity(0.06)).frame(width: 1)
             half(number: row.rightNumber, text: row.rightText, highlights: row.rightHighlights,
                  kind: rightKind, side: .right)
