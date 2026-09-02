@@ -71,6 +71,7 @@ struct GitChangesetView: View {
                             .foregroundStyle(Theme.badgeForeground)
                             .frame(width: 18, height: 18)
                             .background(file.status.tint, in: RoundedRectangle(cornerRadius: 4))
+                            .help(file.status.label)
                         VStack(alignment: .leading, spacing: 1) {
                             Text((file.path as NSString).lastPathComponent)
                                 .font(.system(size: 12.5, weight: .medium)).lineLimit(1)
@@ -84,6 +85,7 @@ struct GitChangesetView: View {
                     .contextMenu { fileMenu(for: file) }
                 }
                 .listStyle(.inset)
+                .scrollContentBackground(.hidden)
             }
             GitFileFilterBar(filter: $filter, files: files, resultCount: filteredFiles.count)
         }

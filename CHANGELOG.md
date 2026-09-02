@@ -10,6 +10,23 @@ When cutting a release, add a section here and use it as the release notes:
 
 ## [Unreleased]
 
+## [0.2.2] — 2026-09-02
+
+### Added
+- Custom themes can be **converted between Light and Dark** — visible Edit / Convert / Remove
+  buttons appear beside the row when a custom theme is selected (also in the card's context
+  menu). Converting re-derives the canvas for the target appearance and rescales accents for
+  contrast, rather than just moving the theme.
+- **Picking a theme for the other appearance switches to that appearance**, so the choice is
+  immediately visible.
+- File status badges (M, A, D, ?) show a **tooltip naming the status** — "?" is git's
+  untracked marker.
+
+### Fixed
+- The file lists in repository, changeset, and folder views now **take on the theme's canvas
+  color** instead of keeping the system list background (invisible with the default dark theme,
+  obvious with custom ones).
+
 ## [0.2.1] — 2026-09-02
 
 ### Changed

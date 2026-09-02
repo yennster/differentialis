@@ -143,11 +143,30 @@ struct SettingsView: View {
 
     private func themeRow(title: String, isDark: Bool,
                           selection: Binding<String>, active: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let selectedCustom = theme.themes(isDark: isDark)
+            .first { $0.id == selection.wrappedValue && $0.isCustom }
+        return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 Text(title).font(.system(size: 12, weight: .semibold))
                 if active {
                     StatChip(text: "Active", color: Theme.brand)
+                }
+                // Visible actions for the selected custom theme (the context menu on each
+                // card offers the same, but these are discoverable without right-clicking).
+                if let selectedCustom {
+                    Spacer()
+                    HStack(spacing: 8) {
+                        Button("Edit…") {
+                            editorContext = ThemeEditorContext(seed: selectedCustom,
+                                                               editingID: selectedCustom.id)
+                        }
+                        Button(isDark ? "Convert to Light" : "Convert to Dark") {
+                            do { try theme.convertAppearance(of: selectedCustom) }
+                            catch { themeError = error.localizedDescription }
+                        }
+                        Button("Remove", role: .destructive) { theme.removeTheme(selectedCustom) }
+                    }
+                    .controlSize(.small)
                 }
             }
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 10)],
@@ -155,6 +174,11 @@ struct SettingsView: View {
                 ForEach(theme.themes(isDark: isDark)) { option in
                     ThemeSwatchCard(theme: option, selected: option.id == selection.wrappedValue) {
                         selection.wrappedValue = option.id
+                        // Picking a theme for the other appearance switches to that
+                        // appearance so the choice is immediately visible.
+                        if theme.isDarkResolved != isDark {
+                            theme.appearance = isDark ? .dark : .light
+                        }
                     }
                     .contextMenu {
                         Button("New Theme Based on This…") {
@@ -163,6 +187,10 @@ struct SettingsView: View {
                         if option.isCustom {
                             Button("Edit Theme…") {
                                 editorContext = ThemeEditorContext(seed: option, editingID: option.id)
+                            }
+                            Button(option.isDark ? "Convert to Light Theme" : "Convert to Dark Theme") {
+                                do { try theme.convertAppearance(of: option) }
+                                catch { themeError = error.localizedDescription }
                             }
                             Divider()
                             Button("Remove Theme", role: .destructive) { theme.removeTheme(option) }

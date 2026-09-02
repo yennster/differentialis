@@ -121,6 +121,7 @@ struct FolderComparisonView: View {
                     .contextMenu { fileMenu(for: entry) }
                 }
                 .listStyle(.inset)
+                .scrollContentBackground(.hidden)
             }
             folderFilterBar
         }

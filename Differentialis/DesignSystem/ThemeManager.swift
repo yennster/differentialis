@@ -371,6 +371,17 @@ final class ThemeManager {
         select(theme)
     }
 
+    /// Re-derives a custom theme for the other appearance and re-registers it there —
+    /// for themes whose authored appearance isn't what the user wants (a gallery preview
+    /// can look light while the file itself is dark). Colors are converted, not just
+    /// moved: the canvas becomes a surface for the target appearance and accents are
+    /// rescaled for contrast against it.
+    func convertAppearance(of theme: ColorTheme) throws {
+        guard theme.isCustom else { return }
+        let converted = theme.converted(toDark: !theme.isDark)
+        try saveCustomTheme(ThemeFile(converted), replacing: theme.id)
+    }
+
     func removeTheme(_ theme: ColorTheme) {
         guard theme.isCustom else { return }
         deleteThemeFiles(id: theme.id)

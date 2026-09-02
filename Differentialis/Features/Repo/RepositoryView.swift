@@ -161,6 +161,7 @@ struct RepositoryView: View {
                 CommitRow(commit: commit).tag(commit.id)
             }
             .listStyle(.inset)
+            .scrollContentBackground(.hidden)
         }
     }
 
@@ -190,6 +191,7 @@ struct RepositoryView: View {
                         }
                     }
                     .listStyle(.inset)
+                    .scrollContentBackground(.hidden)
                 }
                 GitFileFilterBar(filter: $workingFilter, files: workingFiles,
                                  resultCount: filteredWorkingFiles.count)
@@ -204,6 +206,7 @@ struct RepositoryView: View {
                 .foregroundStyle(Theme.badgeForeground)
                 .frame(width: 18, height: 18)
                 .background(file.status.tint, in: RoundedRectangle(cornerRadius: 4))
+                .help(file.status.label)
             Text((file.path as NSString).lastPathComponent)
                 .font(.system(size: 12.5)).lineLimit(1).truncationMode(.middle)
             Spacer()
@@ -268,6 +271,7 @@ struct RepositoryView: View {
                 fileRow(file).tag(file.id)
             }
             .listStyle(.inset)
+            .scrollContentBackground(.hidden)
         } else if let changeset, !changeset.files.isEmpty {
             ContentUnavailableView.search(text: changesetFilter.query)
         } else if loading {

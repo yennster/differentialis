@@ -159,6 +159,43 @@ struct RGB {
     }
 }
 
+extension ColorTheme {
+    /// A version of this theme re-derived for the other appearance: the canvas becomes a
+    /// near-white (or near-black) surface tinted by the original, and any accent without
+    /// enough contrast against the new canvas is rescaled toward readability. Judgement is
+    /// based on the actual colors, so it also repairs a theme registered under the wrong
+    /// appearance.
+    @MainActor func converted(toDark: Bool) -> ColorTheme {
+        let top = RGB(canvasTop)
+        let newTop = toDark
+            ? RGB(r: 0.07, g: 0.08, b: 0.11).interpolated(to: top, amount: 0.10)
+            : RGB(r: 1, g: 1, b: 1).interpolated(to: top, amount: 0.05)
+        let newBottom = newTop.scaled(by: toDark ? 0.72 : 0.96)
+
+        func adapt(_ color: Color) -> Color {
+            let rgb = RGB(color)
+            let luminance = rgb.luminance
+            if toDark {
+                guard luminance > 0, luminance < 0.35 else { return color }
+                return rgb.scaled(by: 0.45 / luminance).color
+            } else {
+                guard luminance > 0.55 else { return color }
+                return rgb.scaled(by: 0.55 / luminance).color
+            }
+        }
+
+        return ColorTheme(
+            id: ThemeFile.customID(name: name, isDark: toDark),
+            name: name, isDark: toDark,
+            canvasTop: newTop.color, canvasBottom: newBottom.color,
+            added: adapt(added), removed: adapt(removed), modified: adapt(modified),
+            conflict: adapt(conflict), brand: adapt(brand), brandAlt: adapt(brandAlt),
+            badgeForeground: toDark ? RGB(r: 0.05, g: 0.05, b: 0.07).color
+                                    : RGB(r: 0.99, g: 0.99, b: 1.00).color,
+            isCustom: true)
+    }
+}
+
 extension ThemeFile {
     /// A complete file for an existing theme — the template users edit and re-import.
     @MainActor init(_ theme: ColorTheme) {
