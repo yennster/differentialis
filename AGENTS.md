@@ -100,6 +100,8 @@ summaries in step:
   feature or requirement changes.
 - Bump `<lastmod>` in `site/sitemap.xml` when the page content changes.
 - Screenshots live in `site/assets/screens/` (WebP); the README gallery reuses them.
+- The social card (`site/assets/og.jpg`) is generated from `tools/og-card/`: edit
+  `card.html` and run `node tools/og-card/render.mjs` (needs Google Chrome).
 
 ## Releases
 
