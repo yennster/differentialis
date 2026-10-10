@@ -9,8 +9,11 @@ on:
   pull_request:
   workflow_dispatch:
 
+# A new push to a PR cancels that PR's stale run. Runs on main are grouped per commit so they never
+# cancel each other: every commit on main gets a real pass/fail, not a red "cancelled" X when the
+# next commit lands.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: true
 
 permissions:
@@ -23,7 +26,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Select Xcode 26
         run: |
@@ -39,7 +42,7 @@ jobs:
         run: xcodegen generate
 
       - name: Cache Swift packages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: build/SourcePackages
           key: spm-${{ runner.os }}-${{ hashFiles('project.yml') }}
@@ -56,9 +59,10 @@ jobs:
             -quiet
 
       - name: Summarize test results
-        if: always()
+        if: ${{ !cancelled() }}
         run: |
-          [ -d build/TestResults.xcresult ] || exit 0
+          # A build that dies before testing leaves a partial bundle with no Info.plist.
+          [ -f build/TestResults.xcresult/Info.plist ] || exit 0
           xcrun xcresulttool get test-results summary --path build/TestResults.xcresult > build/summary.json
           python3 - >> "$GITHUB_STEP_SUMMARY" <<'PY'
           import json
@@ -74,7 +78,7 @@ jobs:
 
       - name: Upload test results
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: TestResults
           path: build/TestResults.xcresult
@@ -86,7 +90,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Check links, structured data, and sitemap
         run: python3 scripts/check-site.py
