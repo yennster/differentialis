@@ -5,7 +5,12 @@
 ![Swift](https://img.shields.io/badge/Swift-6-orange?logo=swift)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
-A native macOS app for comparing and merging text, images, and folders — with git built in.
+A free, open-source macOS app for comparing and merging text, pasted snippets, images, and folders —
+with three-way merge and git built in.
+
+**[differentialis.app](https://www.differentialis.app)** ·
+[Download](https://github.com/yennster/differentialis/releases/latest) ·
+[Changelog](CHANGELOG.md)
 
 Written in SwiftUI with Apple's Liquid Glass. The diff, merge, and git engines have no
 third-party dependencies; [Sparkle](https://sparkle-project.org) is the lone dependency, used
@@ -167,8 +172,9 @@ pasted texts, folder scanning and filtering, git status parsing, and real tempor
 for reference/index/working-tree comparisons.
 
 [CI](.github/workflows/ci.yml) runs the same suite on a macOS 26 runner for every push to `main` and
-every pull request, and checks that the README and website only reference files that exist
-(`python3 scripts/check-links.py` runs that check locally).
+every pull request, and checks the README and website: every local link and image resolves, and the
+site's structured data, FAQ, and sitemap are valid (`python3 scripts/check-site.py` runs that check
+locally).
 
 ## Roadmap
 

@@ -63,7 +63,7 @@ Differentialis/
 └── Resources/    Assets.xcassets, etc.
 
 Tests/            Unit tests (DiffTests.swift)
-scripts/          changelog.sh, make-dmg.sh, check-links.py
+scripts/          changelog.sh, make-dmg.sh, check-site.py
 tools/            make_icon.swift
 .github/workflows/ci.yml        Build + tests on every push to main and every PR
 .github/workflows/release.yml   Signed + notarized .dmg on each release
@@ -87,6 +87,20 @@ project.yml       XcodeGen project definition (source of truth for the project)
 - **Liquid Glass throughout** — reuse the components in `DesignSystem/` for
   toolbars, mode switchers, popovers, and panels rather than rolling new chrome.
 
+## Website
+
+`site/` is the static marketing site at differentialis.app (deployed by Vercel with
+`site/` as its root). When features change, keep its copy, the FAQ, and the plain-text
+summaries in step:
+
+- The FAQ appears twice in `site/index.html`: the visible `#faq` section and the
+  `FAQPage` JSON-LD in `<head>`. Edit both; `scripts/check-site.py` fails if the
+  questions drift apart.
+- `site/llms.txt` is a plain-text product summary for AI assistants; update it with
+  feature or requirement changes.
+- Bump `<lastmod>` in `site/sitemap.xml` when the page content changes.
+- Screenshots live in `site/assets/screens/` (WebP); the README gallery reuses them.
+
 ## Releases
 
 Releases are cut via `scripts/changelog.sh` and the
@@ -98,6 +112,6 @@ release.
 ## Before you finish
 
 - Run the test suite and make sure it passes (CI runs it too).
-- If you touched the README or `site/`, run `python3 scripts/check-links.py`.
+- If you touched the README or `site/`, run `python3 scripts/check-site.py`.
 - If you changed `project.yml`, confirm `xcodegen generate` succeeds.
 - Keep `CHANGELOG.md` updated for user-facing changes.

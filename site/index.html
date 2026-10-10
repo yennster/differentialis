@@ -3,14 +3,17 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Differentialis — file comparison & merge for macOS</title>
+  <title>Differentialis — free diff &amp; merge app for Mac</title>
   <meta name="description" content="A native Mac app for comparing and merging text, images, and folders, with git built in. Paste snippets straight in, merge with a base, and browse repository history. SwiftUI and Liquid Glass, with pure-Swift diff engines." />
+  <meta name="author" content="Jenny Speelman" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
   <meta name="theme-color" content="#0b0a12" />
   <link rel="icon" href="assets/icon.png" />
   <link rel="apple-touch-icon" href="assets/icon.png" />
   <link rel="canonical" href="https://www.differentialis.app/" />
 
-  <meta property="og:title" content="Differentialis" />
+  <meta property="og:site_name" content="Differentialis" />
+  <meta property="og:title" content="Differentialis — free diff &amp; merge app for Mac" />
   <meta property="og:description" content="Every difference, made obvious. Compare and merge text, images, folders, and git history on your Mac." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://www.differentialis.app/" />
@@ -19,12 +22,130 @@
   <meta property="og:image:height" content="630" />
   <meta property="og:image:alt" content="Differentialis comparing two Swift files side by side" />
   <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Differentialis — free diff &amp; merge app for Mac" />
+  <meta name="twitter:description" content="Compare and merge text, images, folders, and git history on your Mac. Free and open source." />
   <meta name="twitter:image" content="https://www.differentialis.app/assets/og.jpg" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
+  <!-- Structured data: what the app is, where its source lives, and the FAQ shown on the page.
+       Keep the FAQ answers in sync with the visible #faq section. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://www.differentialis.app/#website",
+        "url": "https://www.differentialis.app/",
+        "name": "Differentialis",
+        "inLanguage": "en"
+      },
+      {
+        "@type": "Person",
+        "@id": "https://www.differentialis.app/#author",
+        "name": "Jenny Speelman",
+        "url": "https://github.com/yennster"
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": "https://www.differentialis.app/#app",
+        "name": "Differentialis",
+        "description": "A free, open-source Mac app for comparing and merging text, pasted snippets, images, and folders, with three-way merge and git history built in.",
+        "url": "https://www.differentialis.app/",
+        "applicationCategory": "DeveloperApplication",
+        "applicationSubCategory": "File comparison and merge tool",
+        "operatingSystem": "macOS 26 (Tahoe) or later",
+        "processorRequirements": "Apple silicon or Intel",
+        "isAccessibleForFree": true,
+        "license": "https://github.com/yennster/differentialis/blob/main/LICENSE",
+        "downloadUrl": "https://github.com/yennster/differentialis/releases/latest",
+        "releaseNotes": "https://github.com/yennster/differentialis/blob/main/CHANGELOG.md",
+        "image": "https://www.differentialis.app/assets/og.jpg",
+        "screenshot": [
+          "https://www.differentialis.app/assets/screens/text.webp",
+          "https://www.differentialis.app/assets/screens/paste.webp",
+          "https://www.differentialis.app/assets/screens/image-twoup.webp",
+          "https://www.differentialis.app/assets/screens/folder.webp",
+          "https://www.differentialis.app/assets/screens/merge.webp",
+          "https://www.differentialis.app/assets/screens/repo.webp"
+        ],
+        "featureList": [
+          "Text diff with character-level highlights, split and unified layouts",
+          "Paste Text: compare snippets without saving files, with live diff and per-change copy",
+          "Image diff: Two-Up, One-Up, Split, and Difference modes",
+          "Folder comparison with added, removed, modified, and identical files",
+          "Three-way merge with conflict resolution and an editable result",
+          "Git repository history, staged and unstaged changes, and custom comparisons",
+          "Light, dark, and auto appearance with built-in and custom themes",
+          "Command-line launcher and automatic updates"
+        ],
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "author": { "@id": "https://www.differentialis.app/#author" },
+        "sameAs": ["https://github.com/yennster/differentialis"]
+      },
+      {
+        "@type": "SoftwareSourceCode",
+        "@id": "https://github.com/yennster/differentialis#source",
+        "name": "Differentialis source code",
+        "codeRepository": "https://github.com/yennster/differentialis",
+        "programmingLanguage": "Swift",
+        "runtimePlatform": "macOS",
+        "license": "https://github.com/yennster/differentialis/blob/main/LICENSE",
+        "targetProduct": { "@id": "https://www.differentialis.app/#app" },
+        "author": { "@id": "https://www.differentialis.app/#author" }
+      },
+      {
+        "@type": "FAQPage",
+        "@id": "https://www.differentialis.app/#faq",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "What is Differentialis?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Differentialis is a free, open-source Mac app for comparing and merging files. It shows the differences between two text files, pasted snippets, images, or folders, resolves three-way merges, and browses git history. It's built natively with SwiftUI and Liquid Glass for macOS 26." }
+          },
+          {
+            "@type": "Question",
+            "name": "Is Differentialis free?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. Differentialis is free and open source under the MIT license. Download the Apple-notarized .dmg from GitHub Releases; there's no account, subscription, or telemetry." }
+          },
+          {
+            "@type": "Question",
+            "name": "Which Macs does Differentialis run on?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Differentialis requires macOS 26 Tahoe or later and runs natively on both Apple silicon and Intel Macs." }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I compare two text files on a Mac?",
+            "acceptedAnswer": { "@type": "Answer", "text": "In Differentialis, choose New Text Comparison (Command-N) and pick the two files, or drag both files onto the window. The diff shows the files side by side or unified, with changed characters highlighted. From Terminal, run differentialis file1 file2 after installing the command-line tool from the app menu." }
+          },
+          {
+            "@type": "Question",
+            "name": "Can I compare text without saving it to files?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. Paste Text (Command-T) opens two side-by-side editors. Paste or type into each, and the diff updates as you edit. You can copy any change from one side to the other, with undo." }
+          },
+          {
+            "@type": "Question",
+            "name": "Can Differentialis compare images and folders?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. Images can be compared in Two-Up, One-Up (blink), Split, and Difference modes, for PNG, JPEG, HEIC, and any other format macOS can open. Folder comparison scans both trees and marks every file as added, removed, modified, or identical, with a diff for each file." }
+          },
+          {
+            "@type": "Question",
+            "name": "Does Differentialis work with git?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. Open a repository to browse its commit history and its staged and unstaged changes, and compare any branch, tag, or commit against another or against your working copy. Differentialis uses the git already on your Mac." }
+          },
+          {
+            "@type": "Question",
+            "name": "Can Differentialis do a three-way merge?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. Choose a base, left, and right file. Changes made on only one side merge automatically, and conflicts are shown side by side so you can use left, right, both, or the base, or edit the result before saving. Unresolved conflicts are saved with standard conflict markers." }
+          }
+        ]
+      }
+    ]
+  }
+  </script>
 </head>
 <body>
   <canvas id="sky" aria-hidden="true"></canvas>
@@ -40,6 +161,7 @@
     <nav class="nav-links">
       <a href="#features">Features</a>
       <a href="#tour">Tour</a>
+      <a href="#faq">FAQ</a>
       <a href="https://github.com/yennster/differentialis" target="_blank" rel="noopener">GitHub</a>
       <a class="btn btn-ghost btn-sm magnetic" data-dl href="https://github.com/yennster/differentialis/releases/latest">Download</a>
     </nav>
@@ -49,7 +171,7 @@
     <!-- HERO -->
     <section class="hero">
       <div class="hero-copy parallax" data-depth="0.6">
-        <p class="eyebrow">macOS · SwiftUI · Liquid Glass</p>
+        <p class="eyebrow">Free, open-source diff &amp; merge for macOS</p>
         <h1>Every difference,<br />made obvious.</h1>
         <p class="lede">A native Mac app for comparing and merging text, images, and folders,
           with git built in. Paste snippets straight in, merge against a base, or browse a
@@ -67,7 +189,7 @@
 
       <div class="hero-stage parallax" data-depth="1.4">
         <figure class="shot tilt" data-tilt>
-          <img src="assets/screens/text.webp" width="1800" height="1203"
+          <img src="assets/screens/text.webp" width="1800" height="1203" fetchpriority="high"
                alt="Differentialis comparing two versions of a Swift file side by side, with changed lines and characters highlighted" loading="eager" />
         </figure>
         <div class="diff-chip glass" aria-hidden="true">
@@ -192,7 +314,7 @@
 
       <article class="tour-row" data-reveal>
         <figure class="shot tilt" data-tilt>
-          <img src="assets/screens/welcome.webp" width="1800" height="1203" loading="lazy"
+          <img src="assets/screens/welcome.webp" width="1800" height="1203" loading="lazy" decoding="async"
                alt="The Differentialis welcome screen with cards for text, pasted text, image, folder, 3-way merge, and repository comparisons" />
         </figure>
         <div class="tour-copy">
@@ -208,7 +330,7 @@ differentialis base.txt mine.txt theirs.txt</code></pre>
 
       <article class="tour-row flip" data-reveal>
         <figure class="shot tilt" data-tilt>
-          <img src="assets/screens/text.webp" width="1800" height="1203" loading="lazy"
+          <img src="assets/screens/text.webp" width="1800" height="1203" loading="lazy" decoding="async"
                alt="A split text diff of MissionControl.swift, with changed characters highlighted and an unchanged region collapsed" />
         </figure>
         <div class="tour-copy">
@@ -222,7 +344,7 @@ differentialis base.txt mine.txt theirs.txt</code></pre>
 
       <article class="tour-row" data-reveal>
         <figure class="shot tilt" data-tilt>
-          <img src="assets/screens/paste.webp" width="1800" height="1203" loading="lazy"
+          <img src="assets/screens/paste.webp" width="1800" height="1203" loading="lazy" decoding="async"
                alt="Two pasted Swift snippets side by side in editable panes, with changed lines highlighted and Copy to A and Copy to B buttons" />
         </figure>
         <div class="tour-copy">
@@ -237,11 +359,11 @@ differentialis base.txt mine.txt theirs.txt</code></pre>
       <article class="tour-row flip" data-reveal>
         <div class="shot-stack">
           <figure class="shot tilt" data-tilt>
-            <img src="assets/screens/image-twoup.webp" width="1800" height="1203" loading="lazy"
+            <img src="assets/screens/image-twoup.webp" width="1800" height="1203" loading="lazy" decoding="async"
                  alt="Two versions of an illustration shown side by side in the Two-Up image mode" />
           </figure>
           <figure class="shot inset">
-            <img src="assets/screens/image-difference.webp" width="1800" height="1203" loading="lazy"
+            <img src="assets/screens/image-difference.webp" width="1800" height="1203" loading="lazy" decoding="async"
                  alt="The Difference image mode, where only the changed pixels show" />
           </figure>
         </div>
@@ -256,7 +378,7 @@ differentialis base.txt mine.txt theirs.txt</code></pre>
 
       <article class="tour-row" data-reveal>
         <figure class="shot tilt" data-tilt>
-          <img src="assets/screens/folder.webp" width="1800" height="1203" loading="lazy"
+          <img src="assets/screens/folder.webp" width="1800" height="1203" loading="lazy" decoding="async"
                alt="A folder comparison listing added, deleted, and modified files, with the diff of the selected file beside it" />
         </figure>
         <div class="tour-copy">
@@ -270,7 +392,7 @@ differentialis base.txt mine.txt theirs.txt</code></pre>
 
       <article class="tour-row flip" data-reveal>
         <figure class="shot tilt" data-tilt>
-          <img src="assets/screens/merge.webp" width="1800" height="1203" loading="lazy"
+          <img src="assets/screens/merge.webp" width="1800" height="1203" loading="lazy" decoding="async"
                alt="A three-way merge showing changes taken from the left and right automatically and one conflict to resolve" />
         </figure>
         <div class="tour-copy">
@@ -283,7 +405,7 @@ differentialis base.txt mine.txt theirs.txt</code></pre>
 
       <article class="tour-row" data-reveal>
         <figure class="shot tilt" data-tilt>
-          <img src="assets/screens/repo.webp" width="1800" height="1203" loading="lazy"
+          <img src="assets/screens/repo.webp" width="1800" height="1203" loading="lazy" decoding="async"
                alt="A repository's commit history, the files changed in the newest commit, and a unified diff of one of them" />
         </figure>
         <div class="tour-copy">
@@ -298,11 +420,11 @@ differentialis base.txt mine.txt theirs.txt</code></pre>
       <article class="tour-row flip" data-reveal>
         <div class="shot-stack">
           <figure class="shot tilt" data-tilt>
-            <img src="assets/screens/text-light.webp" width="1800" height="1203" loading="lazy"
+            <img src="assets/screens/text-light.webp" width="1800" height="1203" loading="lazy" decoding="async"
                  alt="A unified text diff in the light appearance" />
           </figure>
           <figure class="shot inset settings">
-            <img src="assets/screens/settings.webp" width="1000" height="1113" loading="lazy"
+            <img src="assets/screens/settings.webp" width="1000" height="1113" loading="lazy" decoding="async"
                  alt="The Settings window with appearance, color themes, and code font options" />
           </figure>
         </div>
@@ -315,6 +437,68 @@ differentialis base.txt mine.txt theirs.txt</code></pre>
             pinch to resize.</p>
         </div>
       </article>
+    </section>
+
+    <!-- FAQ (mirrors the FAQPage structured data in <head>) -->
+    <section class="faq" id="faq">
+      <header class="sec-head center" data-reveal>
+        <p class="eyebrow">FAQ</p>
+        <h2>Questions, answered.</h2>
+      </header>
+      <div class="faq-list">
+        <details class="glass" data-reveal open>
+          <summary><h3>What is Differentialis?</h3></summary>
+          <p>Differentialis is a free, open-source Mac app for comparing and merging files. It shows
+            the differences between two text files, pasted snippets, images, or folders, resolves
+            three-way merges, and browses git history. It's built natively with SwiftUI and Liquid
+            Glass for macOS 26.</p>
+        </details>
+        <details class="glass" data-reveal>
+          <summary><h3>Is Differentialis free?</h3></summary>
+          <p>Yes. Differentialis is free and open source under the MIT license. Download the
+            Apple-notarized <code>.dmg</code> from GitHub Releases; there's no account, subscription,
+            or telemetry.</p>
+        </details>
+        <details class="glass" data-reveal>
+          <summary><h3>Which Macs does Differentialis run on?</h3></summary>
+          <p>Differentialis requires macOS 26 Tahoe or later and runs natively on both Apple silicon
+            and Intel Macs.</p>
+        </details>
+        <details class="glass" data-reveal>
+          <summary><h3>How do I compare two text files on a Mac?</h3></summary>
+          <p>In Differentialis, choose <strong>New Text Comparison</strong> (<kbd>⌘N</kbd>) and pick
+            the two files, or drag both files onto the window. The diff shows the files side by side
+            or unified, with changed characters highlighted. From Terminal, run
+            <code>differentialis file1 file2</code> after installing the command-line tool from the
+            app menu.</p>
+        </details>
+        <details class="glass" data-reveal>
+          <summary><h3>Can I compare text without saving it to files?</h3></summary>
+          <p>Yes. <strong>Paste Text</strong> (<kbd>⌘T</kbd>) opens two side-by-side editors. Paste
+            or type into each, and the diff updates as you edit. You can copy any change from one
+            side to the other, with undo.</p>
+        </details>
+        <details class="glass" data-reveal>
+          <summary><h3>Can Differentialis compare images and folders?</h3></summary>
+          <p>Yes. Images can be compared in Two-Up, One-Up (blink), Split, and Difference modes, for
+            PNG, JPEG, HEIC, and any other format macOS can open. Folder comparison scans both trees
+            and marks every file as added, removed, modified, or identical, with a diff for each
+            file.</p>
+        </details>
+        <details class="glass" data-reveal>
+          <summary><h3>Does Differentialis work with git?</h3></summary>
+          <p>Yes. Open a repository to browse its commit history and its staged and unstaged changes,
+            and compare any branch, tag, or commit against another or against your working copy.
+            Differentialis uses the git already on your Mac.</p>
+        </details>
+        <details class="glass" data-reveal>
+          <summary><h3>Can Differentialis do a three-way merge?</h3></summary>
+          <p>Yes. Choose a base, left, and right file. Changes made on only one side merge
+            automatically, and conflicts are shown side by side so you can use left, right, both, or
+            the base, or edit the result before saving. Unresolved conflicts are saved with standard
+            conflict markers.</p>
+        </details>
+      </div>
     </section>
 
     <!-- DOWNLOAD -->

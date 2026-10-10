@@ -301,6 +301,24 @@ kbd {
   font-size: 0.82rem; line-height: 1.7; color: var(--muted);
 }
 
+/* ===================================================== FAQ */
+.faq { max-width: 880px; margin: clamp(2rem, 6vw, 4rem) auto 0; }
+.faq-list { display: grid; gap: 0.75rem; }
+.faq details { overflow: hidden; border-radius: 16px; }
+.faq summary {
+  list-style: none; cursor: pointer; padding: 1.1rem 1.4rem;
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+}
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after {
+  content: "+"; flex: none; font: 500 1.35rem/1 "Geist Mono", monospace; color: var(--purple);
+  transition: transform 0.3s var(--ease);
+}
+.faq details[open] summary::after { transform: rotate(45deg); }
+.faq summary h3 { font-size: 1.05rem; font-weight: 600; letter-spacing: -0.01em; }
+.faq details p { color: var(--muted); padding: 0 1.4rem 1.25rem; max-width: 72ch; }
+.faq details strong { color: var(--ink); font-weight: 600; }
+
 /* ===================================================== Download */
 .download { max-width: var(--maxw); margin: clamp(5rem, 12vw, 9rem) auto; }
 .dl-card { text-align: center; padding: clamp(2.5rem, 6vw, 4.5rem) 1.5rem; position: relative; overflow: hidden; }

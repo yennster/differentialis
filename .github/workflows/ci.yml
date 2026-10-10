@@ -1,7 +1,7 @@
 name: CI
 
 # Builds the app and runs the unit tests on every push to main and every pull request, and checks
-# that the README and website only point at files that exist.
+# the README and website (local links, structured data, FAQ, sitemap).
 
 on:
   push:
@@ -81,12 +81,12 @@ jobs:
           if-no-files-found: ignore
 
   links:
-    name: Site & README links
+    name: Site & README checks
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Check local links and images
-        run: python3 scripts/check-links.py
+      - name: Check links, structured data, and sitemap
+        run: python3 scripts/check-site.py

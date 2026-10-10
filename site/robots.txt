@@ -1,0 +1,6 @@
+# Differentialis — https://www.differentialis.app
+# Search engines and AI crawlers are welcome. A plain-text summary for AI assistants is at /llms.txt.
+User-agent: *
+Allow: /
+
+Sitemap: https://www.differentialis.app/sitemap.xml
