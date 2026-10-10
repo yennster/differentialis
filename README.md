@@ -10,7 +10,7 @@ Written in SwiftUI with Apple's Liquid Glass. The diff, merge, and git engines h
 third-party dependencies; [Sparkle](https://sparkle-project.org) is the lone dependency, used
 only for in-app updates.
 
-![Differentialis comparing two Swift files](docs/hero2.png)
+![The Differentialis welcome screen](docs/hero2.png)
 
 ## Download
 
@@ -30,6 +30,9 @@ new version in place.
 
 - **Text diff** — a from-scratch Myers diff engine with **character-level** intra-line highlights, **side-by-side and unified** layouts, exact or whitespace-insensitive matching, line-ending/final-newline diagnostics, change bars, collapsible unchanged regions, next/previous-change navigation, and live insertion/deletion stats.
 - **Paste Text** — compare snippets without saving files: paste or type into two side-by-side editors (`⌘T`) and the diff updates live as you edit, with synced scrolling and line numbers. Copy any change from one side to the other (`⌥⌘→` / `⌥⌘←`), with full undo, or flip to the split/unified Diff view.
+
+  ![Two pasted Swift snippets compared side by side in Differentialis](docs/paste-text.png)
+
 - **Image diff** — four comparison modes with `⌘1`–`⌘4`:
   - **Two-Up** (side-by-side, horizontal or vertical)
   - **One-Up** (A/B with auto-blink)
