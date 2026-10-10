@@ -10,6 +10,8 @@ When cutting a release, add a section here and use it as the release notes:
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-10-10
+
 ### Added
 - **Paste Text comparisons** — compare snippets without saving them to files first
   ([#5](https://github.com/yennster/differentialis/issues/5)). **File ▸ New Pasted Text Comparison**
@@ -304,7 +306,11 @@ When cutting a release, add a section here and use it as the release notes:
 - Native SwiftUI + Liquid Glass, **zero third-party dependencies**.
 - GitHub Actions release workflow that builds and attaches a drag-to-Applications `.dmg`.
 
-[Unreleased]: https://github.com/yennster/differentialis/compare/v0.1.9...HEAD
+[Unreleased]: https://github.com/yennster/differentialis/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/yennster/differentialis/releases/tag/v0.3.0
+[0.2.2]: https://github.com/yennster/differentialis/releases/tag/v0.2.2
+[0.2.1]: https://github.com/yennster/differentialis/releases/tag/v0.2.1
+[0.2.0]: https://github.com/yennster/differentialis/releases/tag/v0.2.0
 [0.1.9]: https://github.com/yennster/differentialis/releases/tag/v0.1.9
 [0.1.8]: https://github.com/yennster/differentialis/releases/tag/v0.1.8
 [0.1.7]: https://github.com/yennster/differentialis/releases/tag/v0.1.7
