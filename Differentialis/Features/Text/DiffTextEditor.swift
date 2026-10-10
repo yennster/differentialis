@@ -95,6 +95,21 @@ final class DiffTextView: NSTextView {
         enclosingScrollView?.verticalRulerView as? LineNumberRulerView
     }
 
+    /// True while the scroll view resizes this view (window resize, divider drag, first layout).
+    /// NSTextView normally scrolls its selection back into view then, which would knock the two
+    /// panes out of alignment. Typing never goes through this path, so it still follows the caret.
+    private var isFollowingSuperview = false
+
+    override func resize(withOldSuperviewSize oldSize: NSSize) {
+        isFollowingSuperview = true
+        defer { isFollowingSuperview = false }
+        super.resize(withOldSuperviewSize: oldSize)
+    }
+
+    override func scrollToVisible(_ rect: NSRect) -> Bool {
+        isFollowingSuperview ? false : super.scrollToVisible(rect)
+    }
+
     private func refreshDecorations() {
         needsDisplay = true
         lineNumberRuler?.needsDisplay = true
@@ -476,6 +491,10 @@ struct DiffTextEditor: NSViewRepresentable {
 
         scrollView.documentView = textView
         textView.frame = NSRect(origin: .zero, size: scrollView.contentSize)
+        // Open at the top. Left at the end of the loaded text, the caret would scroll a pane that
+        // overflows to its bottom while the other pane stays put.
+        textView.setSelectedRange(NSRange(location: 0, length: 0))
+        textView.scroll(.zero)
 
         let ruler = LineNumberRulerView(textView: textView, scrollView: scrollView)
         scrollView.verticalRulerView = ruler
