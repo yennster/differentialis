@@ -55,6 +55,7 @@ final class AppModel {
     var openRepoPath: String?
     private var didProcessLaunchArguments = false
     private var repositoryOpenRequest = UUID()
+    private var pastedTextCount = 0
 
     // MARK: - Opening from paths (command line or `open` Apple Event)
 
@@ -113,6 +114,12 @@ final class AppModel {
             comparisons.append(comparison)
         }
         route = .comparison(comparison.id)
+    }
+
+    /// Opens an empty pasted-text comparison: two editors to type or paste into, no files needed.
+    func newPastedTextComparison() {
+        pastedTextCount += 1
+        open(Comparison.pasted(title: pastedTextCount == 1 ? "Pasted Text" : "Pasted Text \(pastedTextCount)"))
     }
 
     func openChangeset(_ changeset: OpenChangeset) {
@@ -305,10 +312,12 @@ final class AppModel {
         case .repository:
             guard let folder = pickFolder(prompt: "Choose a git repository") else { return }
             openRepository(at: folder)
+        case .pastedText:
+            newPastedTextComparison()
         }
     }
 
-    enum PickMode { case text, image, folder, merge, repository }
+    enum PickMode { case text, pastedText, image, folder, merge, repository }
 
     private func pickFile(prompt: String) -> URL? {
         let panel = NSOpenPanel()

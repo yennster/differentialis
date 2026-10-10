@@ -9,6 +9,7 @@ struct KeyboardShortcutsView: View {
     private let groups: [Group] = [
         Group(title: "General", items: [
             Shortcut(label: "New Text Comparison", keys: ["⌘", "N"]),
+            Shortcut(label: "New Pasted Text Comparison", keys: ["⌘", "T"]),
             Shortcut(label: "New Image Comparison", keys: ["⇧", "⌘", "N"]),
             Shortcut(label: "New Folder Comparison", keys: ["⌥", "⌘", "N"]),
             Shortcut(label: "Open Repository", keys: ["⌘", "O"]),
@@ -24,6 +25,11 @@ struct KeyboardShortcutsView: View {
             Shortcut(label: "Increase font size", keys: ["⌘", "+"]),
             Shortcut(label: "Decrease font size", keys: ["⌘", "−"]),
             Shortcut(label: "Reset font size", keys: ["⌘", "0"]),
+        ]),
+        Group(title: "Pasted Text", items: [
+            Shortcut(label: "Copy change to B", keys: ["⌥", "⌘", "→"]),
+            Shortcut(label: "Copy change to A", keys: ["⌥", "⌘", "←"]),
+            Shortcut(label: "Swap A / B", keys: ["⇧", "⌘", "S"]),
         ]),
         Group(title: "Image Diff", items: [
             Shortcut(label: "Two-Up", keys: ["⌘", "1"]),

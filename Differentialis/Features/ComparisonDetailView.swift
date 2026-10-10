@@ -17,6 +17,10 @@ struct ComparisonDetailView: View {
                       left: comparison.a, right: comparison.b)
         case .binary:
             BinaryComparisonView(a: comparison.a, b: comparison.b)
+        case .pasted:
+            if let document = comparison.pasted {
+                PastedTextComparisonView(document: document)
+            }
         }
     }
 }

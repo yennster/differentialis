@@ -10,6 +10,20 @@ When cutting a release, add a section here and use it as the release notes:
 
 ## [Unreleased]
 
+### Added
+- **Paste Text comparisons** — compare snippets without saving them to files first
+  ([#5](https://github.com/yennster/differentialis/issues/5)). **File ▸ New Pasted Text Comparison**
+  (`⌘T`) or the new **Paste Text** card on the welcome screen opens two side-by-side editors; paste
+  or type into each and the diff updates live as you edit — changed lines are tinted with change
+  bars, changed characters are highlighted, line numbers run down each side, and the two panes
+  scroll together so matching lines stay level.
+- **Copy a change across** in a pasted-text comparison: click into a change (or step to it with
+  `⌘]` / `⌘[`), then **Copy to B** (`⌥⌘→`) or **Copy to A** (`⌥⌘←`) to make that side match. The next
+  change is selected after each copy, and every edit — including copies, Paste, Clear, and **Swap A
+  / B** (`⇧⌘S`) — is undoable.
+- A pasted-text comparison can flip to the familiar **Diff** view (split or unified, collapsed
+  unchanged regions) from the Edit / Diff switch in its toolbar.
+
 ## [0.2.2] — 2026-09-02
 
 ### Added

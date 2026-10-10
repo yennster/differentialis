@@ -29,6 +29,7 @@ struct WelcomeView: View {
 
     private let actions: [(title: String, subtitle: String, symbol: String, tint: Color, mode: AppModel.PickMode)] = [
         ("Text", "Compare two text or code files", "text.alignleft", Theme.modified, .text),
+        ("Paste Text", "Paste snippets side by side — no files needed", "doc.on.clipboard", Theme.modified, .pastedText),
         ("Image", "Spot pixel-level differences", "photo", Theme.added, .image),
         ("Folder", "Diff entire directory trees", "folder", Theme.brandAlt, .folder),
         ("3-Way Merge", "Resolve conflicts with a base", "arrow.triangle.merge", Theme.conflict, .merge),
