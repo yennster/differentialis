@@ -164,7 +164,7 @@
     .then((releases) => {
       if (!Array.isArray(releases) || releases.length === 0) return;
       const rel = releases.find((r) => (r.assets || []).some((a) => a.name && a.name.endsWith(".dmg"))) || releases[0];
-      const tag = rel.tag_name || "v0.1.1";
+      const tag = rel.tag_name || "v0.2.2";
       const dmg = (rel.assets || []).find((a) => a.name && a.name.endsWith(".dmg"));
       const url = dmg ? dmg.browser_download_url : rel.html_url;
       if (url) document.querySelectorAll("[data-dl]").forEach((a) => (a.href = url));

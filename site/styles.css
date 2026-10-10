@@ -135,7 +135,7 @@ section { padding-inline: clamp(1rem, 4vw, 2.5rem); }
 }
 .sec-head { max-width: var(--maxw); margin: 0 auto clamp(2rem, 5vw, 3.5rem); }
 .sec-head.center { text-align: center; }
-.sec-head h2, .download h2, .showcase h2 {
+.sec-head h2, .download h2 {
   font-size: clamp(1.9rem, 4.4vw, 3.1rem); font-weight: 700; letter-spacing: -0.03em; line-height: 1.04;
 }
 
@@ -155,15 +155,13 @@ section { padding-inline: clamp(1rem, 4vw, 2.5rem); }
 .cta-row { display: flex; flex-wrap: wrap; gap: 0.8rem; margin-bottom: 1.1rem; }
 .cta-note { font-family: "Geist Mono", monospace; font-size: 0.8rem; color: var(--faint); letter-spacing: 0.01em; }
 
+/* Real app screenshots. Each image is a macOS window capture that carries its own chrome and
+   shadow, so it floats on the page without a frame. */
+.shot { position: relative; margin: 0; transform-style: preserve-3d; }
+.shot img { width: 100%; height: auto; }
+
 /* Hero stage: tilted screenshot + floating diff chip */
 .hero-stage { position: relative; }
-.shot-frame { position: relative; overflow: hidden; padding: 0; }
-.shot-bar { display: flex; gap: 7px; padding: 12px 14px; border-bottom: 1px solid var(--line-soft); }
-.shot-bar i { width: 11px; height: 11px; border-radius: 50%; background: oklch(1 0 0 / 0.18); }
-.shot-bar i:nth-child(1) { background: var(--pink); }
-.shot-bar i:nth-child(2) { background: #f5c84b; }
-.shot-bar i:nth-child(3) { background: var(--green); }
-.shot-frame img { width: 100%; }
 .diff-chip {
   position: absolute; right: -8%; bottom: -7%; width: 64%; max-width: 320px;
   padding: 0.85rem 1rem; font-family: "Geist Mono", monospace; font-size: 0.78rem;
@@ -177,7 +175,8 @@ section { padding-inline: clamp(1rem, 4vw, 2.5rem); }
 /* ===================================================== Trust strip */
 .trust {
   max-width: var(--maxw); margin: 1rem auto clamp(4rem, 9vw, 7rem);
-  display: flex; flex-wrap: wrap; align-items: center; gap: 1rem;
+  padding-inline: clamp(1rem, 4vw, 2.5rem);
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.6rem 1rem;
   color: var(--faint); font-size: 0.86rem;
 }
 .trust i { width: 4px; height: 4px; border-radius: 50%; background: var(--faint); opacity: 0.6; }
@@ -196,6 +195,13 @@ section { padding-inline: clamp(1rem, 4vw, 2.5rem); }
 .cell h3 { font-size: 1.22rem; font-weight: 600; letter-spacing: -0.01em; margin: 0.7rem 0 0.5rem; }
 .cell p { color: var(--muted); font-size: 0.95rem; max-width: 42ch; }
 .cell.accent { background: linear-gradient(160deg, color-mix(in oklab, var(--purple) 22%, var(--glass-2)), var(--glass)); }
+
+/* "New" badge, used on feature cards and tour eyebrows */
+.new {
+  display: inline-block; margin-left: 0.5rem; padding: 0.1rem 0.45rem; border-radius: 999px;
+  font: 600 0.66rem/1.4 "Geist Mono", monospace; letter-spacing: 0.08em; text-transform: uppercase;
+  font-style: normal; color: #14121c; background: var(--green); vertical-align: 0.15em;
+}
 
 /* glare highlight (driven by JS vars) */
 .glare {
@@ -223,16 +229,77 @@ section { padding-inline: clamp(1rem, 4vw, 2.5rem); }
 .tree b { width: 1.3em; height: 1.3em; display: grid; place-items: center; border-radius: 5px; font-size: 0.72rem; color: #14121c; }
 .tree .a b { background: var(--green); } .tree .d b { background: var(--pink); } .tree .m b { background: var(--blue); }
 
+.paste-demo { margin-top: auto; display: flex; align-items: center; gap: 0.6rem; }
+.paste-demo span {
+  flex: 1; display: grid; gap: 0.4rem; padding: 0.75rem; border-radius: 10px;
+  border: 1px solid var(--line-soft); background: oklch(0.1 0.02 285);
+}
+.paste-demo i { height: 6px; border-radius: 3px; background: oklch(1 0 0 / 0.14); }
+.paste-demo i:nth-child(2) { width: 78%; }
+.paste-demo i:nth-child(3) { width: 56%; }
+.paste-demo i.del { background: color-mix(in oklab, var(--pink) 65%, transparent); }
+.paste-demo i.add { background: color-mix(in oklab, var(--green) 65%, transparent); }
+.paste-demo b { color: var(--purple); font-size: 1.1rem; }
+
+.theme-demo { margin-top: auto; display: flex; gap: 0.5rem; }
+.theme-demo span {
+  flex: 1; height: 46px; border-radius: 10px; border: 1px solid var(--line-soft);
+  --stripes:
+    linear-gradient(var(--green) 0 0) 8px 10px / 42% 4px no-repeat,
+    linear-gradient(var(--pink) 0 0) 8px 19px / 58% 4px no-repeat,
+    linear-gradient(var(--blue) 0 0) 8px 28px / 32% 4px no-repeat;
+}
+.theme-demo span:nth-child(1) { background: var(--stripes), #f7f6fb; }
+.theme-demo span:nth-child(2) { background: var(--stripes), #0e0d16; }
+.theme-demo span:nth-child(3) { background: var(--stripes), #0b2c37; }
+.theme-demo span:nth-child(4) { background: var(--stripes), #272822; }
+
+.git-demo { margin-top: auto; display: flex; flex-wrap: wrap; gap: 0.5rem; padding-top: 1.1rem; list-style: none; }
+.git-demo li {
+  display: flex; align-items: center; gap: 0.55rem; padding: 0.45rem 0.75rem; border-radius: 10px;
+  border: 1px solid var(--line-soft); background: oklch(0.1 0.02 285);
+  font-size: 0.82rem; color: var(--muted);
+}
+.git-demo li::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--purple); }
+.git-demo code { color: var(--blue); font-size: 0.78rem; }
+
 .merge-demo { margin-top: auto; display: flex; gap: 0.5rem; }
 .merge-demo span { flex: 1; height: 56px; border-radius: 10px; border: 1px solid var(--line-soft); }
 .merge-demo span:nth-child(1) { background: color-mix(in oklab, var(--faint) 18%, transparent); }
 .merge-demo span:nth-child(2) { background: color-mix(in oklab, var(--pink) 22%, transparent); }
 .merge-demo span:nth-child(3) { background: color-mix(in oklab, var(--blue) 22%, transparent); }
 
-/* ===================================================== Showcase */
-.showcase { max-width: var(--maxw); margin: clamp(4rem, 10vw, 8rem) auto 0; }
-.showcase-frame { position: relative; overflow: hidden; padding: 10px; transform-style: preserve-3d; }
-.showcase-frame img { width: 100%; border-radius: 12px; }
+/* ===================================================== Tour */
+.tour { max-width: var(--maxw); margin: clamp(4rem, 10vw, 8rem) auto 0; }
+.tour-row {
+  display: grid; grid-template-columns: 1.65fr 1fr; align-items: center;
+  gap: clamp(1.5rem, 4vw, 3.5rem); margin-bottom: clamp(3.5rem, 9vw, 7rem);
+}
+.tour-row.flip { grid-template-columns: 1fr 1.65fr; }
+.tour-row.flip > :first-child { order: 2; }
+.tour-copy .eyebrow { margin-bottom: 0.7rem; }
+.tour-copy h3 {
+  font-size: clamp(1.45rem, 2.6vw, 1.95rem); font-weight: 700; letter-spacing: -0.025em;
+  line-height: 1.12; margin-bottom: 0.85rem;
+}
+.tour-copy p { color: var(--muted); max-width: 46ch; }
+.tour-copy strong { color: var(--ink); font-weight: 600; }
+
+/* A second capture tucked over the main one (Difference over Two-Up, Settings over light mode) */
+.shot-stack { position: relative; margin-bottom: 8%; }
+.shot-stack .inset { position: absolute; width: 50%; right: -5%; bottom: -16%; }
+.shot-stack .inset.settings { width: 38%; right: -3%; bottom: -22%; }
+
+kbd {
+  font-family: "Geist Mono", monospace; font-size: 0.8em; white-space: nowrap;
+  padding: 0.05rem 0.4rem; border-radius: 6px; border: 1px solid var(--line);
+  background: oklch(1 0 0 / 0.05); color: var(--ink);
+}
+.term {
+  margin-top: 1.3rem; padding: 0.95rem 1.15rem; border-radius: 14px; overflow-x: auto;
+  border: 1px solid var(--line); background: oklch(0.1 0.02 285 / 0.7);
+  font-size: 0.82rem; line-height: 1.7; color: var(--muted);
+}
 
 /* ===================================================== Download */
 .download { max-width: var(--maxw); margin: clamp(5rem, 12vw, 9rem) auto; }
@@ -272,6 +339,10 @@ section { padding-inline: clamp(1rem, 4vw, 2.5rem); }
   .bento { grid-template-columns: repeat(2, 1fr); }
   .cell-wide { grid-column: span 2; }
   .cell-lg { grid-row: auto; }
+  .tour-row, .tour-row.flip { grid-template-columns: 1fr; }
+  .tour-row.flip > :first-child { order: 0; }
+  .tour-row > .tour-copy { order: -1; }
+  .tour-copy p { max-width: none; }
 }
 @media (max-width: 600px) {
   .nav-links > a:not(.btn) { display: none; }

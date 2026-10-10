@@ -4,16 +4,22 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Differentialis — file comparison & merge for macOS</title>
-  <meta name="description" content="A native Mac app for comparing and merging text, images, and folders, with git built in. SwiftUI and Liquid Glass, zero dependencies." />
+  <meta name="description" content="A native Mac app for comparing and merging text, images, and folders, with git built in. Paste snippets straight in, merge with a base, and browse repository history. SwiftUI and Liquid Glass, with pure-Swift diff engines." />
   <meta name="theme-color" content="#0b0a12" />
   <link rel="icon" href="assets/icon.png" />
   <link rel="apple-touch-icon" href="assets/icon.png" />
+  <link rel="canonical" href="https://www.differentialis.app/" />
 
   <meta property="og:title" content="Differentialis" />
-  <meta property="og:description" content="Every difference, made obvious. File comparison & merge for macOS." />
+  <meta property="og:description" content="Every difference, made obvious. Compare and merge text, images, folders, and git history on your Mac." />
   <meta property="og:type" content="website" />
-  <meta property="og:image" content="assets/screenshot.png" />
+  <meta property="og:url" content="https://www.differentialis.app/" />
+  <meta property="og:image" content="https://www.differentialis.app/assets/og.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Differentialis comparing two Swift files side by side" />
   <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://www.differentialis.app/assets/og.jpg" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -33,7 +39,7 @@
     </a>
     <nav class="nav-links">
       <a href="#features">Features</a>
-      <a href="#shot">Screens</a>
+      <a href="#tour">Tour</a>
       <a href="https://github.com/yennster/differentialis" target="_blank" rel="noopener">GitHub</a>
       <a class="btn btn-ghost btn-sm magnetic" data-dl href="https://github.com/yennster/differentialis/releases/latest">Download</a>
     </nav>
@@ -46,7 +52,9 @@
         <p class="eyebrow">macOS · SwiftUI · Liquid Glass</p>
         <h1>Every difference,<br />made obvious.</h1>
         <p class="lede">A native Mac app for comparing and merging text, images, and folders,
-          with git built in. Zero dependencies, written entirely in Swift.</p>
+          with git built in. Paste snippets straight in, merge against a base, or browse a
+          repository's history. Native SwiftUI on Liquid Glass, with diff and merge engines
+          written from scratch in Swift.</p>
         <div class="cta-row">
           <a class="btn btn-primary magnetic" data-dl href="https://github.com/yennster/differentialis/releases/latest">
             <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M8 1.5a.75.75 0 0 1 .75.75v6.69l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06l2.22 2.22V2.25A.75.75 0 0 1 8 1.5Z"/><path fill="currentColor" d="M3 12.25a.75.75 0 0 1 .75.75v.5c0 .14.11.25.25.25h8a.25.25 0 0 0 .25-.25v-.5a.75.75 0 0 1 1.5 0v.5A1.75 1.75 0 0 1 12 15H4a1.75 1.75 0 0 1-1.75-1.75v-.5A.75.75 0 0 1 3 12.25Z"/></svg>
@@ -54,37 +62,45 @@
           </a>
           <a class="btn btn-ghost magnetic" href="https://github.com/yennster/differentialis" target="_blank" rel="noopener">View source</a>
         </div>
-        <p class="cta-note"><span data-version>v0.1.1</span> · Apple-notarized · free &amp; open source · requires macOS 26</p>
+        <p class="cta-note"><span data-version>v0.2.2</span> · Apple-notarized · free &amp; open source · requires macOS 26</p>
       </div>
 
       <div class="hero-stage parallax" data-depth="1.4">
-        <div class="tilt glass shot-frame" data-tilt>
-          <div class="shot-bar"><i></i><i></i><i></i></div>
-          <img src="assets/screenshot.png" alt="Differentialis comparing two pasted Swift snippets side by side, with changed lines and characters highlighted" loading="eager" />
-          <div class="glare" aria-hidden="true"></div>
-        </div>
+        <figure class="shot tilt" data-tilt>
+          <img src="assets/screens/text.webp" width="1800" height="1203"
+               alt="Differentialis comparing two versions of a Swift file side by side, with changed lines and characters highlighted" loading="eager" />
+        </figure>
         <div class="diff-chip glass" aria-hidden="true">
-          <span class="chip-row del"><b>−</b> var fuel: Int = 100</span>
-          <span class="chip-row add"><b>+</b> var fuel: Int = 120</span>
-          <span class="chip-row add"><b>+</b> var stages: Int = 2</span>
+          <span class="chip-row del"><b>−</b> rocket.fuel &gt; 90</span>
+          <span class="chip-row add"><b>+</b> rocket.fuel &gt;= 100</span>
+          <span class="chip-row add"><b>+</b> if tick == hold { holds += 1 }</span>
         </div>
       </div>
     </section>
+
+    <!-- TRUST STRIP -->
+    <div class="trust" data-reveal>
+      <span>Signed &amp; notarized by Apple</span><i></i>
+      <span>Updates itself</span><i></i>
+      <span>Command-line launcher</span><i></i>
+      <span>Apple Silicon &amp; Intel</span><i></i>
+      <span>MIT licensed</span>
+    </div>
 
     <!-- FEATURES (bento) -->
     <section class="features" id="features">
       <header class="sec-head" data-reveal>
         <p class="eyebrow">What it does</p>
-        <h2>Six ways to see what changed.</h2>
+        <h2>One app for every kind of change.</h2>
       </header>
 
       <div class="bento">
         <article class="cell cell-lg tilt glass" data-tilt data-reveal>
           <span class="idx">01</span>
           <h3>Text diff that reads minds</h3>
-          <p>A from-scratch Myers engine with character-level highlights, side-by-side and unified
-            layouts, change bars, collapsible regions, and jump-to-change navigation. No files?
-            Paste two snippets side by side and copy changes across as you type.</p>
+          <p>A from-scratch Myers engine with character-level highlights, split and unified
+            layouts, whitespace-insensitive matching, line-ending checks, collapsible regions,
+            and jump-to-change navigation.</p>
           <div class="mini-diff" aria-hidden="true">
             <div class="row eq"><span class="ln">3</span>struct Rocket {</div>
             <div class="row del"><span class="ln">5</span>  var fuel = <mark>100</mark></div>
@@ -96,10 +112,23 @@
         </article>
 
         <article class="cell tilt glass" data-tilt data-reveal>
-          <span class="idx">02</span>
+          <span class="idx">02 <em class="new">New</em></span>
+          <h3>Paste, compare, merge</h3>
+          <p>No files needed. Paste two snippets side by side, watch the diff update as you type,
+            and copy any change across in one keystroke.</p>
+          <div class="paste-demo" aria-hidden="true">
+            <span><i></i><i class="del"></i><i></i></span>
+            <b>→</b>
+            <span><i></i><i class="add"></i><i></i></span>
+          </div>
+          <div class="glare" aria-hidden="true"></div>
+        </article>
+
+        <article class="cell tilt glass" data-tilt data-reveal>
+          <span class="idx">03</span>
           <h3>Pixel-perfect image diff</h3>
           <p>Two-Up, One-Up blink, Split reveal, and a false-color Difference mode where only the
-            changed pixels glow.</p>
+            changed pixels glow, with synced zoom and pan.</p>
           <div class="img-demo" aria-hidden="true">
             <span class="orb"></span><span class="dot"></span>
           </div>
@@ -107,23 +136,15 @@
         </article>
 
         <article class="cell tilt glass" data-tilt data-reveal>
-          <span class="idx">03</span>
-          <h3>Whole-folder compare</h3>
-          <p>Recursive scan tags every file Added, Removed, Modified, or Identical. Drill straight
-            into the right diff.</p>
-          <ul class="tree" aria-hidden="true">
-            <li class="a"><b>A</b> added.txt</li>
-            <li class="d"><b>D</b> removed.txt</li>
-            <li class="m"><b>M</b> src/rocket.swift</li>
-          </ul>
-          <div class="glare" aria-hidden="true"></div>
-        </article>
-
-        <article class="cell cell-wide tilt glass" data-tilt data-reveal>
           <span class="idx">04</span>
-          <h3>Git, and a Custom Comparison popover</h3>
-          <p>Open any repository to browse commits and changesets, then compare any reference or
-            commit against your working copy. Save the ones you reach for and reopen them live.</p>
+          <h3>Whole-folder compare</h3>
+          <p>A recursive scan tags every file Added, Removed, Modified, or Identical. Filter by
+            name or status, then drill straight into the right diff.</p>
+          <ul class="tree" aria-hidden="true">
+            <li class="a"><b>A</b> Telemetry.swift</li>
+            <li class="d"><b>D</b> LegacyBeacon.swift</li>
+            <li class="m"><b>M</b> MissionControl.swift</li>
+          </ul>
           <div class="glare" aria-hidden="true"></div>
         </article>
 
@@ -131,31 +152,169 @@
           <span class="idx">05</span>
           <h3>Three-way merge</h3>
           <p>Base, left, and right with an editable result. Take a side, take both, or hand-edit,
-            with conflicts called out.</p>
+            with conflicts and line-ending clashes called out.</p>
           <div class="merge-demo" aria-hidden="true"><span></span><span></span><span></span></div>
           <div class="glare" aria-hidden="true"></div>
         </article>
 
-        <article class="cell tilt glass accent" data-tilt data-reveal>
+        <article class="cell cell-wide tilt glass" data-tilt data-reveal>
           <span class="idx">06</span>
-          <h3>Liquid Glass, throughout</h3>
-          <p>Native macOS 26 materials on every toolbar, switcher, and popover. It feels like the
-            system, because it is.</p>
+          <h3>Git, built in</h3>
+          <p>Open any repository to browse its history and its staged and unstaged changes. Then
+            compare any reference, commit, or the working copy from the Custom Comparison popover.
+            Save the ones you reach for and reopen them live. It runs on the system
+            <code>git</code>, so there's nothing extra to install.</p>
+          <ul class="git-demo" aria-hidden="true">
+            <li><code>9999dd7</code> Support multi-stage rockets</li>
+            <li><code>90ce026</code> Extract Countdown</li>
+            <li><code>8d14177</code> Add crew check</li>
+          </ul>
+          <div class="glare" aria-hidden="true"></div>
+        </article>
+
+        <article class="cell tilt glass accent" data-tilt data-reveal>
+          <span class="idx">07</span>
+          <h3>Make it yours</h3>
+          <p>Light, dark, or auto on native Liquid Glass. Pick a built-in theme, build your own,
+            or import a <code>.tmTheme</code>, then set the code font and size.</p>
+          <div class="theme-demo" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
           <div class="glare" aria-hidden="true"></div>
         </article>
       </div>
     </section>
 
-    <!-- SCREENSHOT SHOWCASE -->
-    <section class="showcase" id="shot">
+    <!-- TOUR -->
+    <section class="tour" id="tour">
       <header class="sec-head center" data-reveal>
-        <p class="eyebrow">In the wild</p>
+        <p class="eyebrow">Take the tour</p>
         <h2>Built to be lived in.</h2>
       </header>
-      <figure class="showcase-frame tilt glass" data-tilt data-reveal>
-        <img src="assets/welcome.png" alt="The Differentialis welcome screen: text, pasted text, image, folder, 3-way merge, and repository comparisons" loading="lazy" />
-        <div class="glare" aria-hidden="true"></div>
-      </figure>
+
+      <article class="tour-row" data-reveal>
+        <figure class="shot tilt" data-tilt>
+          <img src="assets/screens/welcome.webp" width="1800" height="1203" loading="lazy"
+               alt="The Differentialis welcome screen with cards for text, pasted text, image, folder, 3-way merge, and repository comparisons" />
+        </figure>
+        <div class="tour-copy">
+          <p class="eyebrow">Start anywhere</p>
+          <h3>Pick a comparison, or just drop files in.</h3>
+          <p>Choose a mode from the welcome screen, drag files or folders anywhere on the window,
+            or open a comparison straight from the terminal.</p>
+          <pre class="term" aria-label="Command-line examples"><code>differentialis a.swift b.swift
+differentialis release-1.0 release-1.1
+differentialis base.txt mine.txt theirs.txt</code></pre>
+        </div>
+      </article>
+
+      <article class="tour-row flip" data-reveal>
+        <figure class="shot tilt" data-tilt>
+          <img src="assets/screens/text.webp" width="1800" height="1203" loading="lazy"
+               alt="A split text diff of MissionControl.swift, with changed characters highlighted and an unchanged region collapsed" />
+        </figure>
+        <div class="tour-copy">
+          <p class="eyebrow">Text</p>
+          <h3>See exactly what changed, down to the character.</h3>
+          <p>Lines pair up across the split, changed characters light up, and long unchanged runs
+            fold away. Switch between split and unified with <kbd>⌘U</kbd>, and step through
+            changes with <kbd>⌘]</kbd> and <kbd>⌘[</kbd>.</p>
+        </div>
+      </article>
+
+      <article class="tour-row" data-reveal>
+        <figure class="shot tilt" data-tilt>
+          <img src="assets/screens/paste.webp" width="1800" height="1203" loading="lazy"
+               alt="Two pasted Swift snippets side by side in editable panes, with changed lines highlighted and Copy to A and Copy to B buttons" />
+        </figure>
+        <div class="tour-copy">
+          <p class="eyebrow">Paste Text <em class="new">New</em></p>
+          <h3>Compare snippets without saving a single file.</h3>
+          <p>Press <kbd>⌘T</kbd>, paste into two side-by-side editors, and the diff updates as you
+            type. The panes scroll together and show line numbers. Click a change and copy it
+            across with <kbd>⌥⌘→</kbd> or <kbd>⌥⌘←</kbd>, with full undo.</p>
+        </div>
+      </article>
+
+      <article class="tour-row flip" data-reveal>
+        <div class="shot-stack">
+          <figure class="shot tilt" data-tilt>
+            <img src="assets/screens/image-twoup.webp" width="1800" height="1203" loading="lazy"
+                 alt="Two versions of an illustration shown side by side in the Two-Up image mode" />
+          </figure>
+          <figure class="shot inset">
+            <img src="assets/screens/image-difference.webp" width="1800" height="1203" loading="lazy"
+                 alt="The Difference image mode, where only the changed pixels show" />
+          </figure>
+        </div>
+        <div class="tour-copy">
+          <p class="eyebrow">Images</p>
+          <h3>Spot the pixel that moved.</h3>
+          <p>Two-Up side by side, One-Up blink, a draggable Split, and a false-color Difference
+            mode where only the changed pixels glow. Zoom and pan stay in sync, and
+            <kbd>⌘1</kbd>–<kbd>⌘4</kbd> switch modes.</p>
+        </div>
+      </article>
+
+      <article class="tour-row" data-reveal>
+        <figure class="shot tilt" data-tilt>
+          <img src="assets/screens/folder.webp" width="1800" height="1203" loading="lazy"
+               alt="A folder comparison listing added, deleted, and modified files, with the diff of the selected file beside it" />
+        </figure>
+        <div class="tour-copy">
+          <p class="eyebrow">Folders</p>
+          <h3>Diff entire directory trees.</h3>
+          <p>Every file is tagged Added, Removed, Modified, or Identical. Show just the changes
+            or everything, filter by name or status, and pick any file to see its diff right
+            alongside.</p>
+        </div>
+      </article>
+
+      <article class="tour-row flip" data-reveal>
+        <figure class="shot tilt" data-tilt>
+          <img src="assets/screens/merge.webp" width="1800" height="1203" loading="lazy"
+               alt="A three-way merge showing changes taken from the left and right automatically and one conflict to resolve" />
+        </figure>
+        <div class="tour-copy">
+          <p class="eyebrow">Merge</p>
+          <h3>Resolve conflicts against a common base.</h3>
+          <p>Changes made on only one side merge on their own. Real conflicts wait for you: use
+            left, right, both, or the base, or edit the result by hand before you save.</p>
+        </div>
+      </article>
+
+      <article class="tour-row" data-reveal>
+        <figure class="shot tilt" data-tilt>
+          <img src="assets/screens/repo.webp" width="1800" height="1203" loading="lazy"
+               alt="A repository's commit history, the files changed in the newest commit, and a unified diff of one of them" />
+        </figure>
+        <div class="tour-copy">
+          <p class="eyebrow">Git</p>
+          <h3>History, changes, and any comparison you can name.</h3>
+          <p>Browse commits and see what each one touched, or switch to your working changes,
+            staged and unstaged. <strong>Compare…</strong> lines up any reference, commit, or the
+            working copy against another, and saves it for later.</p>
+        </div>
+      </article>
+
+      <article class="tour-row flip" data-reveal>
+        <div class="shot-stack">
+          <figure class="shot tilt" data-tilt>
+            <img src="assets/screens/text-light.webp" width="1800" height="1203" loading="lazy"
+                 alt="A unified text diff in the light appearance" />
+          </figure>
+          <figure class="shot inset settings">
+            <img src="assets/screens/settings.webp" width="1000" height="1113" loading="lazy"
+                 alt="The Settings window with appearance, color themes, and code font options" />
+          </figure>
+        </div>
+        <div class="tour-copy">
+          <p class="eyebrow">Themes</p>
+          <h3>Light, dark, or both.</h3>
+          <p>Follow the system or pick an appearance, then choose a theme for each: Differentialis,
+            Mariana, Monokai, One Dark, Solarized, or GitHub. You can also build your own, import a
+            <code>.tmTheme</code>, and set the code font, with <kbd>⌘+</kbd> / <kbd>⌘−</kbd> or a
+            pinch to resize.</p>
+        </div>
+      </article>
     </section>
 
     <!-- DOWNLOAD -->
@@ -163,12 +322,12 @@
       <div class="dl-card glass">
         <span class="mark big" aria-hidden="true"><i></i><i></i></span>
         <h2>Get Differentialis.</h2>
-        <p>Download the notarized <code>.dmg</code>, drag it to Applications, and open. No setup,
-          no account, no telemetry.</p>
+        <p>Download the notarized <code>.dmg</code>, drag it to Applications, and open. After
+          that it keeps itself up to date. No setup, no account, no telemetry.</p>
         <a class="btn btn-primary btn-lg magnetic" data-dl href="https://github.com/yennster/differentialis/releases/latest">
           Download for macOS
         </a>
-        <p class="cta-note"><span data-version>v0.1.1</span> · Apple Silicon &amp; Intel · macOS 26 Tahoe</p>
+        <p class="cta-note"><span data-version>v0.2.2</span> · Apple Silicon &amp; Intel · macOS 26 Tahoe</p>
       </div>
     </section>
   </main>
@@ -181,6 +340,7 @@
     <nav class="foot-links">
       <a href="https://github.com/yennster/differentialis" target="_blank" rel="noopener">GitHub</a>
       <a href="https://github.com/yennster/differentialis/releases" target="_blank" rel="noopener">Releases</a>
+      <a href="https://github.com/yennster/differentialis/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a>
       <a href="https://github.com/yennster/differentialis/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
     </nav>
     <p class="foot-by">Built by Jenny Speelman</p>

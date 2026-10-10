@@ -31,8 +31,6 @@ new version in place.
 - **Text diff** — a from-scratch Myers diff engine with **character-level** intra-line highlights, **side-by-side and unified** layouts, exact or whitespace-insensitive matching, line-ending/final-newline diagnostics, change bars, collapsible unchanged regions, next/previous-change navigation, and live insertion/deletion stats.
 - **Paste Text** — compare snippets without saving files: paste or type into two side-by-side editors (`⌘T`) and the diff updates live as you edit, with synced scrolling and line numbers. Copy any change from one side to the other (`⌥⌘→` / `⌥⌘←`), with full undo, or flip to the split/unified Diff view.
 
-  ![Two pasted Swift snippets compared side by side in Differentialis](docs/paste-text.png)
-
 - **Image diff** — four comparison modes with `⌘1`–`⌘4`:
   - **Two-Up** (side-by-side, horizontal or vertical)
   - **One-Up** (A/B with auto-blink)
@@ -43,8 +41,38 @@ new version in place.
 - **3-way merge** — base / left / right with an editable result, per-hunk **take left / right / both / base**, content and line-ending conflict resolution, and save-merged output.
 - **Git integration** — open any repository to browse its **commit history** or flip to a **changed-files** view with correct reference/index/working-tree snapshots, grouped by folder and filterable by name, extension, or status. A persistent **Projects** sidebar keeps your opened repositories one click away. Uses the system `git`, no libgit2.
 - **Custom Comparison** — a Liquid Glass popover to compare **any** _Reference_ or _Commit_ (pick from history or **paste a commit hash**) against the **Working Copy**, another _Reference_, or _Commit_ — with swap, and **Save** to revisit named comparisons later.
+- **Appearance & themes** — Light, Dark, or Auto (follows the system), with a theme per appearance: Differentialis, Mariana, Monokai, One Dark, Solarized, and GitHub. Build your own in the theme editor, import JSON or `.tmTheme` color schemes, and pick the code font family and size (`⌘+` / `⌘−` / `⌘0`, or pinch). All in **Settings** (`⌘,`).
 - **Liquid Glass throughout** — glass toolbars, mode switchers, popovers, and panels native to macOS 26 Tahoe.
 - **In-app updates** — a quiet banner (Skip / Later / **Update**) offers new versions and installs them in place — download, EdDSA-verify, swap, and relaunch — without leaving the app, plus **Check for Updates…** in the app menu. Powered by [Sparkle](https://sparkle-project.org) reading an appcast attached to the latest GitHub release.
+
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%"><img src="site/assets/screens/text.webp" alt="A split text diff with character-level highlights"><br>
+      <sub><b>Text diff</b> — split or unified, with changed characters highlighted</sub></td>
+    <td width="50%"><img src="site/assets/screens/paste.webp" alt="Two pasted snippets compared in side-by-side editors"><br>
+      <sub><b>Paste Text</b> — live diff of pasted snippets, with per-change copy</sub></td>
+  </tr>
+  <tr>
+    <td><img src="site/assets/screens/image-twoup.webp" alt="Two versions of an image in the Two-Up mode"><br>
+      <sub><b>Image diff</b> — Two-Up, One-Up, Split, and Difference</sub></td>
+    <td><img src="site/assets/screens/image-difference.webp" alt="The Difference image mode showing only changed pixels"><br>
+      <sub><b>Difference mode</b> — only the changed pixels show</sub></td>
+  </tr>
+  <tr>
+    <td><img src="site/assets/screens/folder.webp" alt="A folder comparison with a file's diff beside the list"><br>
+      <sub><b>Folder diff</b> — added, removed, and modified files, filterable</sub></td>
+    <td><img src="site/assets/screens/merge.webp" alt="A three-way merge with one conflict to resolve"><br>
+      <sub><b>3-way merge</b> — clean changes merge themselves; conflicts wait for you</sub></td>
+  </tr>
+  <tr>
+    <td><img src="site/assets/screens/repo.webp" alt="A repository's history with a commit's files and diff"><br>
+      <sub><b>Git</b> — history, changed files, and diffs for any commit</sub></td>
+    <td><img src="site/assets/screens/text-light.webp" alt="A unified text diff in the light appearance"><br>
+      <sub><b>Light mode &amp; themes</b> — light, dark, or auto, with built-in and custom themes</sub></td>
+  </tr>
+</table>
 
 ## Keyboard shortcuts
 
@@ -59,6 +87,8 @@ Every command is in the menu bar, and **Help ▸ Keyboard Shortcuts** (`⌘/`) s
 | Toggle Split / Unified | `⌘U` |
 | Pasted text: copy change to B / A | `⌥⌘→` / `⌥⌘←` |
 | Image: Two-Up / One-Up / Split / Difference | `⌘1` / `⌘2` / `⌘3` / `⌘4` |
+| Code font size: bigger / smaller / reset | `⌘+` / `⌘−` / `⌘0` |
+| Settings | `⌘,` |
 | Go to Welcome | `⇧⌘0` |
 | Keyboard Shortcuts | `⌘/` |
 
