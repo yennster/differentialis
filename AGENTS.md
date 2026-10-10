@@ -108,6 +108,7 @@ Differentialis/
 └── Resources/    Assets.xcassets, Info.plist, bundled differentialis launcher
 
 Tests/            Swift Testing suites; git tests create real temporary repositories
+docs/             ROADMAP.md (claimable feature backlog) + README images
 site/             Static marketing site (HTML/CSS/JS), screenshots, llms.txt
 scripts/          Changelog extraction, DMG packaging, site/README checks
 tools/            Icon generator and social-card renderer
@@ -365,6 +366,54 @@ session-only.
 - **Liquid Glass throughout** — reuse the components in `DesignSystem/` for
   toolbars, mode switchers, popovers, and panels rather than rolling new chrome.
 
+## Autonomous roadmap work
+
+The backlog lives in [`docs/ROADMAP.md`](docs/ROADMAP.md). Use this procedure when asked to pick up
+roadmap work without a specific item. **You open a PR; you never merge it.**
+
+1. **Sync and survey claims.** `git fetch origin`, then find claimed items:
+   ```bash
+   git branch -r --list 'origin/roadmap/*'
+   gh pr list --state open --search 'R-0 in:title,body,head' --json number,title,headRefName
+   gh pr list --state open --label roadmap --json number,title,headRefName
+   ```
+   An item is **claimed** if a remote branch `roadmap/R-XXX-*` or an open PR mentions its ID.
+   Also check `gh issue list` for open issues (a maintainer-filed bug outranks the backlog, but
+   only take it if it is small).
+2. **Pick one item.** Choose the lowest-numbered `Open`, unclaimed, size **S** item. Don't take
+   `M` unless no `S` remains, never take `Epic`/`Blocked` items, and never more than one item
+   per PR. If nothing qualifies, stop and report that instead of inventing work.
+3. **Claim it first.** Create branch `roadmap/R-XXX-short-slug` from latest `main`, push it
+   immediately (an empty commit is fine), and open a **draft** PR titled `R-XXX: <feature>`.
+   Re-check step 1 afterwards; if someone else claimed the same ID earlier, delete your branch,
+   close your PR, and pick another item.
+4. **Implement within scope.** Touch only what the item needs. Follow the Conventions below
+   (no new dependencies, git/heavy work off the main thread, project changes in `project.yml`).
+   Don't refactor unrelated code or edit other roadmap items.
+5. **Test.** Put logic in pure Swift where possible and add Swift Testing tests in `Tests/` (required for
+   `Diff/` and `Git/` changes). Run the checks for your platform (see *Amp orbs*): on Linux the
+   typecheck command and, if you touched docs/site, `python3 scripts/check-site.py`; on macOS the
+   full `xcodebuild test`. UI code can't be compiled or run on Linux — say so in the PR, keep UI
+   changes minimal and mirror existing view patterns, and let CI (`macos-26`) be the judge.
+6. **Update docs.** Set the item's status to `Shipped (next version)` in `docs/ROADMAP.md`, add a
+   `CHANGELOG.md` entry under `[Unreleased]` for user-facing changes, and update README
+   features/shortcuts, `KeyboardShortcutsView`, and `site/` copy (FAQ twice, `llms.txt`,
+   sitemap `lastmod`) when behavior they describe changes.
+7. **Open for review.** Fill in the PR template (item ID, what was and wasn't tested), mark the PR
+   ready for review, add the `roadmap` label if it exists, and wait for CI. Fix CI failures you
+   caused. Then **stop**: do not merge, enable auto-merge, approve your own PR, push to `main`,
+   tag, release, or bump `MARKETING_VERSION`.
+
+Safety rules:
+- Never force-push over someone else's branch, close others' PRs, or delete branches you didn't
+  create.
+- Don't change CI, release workflows, signing, Sparkle keys/appcast, or `.agents/` scripts as part
+  of a feature PR.
+- If a task is ambiguous, larger than expected (> ~400 changed lines), or needs a product decision,
+  stop, keep the draft PR, and write what you learned in its description rather than guessing.
+- Don't add roadmap items you're not going to build in the same PR; add them in a separate
+  docs-only PR.
+
 ## Website
 
 `site/` is the static marketing site at differentialis.app (deployed by Vercel with
@@ -410,3 +459,4 @@ when updating Sparkle. Publishing a release triggers this external delivery flow
 - If you touched the README or `site/`, run `python3 scripts/check-site.py`.
 - If you changed `project.yml`, confirm `xcodegen generate` succeeds.
 - Keep `CHANGELOG.md` updated for user-facing changes.
+- For roadmap work, follow [Autonomous roadmap work](#autonomous-roadmap-work) and never merge.
