@@ -20,6 +20,30 @@ binary.
 > `xcodegen generate` before building if it is missing or after editing
 > `project.yml`.
 
+## Amp orbs
+
+`.agents/setup` installs tools once for the reusable orb snapshot; reruns reuse
+installed packages. `.agents/resume` does no installation or authentication.
+
+- **Linux (Debian 12):** setup installs Swift 6.2.4 via Swiftly and its system
+  dependencies, plus Python for website checks. New Bash login shells in this
+  repository get Swift on `PATH`. No Xcode, AppKit, SwiftUI, or Sparkle is available;
+  do not attempt to install Apple's SDKs on Linux. Useful checks are:
+
+  ```bash
+  swiftc -swift-version 6 -typecheck Differentialis/Diff/*.swift Differentialis/Models/DiffStats.swift
+  python3 scripts/check-site.py
+  ```
+
+  These are not substitutes for the macOS test suite. There is no root SwiftPM
+  manifest, so `swift test` does not run the app's tests.
+- **macOS 26+:** start with full Xcode 26+ selected and Homebrew installed. Setup
+  installs missing XcodeGen/Python, generates the project, and resolves the Sparkle
+  dependency declared in `project.yml` into the `build/` cache used by CI. It does
+  not install Xcode, sign releases, or authenticate with Apple.
+- The website is static: no npm install, database, env file, or server is required
+  for its checks. `tools/og-card/render.mjs` still requires macOS, Chrome, and `sips`.
+
 ## Build & run
 
 ```bash

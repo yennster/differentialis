@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$repo_root"
+SECONDS=0
+trap 'echo "[setup] Finished with status $? after ${SECONDS}s"' EXIT
+
+case "$(uname -s)" in
+    Linux)
+        # Linux supports the pure-Swift engines, not the SwiftUI/AppKit application.
+        . /etc/os-release
+        if [[ "$ID" != debian || "$VERSION_ID" != 12 ]]; then
+            echo "[setup] Linux setup requires the Debian 12 orb image." >&2
+            exit 1
+        fi
+
+        echo "[setup ${SECONDS}s] Checking Swift's Debian build dependencies"
+        packages=(ca-certificates curl gnupg binutils gcc git libcurl4-openssl-dev
+            libedit-dev libicu-dev libncurses-dev libpython3-dev libsqlite3-dev
+            libxml2-dev pkg-config tzdata uuid-dev python3)
+        missing=()
+        for package in "${packages[@]}"; do
+            if [[ "$(dpkg-query -W -f='${Status}' "$package" 2>/dev/null || true)" != 'install ok installed' ]]; then
+                missing+=("$package")
+            fi
+        done
+        if (( ${#missing[@]} )); then
+            sudo -n apt-get update
+            sudo -n env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${missing[@]}"
+        fi
+
+        # Pin the Linux compiler to the Swift 6.2 release family shipped with Xcode 26.
+        swift_version=6.2.4
+        swiftly_version=1.1.2
+        export SWIFTLY_HOME_DIR="$HOME/.local/share/swiftly"
+        export SWIFTLY_BIN_DIR="$SWIFTLY_HOME_DIR/bin"
+        if [[ ! -x "$SWIFTLY_BIN_DIR/swiftly" ]]; then
+            echo "[setup ${SECONDS}s] Installing Swiftly $swiftly_version"
+            (
+                work="$(mktemp -d)"
+                trap 'rm -rf "$work"' EXIT
+                url="https://download.swift.org/swiftly/linux/swiftly-${swiftly_version}-$(uname -m).tar.gz"
+                curl -fsSL --retry 3 "$url" -o "$work/swiftly.tar.gz"
+                curl -fsSL --retry 3 "$url.sig" -o "$work/swiftly.tar.gz.sig"
+                curl -fsSL --compressed --retry 3 https://www.swift.org/keys/all-keys.asc -o "$work/keys.asc"
+                mkdir -m 700 "$work/gnupg"
+                gpg --homedir "$work/gnupg" --batch --import "$work/keys.asc"
+                gpg --homedir "$work/gnupg" --batch --verify "$work/swiftly.tar.gz.sig" "$work/swiftly.tar.gz"
+                tar -xzf "$work/swiftly.tar.gz" -C "$work"
+                "$work/swiftly" init --skip-install --no-modify-profile --quiet-shell-followup --assume-yes
+            )
+        fi
+        . "$SWIFTLY_HOME_DIR/env.sh"
+        echo "[setup ${SECONDS}s] Ensuring Swift $swift_version is installed"
+        swiftly install "$swift_version" --assume-yes
+        # --use on install writes .swift-version into the checkout; keep this orb-only.
+        swiftly use "$swift_version" --global-default --assume-yes
+
+        # Later agents and supervised services run in separate login shells.
+        marker="# Differentialis orb Swift environment: $repo_root"
+        if ! grep -Fqx "$marker" "$HOME/.bash_profile" 2>/dev/null; then
+            {
+                printf '\n%s\n' "$marker"
+                printf 'case "$PWD" in %q|%q/*)\n' "$repo_root" "$repo_root"
+                printf '    . %q ;;\nesac\n' "$SWIFTLY_HOME_DIR/env.sh"
+            } >> "$HOME/.bash_profile"
+        fi
+        swift --version
+        echo "[setup] Linux ready for engine type-checks and website checks; app builds/tests require macOS 26 + Xcode 26."
+        ;;
+    Darwin)
+        echo "[setup ${SECONDS}s] Checking macOS and Xcode"
+        if (( $(sw_vers -productVersion | cut -d. -f1) < 26 )); then
+            echo "[setup] Use a macOS 26 or newer machine." >&2
+            exit 1
+        fi
+        if ! xcode_version="$(xcodebuild -version | awk '/^Xcode / {print $2}')" \
+            || [[ -z "$xcode_version" ]] || (( ${xcode_version%%.*} < 26 )); then
+            echo "[setup] Install/select full Xcode 26 or newer, not just Command Line Tools." >&2
+            exit 1
+        fi
+        export HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1
+        for tool in xcodegen python3; do
+            if ! command -v "$tool" >/dev/null 2>&1; then
+                brew install "$tool"
+            fi
+        done
+        echo "[setup ${SECONDS}s] Generating the Xcode project and resolving Sparkle"
+        xcodegen generate
+        xcodebuild -resolvePackageDependencies -project Differentialis.xcodeproj \
+            -scheme Differentialis -derivedDataPath build
+        xcrun swift --version
+        ;;
+    *)
+        echo "[setup] Unsupported operating system: $(uname -s)" >&2
+        exit 1
+        ;;
+esac
+
+echo "[setup ${SECONDS}s] Checking website tooling"
+python3 --version
+git --version

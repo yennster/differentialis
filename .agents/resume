@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Installed tools and caches survive snapshots and pause/resume. This project has
+# no runtime authentication, databases, or services to repair. Keep wake-up cheap.
+echo "[resume] Differentialis uses the toolchain prepared by .agents/setup; no repairs needed."

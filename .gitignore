@@ -3,6 +3,7 @@
 
 # Local tooling / editor config
 .claude/
+.amp/portals/
 
 # Xcode / build output
 /build/
