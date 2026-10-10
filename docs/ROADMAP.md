@@ -3,7 +3,7 @@
 Where the product is going, and a backlog of small features that agents (or people) can pick up
 one at a time. Read [AGENTS.md](../AGENTS.md#autonomous-roadmap-work) before claiming anything; its architecture sections say which code owns what.
 
-_Last reviewed: 2026-10-10, at v0.3.1._
+_Last reviewed: 2026-10-10, at v0.3.1; every Open item was checked against the code and confirmed not yet implemented._
 
 ## Where we are (v0.3.1)
 
@@ -51,7 +51,7 @@ claimed is not recorded here** — it is determined by branches and PRs (see AGE
 | R-001 | S | Open | **Ignore case** option for text diff (alongside whitespace-insensitive matching). | `Diff/LineDiff.swift`, `TextComparisonView`; unit tests in `Tests/DiffTests.swift` (Swift Testing). |
 | R-002 | S | Open | **Ignore blank lines** option for text diff. | `Diff/LineDiff.swift`; engine tests. |
 | R-003 | M | Open | **Moved-line detection**: mark deleted/added lines that moved rather than changed. | `Diff/` (new pure-Swift pass over `LineDiff` output); engine tests. |
-| R-004 | S | Open | **Large-file guard**: above a size/line threshold, show a notice and diff off-main with a cancel button instead of freezing. | `TextComparisonView`, `Diff/`; test the threshold helper. |
+| R-004 | S | Open | **Large-file notice and cancel**: the text diff already loads and diffs off-main (`offMain`) with a bounded Myers fallback; add a size/line threshold notice, a Cancel button, and a clear "approximate diff" indicator when the fallback triggers. | `Features/Text/TextComparisonView.swift`, `Diff/MyersDiff.swift`; test the threshold/fallback-flag helper. |
 | R-005 | S | Open | **Show detected text encoding** (UTF-8/BOM, UTF-16, Latin-1 fallback already decoded by `loadText`) in File Properties, and warn when a merge save will convert to UTF-8. | `Models/ComparisonSource.swift`, `FilePropertiesView`; tests in `Tests/FolderAndFilterTests.swift`. |
 | R-006 | S | Open | **Word-level diff granularity** option for intra-line highlights (word vs character). | `Diff/CharDiff.swift`; engine tests. |
 
@@ -91,7 +91,7 @@ claimed is not recorded here** — it is determined by branches and PRs (see AGE
 
 | ID | Size | Status | Feature | Where / Tests |
 | --- | --- | --- | --- | --- |
-| R-040 | S | Open | **VoiceOver labels** for diff rows, change bars, and image mode switcher. | `Features/Text/DiffRowView.swift`, `Features/Image/`. |
+| R-040 | S | Open | **VoiceOver audit** of diff rows, change bars, and the image mode switcher (some labels exist; fill the gaps and check reading order). | `Features/Text/DiffRowView.swift`, `Features/Image/`. |
 | R-041 | S | Open | **Reduce Motion / Increase Contrast** support (stop One-Up auto-blink, stronger change tints). | `Features/Image/`, `DesignSystem/Theme*.swift`. |
 | R-042 | S | Open | **Recent comparisons** list on the welcome screen (files/folders, not just repos). | `Models/` (new store modelled on `RecentProjectsStore`), `Features/Welcome/`; store tests. |
 
