@@ -178,6 +178,8 @@ locally).
 
 ## Roadmap
 
+The full, prioritized backlog is in [docs/ROADMAP.md](docs/ROADMAP.md). Highlights:
+
 - ~~A `diff`-style command-line companion~~ — shipped; see the [command-line launcher](#command-line-launcher) above. A URL scheme is still planned.
 - Git mergetool / difftool auto-configuration
 - PDF export of comparisons
