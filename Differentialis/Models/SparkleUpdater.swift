@@ -61,8 +61,12 @@ final class SparkleUpdater: NSObject, SPUStandardUserDriverDelegate {
             updaterDelegate: nil,
             userDriverDelegate: self)
         canCheckForUpdates = controller.updater.canCheckForUpdates
+        // The KVO handler is a Sendable closure, but `SPUUpdater` is main-thread-only, so
+        // Sparkle posts this change on the main thread — re-enter the main actor to apply it.
         canCheckObservation = controller.updater.observe(\.canCheckForUpdates, options: [.new]) { [weak self] updater, _ in
-            self?.canCheckForUpdates = updater.canCheckForUpdates
+            MainActor.assumeIsolated {
+                self?.canCheckForUpdates = updater.canCheckForUpdates
+            }
         }
     }
 
