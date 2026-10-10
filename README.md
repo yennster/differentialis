@@ -16,7 +16,7 @@ Written in SwiftUI with Apple's Liquid Glass. The diff, merge, and git engines h
 third-party dependencies; [Sparkle](https://sparkle-project.org) is the lone dependency, used
 only for in-app updates.
 
-![The Differentialis welcome screen](docs/hero2.png)
+![Differentialis comparing two versions of a Swift file side by side, with changed lines and characters highlighted](site/assets/screens/text.webp)
 
 ## Download
 
@@ -55,8 +55,8 @@ new version in place.
 
 <table>
   <tr>
-    <td width="50%"><img src="site/assets/screens/text.webp" alt="A split text diff with character-level highlights"><br>
-      <sub><b>Text diff</b> — split or unified, with changed characters highlighted</sub></td>
+    <td width="50%"><img src="site/assets/screens/welcome.webp" alt="The welcome screen with text, pasted text, image, folder, merge, and repository comparisons"><br>
+      <sub><b>Welcome</b> — pick a comparison, or drop files anywhere</sub></td>
     <td width="50%"><img src="site/assets/screens/paste.webp" alt="Two pasted snippets compared in side-by-side editors"><br>
       <sub><b>Paste Text</b> — live diff of pasted snippets, with per-change copy</sub></td>
   </tr>
