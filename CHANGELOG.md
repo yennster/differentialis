@@ -10,6 +10,12 @@ When cutting a release, add a section here and use it as the release notes:
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-10-10
+
+### Fixed
+- The **Check for Updates…** menu item's enabled state is now updated on the main actor, removing
+  a Swift concurrency warning that would become an error under stricter checking.
+
 ## [0.3.0] — 2026-10-10
 
 ### Added
@@ -306,7 +312,8 @@ When cutting a release, add a section here and use it as the release notes:
 - Native SwiftUI + Liquid Glass, **zero third-party dependencies**.
 - GitHub Actions release workflow that builds and attaches a drag-to-Applications `.dmg`.
 
-[Unreleased]: https://github.com/yennster/differentialis/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/yennster/differentialis/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/yennster/differentialis/releases/tag/v0.3.1
 [0.3.0]: https://github.com/yennster/differentialis/releases/tag/v0.3.0
 [0.2.2]: https://github.com/yennster/differentialis/releases/tag/v0.2.2
 [0.2.1]: https://github.com/yennster/differentialis/releases/tag/v0.2.1
