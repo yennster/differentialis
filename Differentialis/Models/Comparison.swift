@@ -2,7 +2,7 @@ import Foundation
 
 /// A single open comparison tab.
 struct Comparison: Identifiable, Hashable {
-    enum Mode: Hashable { case text, image, folder, merge, binary }
+    enum Mode: Hashable { case text, image, folder, merge, binary, pasted }
 
     let id = UUID()
     var mode: Mode
@@ -10,6 +10,7 @@ struct Comparison: Identifiable, Hashable {
     var a: ComparisonSource
     var b: ComparisonSource
     var base: ComparisonSource?   // only for `.merge`
+    var pasted: PastedTextDocument?   // only for `.pasted`
 
     var symbol: String {
         switch mode {
@@ -18,6 +19,7 @@ struct Comparison: Identifiable, Hashable {
         case .folder: return "folder"
         case .merge: return "arrow.triangle.merge"
         case .binary: return "doc"
+        case .pasted: return "doc.on.clipboard"
         }
     }
 
@@ -40,5 +42,13 @@ struct Comparison: Identifiable, Hashable {
         Comparison(mode: .merge,
                    title: title ?? "Merge: \(left.displayName)",
                    a: left, b: right, base: base)
+    }
+
+    /// A comparison of two texts typed or pasted straight into the app — no files involved.
+    static func pasted(title: String, document: PastedTextDocument = PastedTextDocument()) -> Comparison {
+        Comparison(mode: .pasted, title: title,
+                   a: .text(content: "", name: "Original"),
+                   b: .text(content: "", name: "Modified"),
+                   base: nil, pasted: document)
     }
 }

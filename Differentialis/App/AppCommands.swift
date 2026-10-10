@@ -10,6 +10,8 @@ struct DiffCommandActions {
     var setImageMode: ((Int) -> Void)? = nil
     var swapAB: (() -> Void)? = nil
     var refresh: (() -> Void)? = nil
+    var copyChangeToA: (() -> Void)? = nil
+    var copyChangeToB: (() -> Void)? = nil
 }
 
 struct DiffCommandsKey: FocusedValueKey {
@@ -43,6 +45,12 @@ struct AppMenuCommands: Commands {
             Button("Previous Change") { diff?.prevChange?() }
                 .keyboardShortcut("[", modifiers: .command)
                 .disabled(diff?.prevChange == nil)
+            Button("Copy Change to B") { diff?.copyChangeToB?() }
+                .keyboardShortcut(.rightArrow, modifiers: [.command, .option])
+                .disabled(diff?.copyChangeToB == nil)
+            Button("Copy Change to A") { diff?.copyChangeToA?() }
+                .keyboardShortcut(.leftArrow, modifiers: [.command, .option])
+                .disabled(diff?.copyChangeToA == nil)
             Button("Toggle Split / Unified") { diff?.toggleLayout?() }
                 .keyboardShortcut("u", modifiers: .command)
                 .disabled(diff?.toggleLayout == nil)

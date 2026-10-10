@@ -41,7 +41,10 @@ enum ComparisonSource: Hashable {
     var subtitle: String {
         switch self {
         case .file(let url): return url.deletingLastPathComponent().path
-        case .text: return "In-memory text"
+        case .text(let content, _):
+            guard !content.isEmpty else { return "Pasted text · empty" }
+            let lines = ComparisonSource.lineCount(of: content)
+            return "Pasted text · \(lines) line\(lines == 1 ? "" : "s")"
         case .gitBlob(_, let ref, let path, let label):
             if Self.isIndexReference(ref) { return "Index · \(path)" }
             if ref == ":2" || ref == ":3" { return "\(label) · \(path)" }
@@ -49,6 +52,23 @@ enum ComparisonSource: Hashable {
         case .workingCopy(_, let path): return path
         case .empty: return ""
         }
+    }
+
+    /// Line count matching `LineDiff.split` (CR, LF, and CRLF terminators; a final newline does
+    /// not start another line), without allocating the lines themselves.
+    static func lineCount(of text: String) -> Int {
+        var count = 0
+        var previous: UInt8 = 0
+        for byte in text.utf8 {
+            if byte == 0x0A {
+                if previous != 0x0D { count += 1 }
+            } else if byte == 0x0D {
+                count += 1
+            }
+            previous = byte
+        }
+        let endsWithNewline = previous == 0x0A || previous == 0x0D
+        return endsWithNewline ? count : count + 1
     }
 
     var fileExtension: String? {

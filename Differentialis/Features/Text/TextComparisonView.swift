@@ -65,13 +65,14 @@ private func lineEndingName(_ ending: String) -> String {
 struct TextComparisonView: View {
     let a: ComparisonSource
     let b: ComparisonSource
+    /// Extra controls appended to the toolbar (the pasted-text comparison's Edit / Diff switch).
+    var accessory: AnyView? = nil
 
     @State private var document: DiffDocument?
     @AppStorage("diffLayoutUnified") private var unified = false
     /// Where the split columns divide, as a fraction of the view width. Shared across
     /// comparisons and persisted; the PathBar headings track the same value.
     @AppStorage("diffSplitFraction") private var splitFraction = 0.5
-    @State private var splitDragBase: Double?
     @AppStorage("textWhitespacePolicy") private var whitespacePolicy = WhitespacePolicy.significant
     @State private var expandedGaps: Set<String> = []
     @State private var changeIDs: [UUID] = []
@@ -159,26 +160,7 @@ struct TextComparisonView: View {
         .buttonStyle(.borderless)
         .disabled(changeIDs.isEmpty)
 
-        Menu {
-            ForEach(WhitespacePolicy.allCases, id: \.self) { policy in
-                Button {
-                    whitespacePolicy = policy
-                } label: {
-                    if whitespacePolicy == policy {
-                        Label(policy.label, systemImage: "checkmark")
-                    } else {
-                        Text(policy.label)
-                    }
-                }
-            }
-        } label: {
-            Image(systemName: whitespacePolicy == .significant ? "space" : "space.circle.fill")
-                .foregroundStyle(whitespacePolicy == .significant ? Color.gray : Theme.brandAlt)
-        }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
-        .help(whitespacePolicy.label)
-        .accessibilityLabel("Whitespace comparison policy")
+        WhitespacePolicyMenu(policy: $whitespacePolicy)
 
         GlassSegmentedControl(
             selection: $unified,
@@ -190,6 +172,8 @@ struct TextComparisonView: View {
         .fixedSize()
 
         FilePropertiesButton(a: a, b: b)
+
+        if let accessory { accessory }
     }
 
     // MARK: - Diff scroll
@@ -213,7 +197,7 @@ struct TextComparisonView: View {
             }
             .overlay(alignment: .topLeading) {
                 if !unified {
-                    splitDividerHandle(width: geo.size.width)
+                    ColumnSplitHandle(fraction: $splitFraction, width: geo.size.width)
                 }
             }
         }
@@ -222,27 +206,6 @@ struct TextComparisonView: View {
 
     private func leftColumnWidth(in width: CGFloat) -> CGFloat {
         max(0, (width * splitFraction - 0.5).rounded())
-    }
-
-    /// The draggable strip over the column divider; double-click recenters.
-    private func splitDividerHandle(width: CGFloat) -> some View {
-        Color.clear
-            .frame(width: 9)
-            .frame(maxHeight: .infinity)
-            .contentShape(Rectangle())
-            .pointerStyle(.columnResize)
-            .gesture(
-                DragGesture()
-                    .onChanged { value in
-                        if splitDragBase == nil { splitDragBase = splitFraction }
-                        let base = splitDragBase ?? splitFraction
-                        splitFraction = min(0.8, max(0.2, base + value.translation.width / max(width, 1)))
-                    }
-                    .onEnded { _ in splitDragBase = nil }
-            )
-            .onTapGesture(count: 2) { withAnimation(.snappy) { splitFraction = 0.5 } }
-            .help("Drag to resize the columns · double-click to recenter")
-            .offset(x: width * splitFraction - 4.5)
     }
 
     @ViewBuilder
@@ -337,6 +300,61 @@ struct TextComparisonView: View {
             prevChanged = changed
         }
         return ids
+    }
+}
+
+/// The draggable strip over a split comparison's column divider; double-click recenters.
+struct ColumnSplitHandle: View {
+    @Binding var fraction: Double
+    let width: CGFloat
+    @State private var dragBase: Double?
+
+    var body: some View {
+        Color.clear
+            .frame(width: 9)
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .pointerStyle(.columnResize)
+            .gesture(
+                DragGesture()
+                    .onChanged { value in
+                        if dragBase == nil { dragBase = fraction }
+                        let base = dragBase ?? fraction
+                        fraction = min(0.8, max(0.2, base + value.translation.width / max(width, 1)))
+                    }
+                    .onEnded { _ in dragBase = nil }
+            )
+            .onTapGesture(count: 2) { withAnimation(.snappy) { fraction = 0.5 } }
+            .help("Drag to resize the columns · double-click to recenter")
+            .offset(x: width * fraction - 4.5)
+    }
+}
+
+/// Picks how whitespace counts when matching lines.
+struct WhitespacePolicyMenu: View {
+    @Binding var policy: WhitespacePolicy
+
+    var body: some View {
+        Menu {
+            ForEach(WhitespacePolicy.allCases, id: \.self) { option in
+                Button {
+                    policy = option
+                } label: {
+                    if policy == option {
+                        Label(option.label, systemImage: "checkmark")
+                    } else {
+                        Text(option.label)
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: policy == .significant ? "space" : "space.circle.fill")
+                .foregroundStyle(policy == .significant ? Color.gray : Theme.brandAlt)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help(policy.label)
+        .accessibilityLabel("Whitespace comparison policy")
     }
 }
 

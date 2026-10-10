@@ -1,0 +1,43 @@
+# Differentialis
+
+> Differentialis is a free, open-source macOS app for comparing and merging text files, pasted snippets, images, and folders, with three-way merge and git history built in. It runs on macOS 26 Tahoe or later (Apple silicon and Intel), is written natively in Swift with SwiftUI and Liquid Glass, and is MIT licensed.
+
+Key facts:
+
+- Price: free and open source (MIT). No account, subscription, or telemetry.
+- Requirements: macOS 26 Tahoe or later; universal build for Apple silicon and Intel Macs.
+- Install: download the Apple-notarized .dmg from GitHub Releases and drag the app to Applications. After that it updates itself (Check for Updates… in the app menu, or the in-app update banner).
+- Author: Jenny Speelman (GitHub: yennster).
+
+## Features
+
+- Text diff: side-by-side (split) or unified layouts, character-level highlights inside changed lines, whitespace-insensitive matching, line-ending and final-newline checks, collapsible unchanged regions, next/previous-change navigation.
+- Paste Text: compare snippets without saving files. Two side-by-side editors diff live as you type, scroll together, show line numbers, and let you copy any change from one side to the other with undo. Can switch to the regular split/unified diff view.
+- Image diff: Two-Up, One-Up (blink), Split (draggable divider), and Difference (only changed pixels show), with synced zoom and pan. Works with PNG, JPEG, HEIC, and any other image format macOS can open.
+- Folder comparison: recursive scan marking each file as added, removed, modified, or identical, with filters and a diff for the selected file.
+- Three-way merge: base, left, and right files; one-sided changes merge automatically, conflicts can be resolved by taking left, right, both, or base, and the result is editable before saving. Unresolved conflicts are saved with standard conflict markers.
+- Git: open a repository to browse commit history and staged/unstaged working-copy changes, and compare any branch, tag, commit, or the working copy against another. Comparisons can be saved and reopened. Uses the system git.
+- Appearance: Light, Dark, or Auto, with per-appearance themes (Differentialis, Mariana, Monokai, One Dark, Solarized, GitHub), a theme editor, JSON and .tmTheme import, and code font family and size settings.
+- Command line: install from Differentialis ▸ Install Command Line Tool…, then run `differentialis <repo>` (open a repository), `differentialis a b` (compare two files or folders), or `differentialis base mine theirs` (three-way merge).
+
+## Keyboard shortcuts
+
+- New text comparison: ⌘N · New pasted text comparison: ⌘T · New image comparison: ⇧⌘N · New folder comparison: ⌥⌘N
+- Open repository: ⌘O · Next/previous change: ⌘] / ⌘[ · Toggle split/unified: ⌘U
+- Pasted text: copy change to B / A: ⌥⌘→ / ⌥⌘← · Swap A and B: ⇧⌘S
+- Image modes Two-Up/One-Up/Split/Difference: ⌘1–⌘4 · Code font size: ⌘+ / ⌘− / ⌘0 · Settings: ⌘,
+
+## Docs
+
+- [README](https://raw.githubusercontent.com/yennster/differentialis/main/README.md): features, shortcuts, building from source, and the command-line launcher
+- [Changelog](https://raw.githubusercontent.com/yennster/differentialis/main/CHANGELOG.md): release history
+- [Website](https://www.differentialis.app/): screenshots and FAQ
+
+## Download
+
+- [Latest release (.dmg)](https://github.com/yennster/differentialis/releases/latest)
+- [Source code on GitHub](https://github.com/yennster/differentialis)
+
+## Optional
+
+- [License (MIT)](https://raw.githubusercontent.com/yennster/differentialis/main/LICENSE)

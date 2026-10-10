@@ -117,11 +117,7 @@ enum LineDiff {
         return rows
     }
 
-    /// Build a full diff document with collapsible gaps and statistics.
-    static func document(_ aText: String, _ bText: String,
-                         whitespace: WhitespacePolicy = .significant) -> DiffDocument {
-        let rows = rows(aText, bText, whitespace: whitespace)
-
+    static func stats(for rows: [DiffRow]) -> DiffStats {
         var insertions = 0, deletions = 0, modifications = 0
         for row in rows {
             switch row.kind {
@@ -131,7 +127,14 @@ enum LineDiff {
             case .equal: break
             }
         }
-        let stats = DiffStats(insertions: insertions, deletions: deletions, modifications: modifications)
+        return DiffStats(insertions: insertions, deletions: deletions, modifications: modifications)
+    }
+
+    /// Build a full diff document with collapsible gaps and statistics.
+    static func document(_ aText: String, _ bText: String,
+                         whitespace: WhitespacePolicy = .significant) -> DiffDocument {
+        let rows = rows(aText, bText, whitespace: whitespace)
+        let stats = stats(for: rows)
 
         // Group into sections, collapsing long equal runs.
         var sections: [DiffDocument.Section] = []

@@ -41,6 +41,8 @@ struct DifferentialisApp: App {
             CommandGroup(replacing: .newItem) {
                 Button("New Text Comparison…") { model.chooseFiles(mode: .text) }
                     .keyboardShortcut("n", modifiers: .command)
+                Button("New Pasted Text Comparison") { model.newPastedTextComparison() }
+                    .keyboardShortcut("t", modifiers: .command)
                 Button("New Image Comparison…") { model.chooseFiles(mode: .image) }
                     .keyboardShortcut("n", modifiers: [.command, .shift])
                 Button("New Folder Comparison…") { model.chooseFiles(mode: .folder) }
