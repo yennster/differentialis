@@ -1,5 +1,6 @@
 # Differentialis
 
+[![CI](https://github.com/yennster/differentialis/actions/workflows/ci.yml/badge.svg)](https://github.com/yennster/differentialis/actions/workflows/ci.yml)
 ![Platform](https://img.shields.io/badge/platform-macOS%2026-black?logo=apple)
 ![Swift](https://img.shields.io/badge/Swift-6-orange?logo=swift)
 ![License](https://img.shields.io/badge/license-MIT-blue)
@@ -164,6 +165,10 @@ xcodebuild -project Differentialis.xcodeproj -scheme Differentialis test
 Covers Myers and line diff behavior, intra-line highlights, three-way merge, copying changes between
 pasted texts, folder scanning and filtering, git status parsing, and real temporary-repository checks
 for reference/index/working-tree comparisons.
+
+[CI](.github/workflows/ci.yml) runs the same suite on a macOS 26 runner for every push to `main` and
+every pull request, and checks that the README and website only reference files that exist
+(`python3 scripts/check-links.py` runs that check locally).
 
 ## Roadmap
 

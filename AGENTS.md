@@ -41,6 +41,9 @@ open build/Build/Products/Debug/Differentialis.app
 xcodebuild -project Differentialis.xcodeproj -scheme Differentialis test
 ```
 
+CI (`.github/workflows/ci.yml`) runs this on a `macos-26` runner for every push to
+`main` and every pull request, so keep the suite green.
+
 Tests live in `Tests/` (`DiffTests.swift`) and cover the Myers algorithm, line
 diff (including intra-line highlights), and three-way merge (clean merges,
 conflict detection, and identical-edit deduplication). **Add or update tests in
@@ -60,8 +63,9 @@ Differentialis/
 └── Resources/    Assets.xcassets, etc.
 
 Tests/            Unit tests (DiffTests.swift)
-scripts/          changelog.sh, make-dmg.sh
+scripts/          changelog.sh, make-dmg.sh, check-links.py
 tools/            make_icon.swift
+.github/workflows/ci.yml        Build + tests on every push to main and every PR
 .github/workflows/release.yml   Signed + notarized .dmg on each release
 project.yml       XcodeGen project definition (source of truth for the project)
 ```
@@ -93,8 +97,7 @@ release.
 
 ## Before you finish
 
-- Run the test suite and make sure it passes.
+- Run the test suite and make sure it passes (CI runs it too).
+- If you touched the README or `site/`, run `python3 scripts/check-links.py`.
 - If you changed `project.yml`, confirm `xcodegen generate` succeeds.
 - Keep `CHANGELOG.md` updated for user-facing changes.
-</content>
-</invoke>

@@ -1,0 +1,92 @@
+name: CI
+
+# Builds the app and runs the unit tests on every push to main and every pull request, and checks
+# that the README and website only point at files that exist.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Build & test
+    runs-on: macos-26   # Apple-silicon image with Xcode 26, same as the release workflow
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 26
+        run: |
+          if [ -d "/Applications/Xcode_26.5.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_26.5.app
+          fi
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Cache Swift packages
+        uses: actions/cache@v4
+        with:
+          path: build/SourcePackages
+          key: spm-${{ runner.os }}-${{ hashFiles('project.yml') }}
+          restore-keys: spm-${{ runner.os }}-
+
+      - name: Build and run tests
+        run: |
+          xcodebuild test \
+            -project Differentialis.xcodeproj \
+            -scheme Differentialis \
+            -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath build \
+            -resultBundlePath build/TestResults.xcresult \
+            -quiet
+
+      - name: Summarize test results
+        if: always()
+        run: |
+          [ -d build/TestResults.xcresult ] || exit 0
+          xcrun xcresulttool get test-results summary --path build/TestResults.xcresult > build/summary.json
+          python3 - >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json
+          summary = json.load(open("build/summary.json"))
+          print(f"### Tests: {summary.get('result')}")
+          print(f"{summary.get('passedTests', 0)} passed · {summary.get('failedTests', 0)} failed"
+                f" · {summary.get('skippedTests', 0)} skipped")
+          for failure in summary.get("testFailures", []):
+              name = failure.get("testName") or failure.get("testIdentifierString") or "Test"
+              text = (failure.get("failureText") or "").strip()
+              print(f"- **{name}**: {text}" if text else f"- **{name}**")
+          PY
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: TestResults
+          path: build/TestResults.xcresult
+          if-no-files-found: ignore
+
+  links:
+    name: Site & README links
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check local links and images
+        run: python3 scripts/check-links.py
