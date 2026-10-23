@@ -83,6 +83,7 @@ includes `Tests/` automatically through XcodeGen.
 | Test file | Coverage |
 | --- | --- |
 | `Tests/DiffTests.swift` | Myers reconstruction/bounded fallback, character and line diffs, whitespace/format diagnostics, git parsing, diff3 conflicts and line styles |
+| `Tests/MergeSessionTests.swift` | Merge session state: choices, manual Result edits, unsaved-work tracking, reload, ownership by `Comparison` |
 | `Tests/PastedTextTests.swift` | Two-way hunk copying, line correspondence, terminator preservation, UTF-16 ranges, editor decorations |
 | `Tests/GitComparisonTests.swift` | Real disposable git repos: index/worktree snapshots, staged reversions, conflicts, unborn HEAD, SHA-256 empty trees |
 | `Tests/FolderAndFilterTests.swift` | Package traversal, scan errors, stable identities, composed git filters, file properties |
@@ -102,7 +103,7 @@ Differentialis/
 ├── App/          Lifecycle, AppModel routing, focused menu commands, concurrency, CLI installer
 ├── Diff/         Pure Swift Myers, line/character diff, two-way edits, three-way merge
 ├── Git/          Process runner, git models/parsers, changeset-to-comparison bridge
-├── Models/       Comparison sources, pasted document, JSON stores, Sparkle bridge
+├── Models/       Comparison sources, pasted document, merge session, JSON stores, Sparkle bridge
 ├── Features/     Text (including paste/merge), Image, Folder, Repo, Settings, Welcome
 ├── DesignSystem/ Theme accessors/manager/import, Liquid Glass components, AppKit popover
 └── Resources/    Assets.xcassets, Info.plist, bundled differentialis launcher
@@ -244,7 +245,14 @@ Important feature invariants:
   launches. Programmatic edits should go through `PastedTextEditorController` while
   editors are mounted to preserve undo, caret, and scroll; its shared undo manager
   must not outlive its text views.
-- In `MergeView`, manually edited `resultText` is authoritative (`resultDirty`).
+- `MergeSession` is a reference type retained by `Comparison` for `.merge`, holding
+  the hunk and line-style choices, Result text, and Review/Result tab, so a merge
+  survives detail-view teardown; `MergeView` loads only when `needsLoad`. It is not
+  persisted across launches. `hasUnsavedChanges` is set by any choice, Result edit,
+  or Reset from Review, and cleared by a load or successful save. Refresh and Close
+  ask before discarding it (`confirmDiscardingChanges`); Quit asks in
+  `AppDelegate.applicationShouldTerminate`.
+- In `MergeSession`, manually edited `resultText` is authoritative (`resultDirty`).
   Hunk/format changes do not regenerate dirty output; “Reset from Review” explicitly
   does. Refresh reloads the sources and resets edits. Saving warns about remaining
   conflict marker fragments; an unresolved line-style choice blocks saving, edited

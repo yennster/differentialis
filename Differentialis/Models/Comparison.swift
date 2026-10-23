@@ -11,6 +11,7 @@ struct Comparison: Identifiable, Hashable {
     var b: ComparisonSource
     var base: ComparisonSource?   // only for `.merge`
     var pasted: PastedTextDocument?   // only for `.pasted`
+    var mergeSession: MergeSession?   // only for `.merge`
 
     var symbol: String {
         switch mode {
@@ -41,7 +42,8 @@ struct Comparison: Identifiable, Hashable {
                       title: String? = nil) -> Comparison {
         Comparison(mode: .merge,
                    title: title ?? "Merge: \(left.displayName)",
-                   a: left, b: right, base: base)
+                   a: left, b: right, base: base,
+                   mergeSession: MergeSession(base: base, left: left, right: right))
     }
 
     /// A comparison of two texts typed or pasted straight into the app — no files involved.
