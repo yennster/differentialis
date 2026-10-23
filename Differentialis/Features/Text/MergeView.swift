@@ -112,14 +112,13 @@ struct MergeView: View {
             .padding(.horizontal, 14).padding(.vertical, 7)
             .background(.ultraThinMaterial)
 
-            TextEditor(text: Binding(
+            PlainCodeEditor(text: Binding(
                 get: { session.resultText },
-                set: { session.editResult($0) }))
-                .font(Theme.codeFont)
-                .scrollContentBackground(.hidden)
+                set: { session.editResult($0) }),
+                font: DiffEditorStyle.codeFont(Theme.codeFontSize),
+                accessibilityLabel: "Merged result")
                 .padding(8)
                 .background(Theme.well)
-                .accessibilityLabel("Merged result")
         }
     }
 
@@ -167,7 +166,9 @@ extension MergeSession {
     /// Result was written.
     @discardableResult
     func saveInteractively() -> Bool {
-        if lineStyleConflict && !resultDirty {
+        // Save rewrites every line to the chosen line ending, so an edited result needs that
+        // choice made too.
+        if lineStyleConflict {
             let alert = NSAlert()
             alert.alertStyle = .warning
             alert.messageText = "Choose an output line-ending style"
@@ -201,7 +202,11 @@ extension MergeSession {
         guard panel.runModal() == .OK, let url = panel.url else { return false }
 
         do {
-            try resultText.write(to: url, atomically: true, encoding: .utf8)
+            // Return in the editor always types LF, and pasted text keeps its own terminators, so
+            // write every line with the merge's chosen line ending rather than a mix.
+            let output = ThreeWayMerge.normalizingLineEndings(resultText, to: lineEnding,
+                                                               finalNewline: finalNewline)
+            try output.write(to: url, atomically: true, encoding: .utf8)
             markSaved()
             return true
         } catch {

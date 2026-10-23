@@ -18,11 +18,6 @@ struct DiffEditorStyle: Equatable {
     @MainActor
     static func current(for side: PastedTextSide) -> DiffEditorStyle {
         let size = Theme.codeFontSize
-        func codeFont(_ size: CGFloat) -> NSFont {
-            ThemeManager.shared.codeFontName.flatMap {
-                NSFontManager.shared.font(withFamily: $0, traits: [], weight: 5, size: size)
-            } ?? .monospacedSystemFont(ofSize: size, weight: .regular)
-        }
         return DiffEditorStyle(
             font: codeFont(size),
             gutterFont: codeFont(max(8, size - 1.5)),
@@ -34,6 +29,37 @@ struct DiffEditorStyle: Equatable {
             insertionMarker: NSColor(side == .a ? Theme.added : Theme.removed),
             current: NSColor(Theme.brand.opacity(0.12)),
             currentMarker: NSColor(Theme.brand))
+    }
+
+    /// The user's chosen code font family at `size`, or the system mono font.
+    @MainActor
+    static func codeFont(_ size: CGFloat) -> NSFont {
+        ThemeManager.shared.codeFontName.flatMap {
+            NSFontManager.shared.font(withFamily: $0, traits: [], weight: 5, size: size)
+        } ?? .monospacedSystemFont(ofSize: size, weight: .regular)
+    }
+}
+
+extension NSTextView {
+    /// Plain text with every automatic substitution, correction, and smart edit turned off, so
+    /// what the user types is exactly what ends up in the text — no curly quotes, em dashes, or
+    /// autocorrected identifiers, whatever the system text settings say.
+    func configureForPlainCode() {
+        isRichText = false
+        importsGraphics = false
+        allowsUndo = true
+        usesFindBar = true
+        isIncrementalSearchingEnabled = true
+        isAutomaticQuoteSubstitutionEnabled = false
+        isAutomaticDashSubstitutionEnabled = false
+        isAutomaticTextReplacementEnabled = false
+        isAutomaticSpellingCorrectionEnabled = false
+        isAutomaticLinkDetectionEnabled = false
+        isAutomaticDataDetectionEnabled = false
+        isAutomaticTextCompletionEnabled = false
+        isContinuousSpellCheckingEnabled = false
+        isGrammarCheckingEnabled = false
+        smartInsertDeleteEnabled = false
     }
 }
 
@@ -466,21 +492,7 @@ struct DiffTextEditor: NSViewRepresentable {
         textView.autoresizingMask = [.width]
         textView.textContainerInset = NSSize(width: 4, height: 8)
         textView.drawsBackground = false
-        textView.isRichText = false
-        textView.importsGraphics = false
-        textView.allowsUndo = true
-        textView.usesFindBar = true
-        textView.isIncrementalSearchingEnabled = true
-        textView.isAutomaticQuoteSubstitutionEnabled = false
-        textView.isAutomaticDashSubstitutionEnabled = false
-        textView.isAutomaticTextReplacementEnabled = false
-        textView.isAutomaticSpellingCorrectionEnabled = false
-        textView.isAutomaticLinkDetectionEnabled = false
-        textView.isAutomaticDataDetectionEnabled = false
-        textView.isAutomaticTextCompletionEnabled = false
-        textView.isContinuousSpellCheckingEnabled = false
-        textView.isGrammarCheckingEnabled = false
-        textView.smartInsertDeleteEnabled = false
+        textView.configureForPlainCode()
         textView.textColor = .textColor
         textView.insertionPointColor = .textColor
         textView.setAccessibilityLabel(side == .a ? "Original text (A)" : "Modified text (B)")
