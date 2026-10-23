@@ -90,6 +90,7 @@ extension MergeResolution {
         case .takeLeft: return Theme.removed
         case .takeRight: return Theme.modified
         case .takeBoth: return Theme.added
+        case .takeBase: return Theme.brandAlt
         case .conflict: return Theme.conflict
         }
     }
@@ -100,6 +101,7 @@ extension MergeResolution {
         case .takeLeft: return "Left"
         case .takeRight: return "Right"
         case .takeBoth: return "Both (same)"
+        case .takeBase: return "Base"
         case .conflict: return "Conflict"
         }
     }

@@ -10,6 +10,12 @@ When cutting a release, add a section here and use it as the release notes:
 
 ## [Unreleased]
 
+### Fixed
+- Choosing **Base** for a merge hunk (**Use Base** on a conflict, or **Base** from a resolved hunk's
+  ↻ menu) no longer turns the hunk into plain unchanged context. It now shows **Took Base** and keeps
+  its source menu, so you can switch back to Left, Right, or Both without refreshing
+  ([#13](https://github.com/yennster/differentialis/issues/13)).
+
 ## [0.3.1] — 2026-10-10
 
 ### Fixed

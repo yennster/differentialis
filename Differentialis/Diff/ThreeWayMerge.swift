@@ -5,6 +5,7 @@ enum MergeResolution: String, Hashable {
     case takeLeft
     case takeRight
     case takeBoth      // left and right made the same change
+    case takeBase      // the user kept the ancestor's lines for a changed or conflicting hunk
     case conflict
 }
 
@@ -22,6 +23,21 @@ struct MergeHunk: Identifiable, Hashable {
 
     var isConflict: Bool { resolution == .conflict }
     var isChange: Bool { resolution != .unchanged }
+
+    /// Resolve this hunk to one source's lines. Choosing Base records `.takeBase` rather than
+    /// `.unchanged`, so the hunk stays a visible, re-choosable change instead of turning into
+    /// context. `.unchanged` and `.conflict` are not choices and leave the hunk as it is.
+    mutating func choose(_ source: MergeResolution) {
+        switch source {
+        case .takeLeft: chosen = leftLines
+        case .takeRight: chosen = rightLines
+        case .takeBoth: chosen = leftLines + rightLines
+        case .takeBase: chosen = baseLines
+        case .unchanged, .conflict: return
+        }
+        resolution = source
+        resolved = true
+    }
 }
 
 struct TextLineStyle: Hashable {
