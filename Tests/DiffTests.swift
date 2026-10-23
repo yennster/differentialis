@@ -265,7 +265,8 @@ struct ThreeWayMergeTests {
     func chooseBaseStaysAChange() throws {
         var hunks = ThreeWayMerge.merge(base: "a\nvalue = 1\nz", left: "a\nvalue = 2\nz",
                                         right: "a\nvalue = 3\nz")
-        let index = try #require(hunks.firstIndex(where: \.isConflict))
+        let found = hunks.firstIndex(where: \.isConflict)
+        let index = try #require(found)
         #expect(ThreeWayMerge.conflictCount(hunks) == 1)
 
         hunks[index].choose(.takeBase)
@@ -285,7 +286,8 @@ struct ThreeWayMergeTests {
     @Test("choosing a source on a one-sided change switches lines and keeps conflicts at zero")
     func chooseOnOneSidedChange() throws {
         var hunks = ThreeWayMerge.merge(base: "a\nb", left: "a\nB", right: "a\nb")
-        let index = try #require(hunks.firstIndex(where: \.isChange))
+        let found = hunks.firstIndex(where: \.isChange)
+        let index = try #require(found)
         #expect(hunks[index].resolution == .takeLeft)
 
         hunks[index].choose(.takeBase)
@@ -310,7 +312,8 @@ struct ThreeWayMergeTests {
     @Test("choosing Both on an identical edit from both sides does not duplicate it")
     func chooseBothOnSameEdit() throws {
         var hunks = ThreeWayMerge.merge(base: "a\nx", left: "a\ny", right: "a\ny")
-        let index = try #require(hunks.firstIndex(where: \.isChange))
+        let found = hunks.firstIndex(where: \.isChange)
+        let index = try #require(found)
         #expect(hunks[index].resolution == .takeBoth)
 
         hunks[index].choose(.takeBase)
