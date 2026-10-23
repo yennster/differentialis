@@ -222,7 +222,9 @@ git or diff work in `Task { ... }` does **not** move it off the main actor.
   allows compatible adjacent edits without falsely conflicting. Content hunks and
   `MergeLineStyleDecision` are separate: two conflicting format edits also require
   resolution. `mergedText` emits git-style markers for unresolved content; never
-  silently save just the chosen/left side of an unresolved conflict.
+  silently save just the chosen/left side of an unresolved conflict. User source
+  choices go through `MergeHunk.choose`; choosing Base records `.takeBase`, never
+  `.unchanged`, which `MergeView` renders as plain context with no source menu.
 
 ### Feature owners
 

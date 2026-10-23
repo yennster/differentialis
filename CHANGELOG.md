@@ -15,6 +15,8 @@ When cutting a release, add a section here and use it as the release notes:
   ↻ menu) no longer turns the hunk into plain unchanged context. It now shows **Took Base** and keeps
   its source menu, so you can switch back to Left, Right, or Both without refreshing
   ([#13](https://github.com/yennster/differentialis/issues/13)).
+- Picking **Both** from the ↻ menu of a hunk where both sides made the same edit no longer
+  duplicates its lines, and the hunk label now reads **Took Both** instead of "Both (same)".
 
 ## [0.3.1] — 2026-10-10
 

@@ -307,6 +307,18 @@ struct ThreeWayMergeTests {
         #expect(ThreeWayMerge.conflictCount(hunks) == 1)
     }
 
+    @Test("choosing Both on an identical edit from both sides does not duplicate it")
+    func chooseBothOnSameEdit() throws {
+        var hunks = ThreeWayMerge.merge(base: "a\nx", left: "a\ny", right: "a\ny")
+        let index = try #require(hunks.firstIndex(where: \.isChange))
+        #expect(hunks[index].resolution == .takeBoth)
+
+        hunks[index].choose(.takeBase)
+        hunks[index].choose(.takeBoth)
+        #expect(hunks[index].chosen == ["y"])
+        #expect(ThreeWayMerge.mergedText(hunks) == "a\ny")
+    }
+
     @Test("identical edits on both sides are not a conflict")
     func sameEdit() {
         let base = "x"
