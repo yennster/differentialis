@@ -63,6 +63,53 @@ struct MergeSessionTests {
         #expect(!session.hasUnsavedChanges)
     }
 
+    @Test("a canonically equivalent but different Result is still an edit")
+    func equivalentTextIsAnEdit() async {
+        let session = await loadedSession(base: "caf\u{E9}", left: "caf\u{E9}", right: "caf\u{E9}")
+        session.editResult("cafe\u{301}")
+        #expect(session.resultDirty)
+        #expect(Array(session.resultText.unicodeScalars) == Array("cafe\u{301}".unicodeScalars))
+    }
+
+    @Test("Reset from Review counts as work, and does nothing on an unedited Result")
+    func resetCountsAsWork() async {
+        let session = await loadedSession()
+        session.resetResultFromReview()
+        #expect(!session.hasUnsavedChanges)
+        session.editResult("hand written")
+        session.markSaved()
+        session.resetResultFromReview()
+        #expect(session.hasUnsavedChanges)
+    }
+
+    @Test("a running load is not restarted by a returning view")
+    func inFlightLoad() async {
+        let session = MergeSession(base: .text(content: "a", name: "base"),
+                                   left: .text(content: "b", name: "left"),
+                                   right: .text(content: "c", name: "right"))
+        #expect(session.needsLoad)
+        let load = Task { await session.load() }
+        await Task.yield()
+        #expect(!session.needsLoad)
+        await load.value
+        #expect(session.loaded)
+        #expect(!session.needsLoad)
+    }
+
+    @Test("a failed load reports the error and is retried when the view returns")
+    func failedLoad() async throws {
+        let missing = FileManager.default.temporaryDirectory
+            .appendingPathComponent("differentialis-missing-\(UUID().uuidString).txt")
+        let session = MergeSession(base: .text(content: "a", name: "base"),
+                                   left: .file(missing),
+                                   right: .text(content: "c", name: "right"))
+        await session.load()
+        #expect(session.loadError != nil)
+        #expect(!session.loaded)
+        #expect(session.needsLoad)
+        #expect(!session.hasUnsavedChanges)
+    }
+
     @Test("choosing a line style resolves the format conflict and counts as work")
     func lineStyleChoice() async {
         let session = await loadedSession(base: "a\nb\n", left: "a\r\nb\r\n", right: "a\nb")

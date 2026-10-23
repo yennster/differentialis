@@ -248,9 +248,10 @@ Important feature invariants:
 - `MergeSession` is a reference type retained by `Comparison` for `.merge`, holding
   the hunk and line-style choices, Result text, and Review/Result tab, so a merge
   survives detail-view teardown; `MergeView` loads only when `needsLoad`. It is not
-  persisted across launches. `hasUnsavedChanges` is set by any choice or Result edit
-  and cleared by a load or successful save; Refresh, Close, and Quit ask before
-  discarding it (`confirmDiscardingChanges`, `AppDelegate.applicationShouldTerminate`).
+  persisted across launches. `hasUnsavedChanges` is set by any choice, Result edit,
+  or Reset from Review, and cleared by a load or successful save. Refresh and Close
+  ask before discarding it (`confirmDiscardingChanges`); Quit asks in
+  `AppDelegate.applicationShouldTerminate`.
 - In `MergeSession`, manually edited `resultText` is authoritative (`resultDirty`).
   Hunk/format changes do not regenerate dirty output; “Reset from Review” explicitly
   does. Refresh reloads the sources and resets edits. Saving warns about remaining

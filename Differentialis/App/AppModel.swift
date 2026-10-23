@@ -165,10 +165,10 @@ final class AppModel {
     // MARK: - Closing
 
     func closeComparison(_ id: UUID) {
-        if let session = comparison(id)?.mergeSession, session.hasUnsavedChanges {
-            // Show the merge being asked about, so the prompt isn't about an unseen tab.
-            route = .comparison(id)
-            guard session.confirmDiscardingChanges(before: .close) else { return }
+        if let comparison = comparison(id), let session = comparison.mergeSession {
+            // The prompt names the merge rather than switching to it, so closing from the sidebar
+            // leaves the current route (and any repository open in flight) alone.
+            guard session.confirmDiscardingChanges(before: .close(title: comparison.title)) else { return }
         }
         comparisons.removeAll { $0.id == id }
         if route == .comparison(id) { route = .welcome }

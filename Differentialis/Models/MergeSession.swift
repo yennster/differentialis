@@ -121,7 +121,9 @@ final class MergeSession {
     /// A manual edit in the Result tab. From here on the text is authoritative: hunk and format
     /// choices no longer regenerate it until `resetResultFromReview()`.
     func editResult(_ text: String) {
-        guard text != resultText else { return }
+        // Compare scalars, not `String` equality: canonically equivalent text (é vs e + U+0301)
+        // is still a different file once saved.
+        guard !text.unicodeScalars.elementsEqual(resultText.unicodeScalars) else { return }
         resultText = text
         resultDirty = true
         hasUnsavedChanges = true

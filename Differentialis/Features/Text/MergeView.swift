@@ -135,7 +135,7 @@ struct MergeView: View {
 /// run AppKit alerts and panels; `AppModel` uses them when closing a merge or quitting.
 @MainActor
 extension MergeSession {
-    enum DiscardReason { case reload, close }
+    enum DiscardReason { case reload, close(title: String) }
 
     /// Asks before an action that would throw away unsaved merge work. Returns true when the
     /// action may go ahead: there was nothing to lose, the user saved, or chose not to save.
@@ -147,8 +147,8 @@ extension MergeSession {
         case .reload:
             alert.messageText = "Save the merge before reloading?"
             alert.informativeText = "Reloading re-reads the files and discards your conflict choices and Result edits."
-        case .close:
-            alert.messageText = "Save the merge before closing?"
+        case .close(let title):
+            alert.messageText = "Save “\(title)” before closing?"
             alert.informativeText = "Your conflict choices and Result edits will be lost if you don’t save them."
         }
         alert.addButton(withTitle: "Save…")
