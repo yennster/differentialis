@@ -231,7 +231,7 @@ git or diff work in `Task { ... }` does **not** move it off the main actor.
 | Text diff | `Features/Text/TextComparisonView.swift`: async load, whitespace options, split/unified layout, gaps, navigation, format diagnostics; `DiffRowView.swift` renders highlighted rows |
 | Pasted text | `PastedTextComparisonView.swift`: live analysis with typing debounce, editor/diff presentations, hunk actions; `PastedTextAnalysis.swift` shapes rows into UTF-16 decorations and scroll mappings |
 | Native editors | `DiffTextEditor.swift`: TextKit 1 `NSTextView`, line-number ruler, SwiftUI representable, `PastedTextEditorController` for edits/scroll synchronization/shared undo |
-| Three-way merge | `MergeView.swift`: Review and editable Result, hunk choices, format resolution, save warnings and atomic UTF-8 save |
+| Three-way merge | `MergeView.swift`: Review and editable Result (`PlainCodeEditor.swift`), hunk choices, format resolution, save warnings and atomic UTF-8 save |
 | Images | `Features/Image/ImageComparisonView.swift`: Two-Up, One-Up/blink, Split, Difference; `ImageSupport.swift`: shared zoom/pan gestures, checkerboard, Core Image difference renderer |
 | Folders | `Features/Folder/FolderScanner.swift`: inventory and byte comparison; `FolderComparisonView.swift`: filtering, issues, selection, embedded file comparison |
 | Git | `Features/Repo/RepositoryView.swift`: history/working changes; `GitChangesetView.swift` and `ChangesetDetailView.swift`: file lists/detail; `CustomComparisonPopover.swift`: endpoint selection; `GitFileFilterBar.swift`: shared path/type/status filtering |
@@ -247,8 +247,12 @@ Important feature invariants:
 - In `MergeView`, manually edited `resultText` is authoritative (`resultDirty`).
   Hunk/format changes do not regenerate dirty output; “Reset from Review” explicitly
   does. Refresh reloads the sources and resets edits. Saving warns about remaining
-  conflict marker fragments; unresolved line-style choices block saving generated
-  output until reviewed.
+  conflict marker fragments; an unresolved line-style choice blocks saving, edited
+  or not, until reviewed. Save rewrites every terminator to the chosen line ending
+  (`ThreeWayMerge.normalizingLineEndings`), so typed or pasted lines can't mix styles.
+- Editable code views (`DiffTextEditor`, the merge Result's `PlainCodeEditor`) use
+  `NSTextView.configureForPlainCode()`; never use SwiftUI `TextEditor` for code,
+  since it follows the system's smart-quote, dash, and autocorrect settings.
 - Images load bytes off-main, then construct lazy-decoding `NSImage`s. Expensive
   Difference rendering runs off-main only when that mode needs it and is guarded
   by image revision. Preserve shared zoom/pan and one-sided image handling.
