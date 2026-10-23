@@ -70,4 +70,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func application(_ application: NSApplication, open urls: [URL]) {
         Task { await AppModel.shared.open(urls: urls) }
     }
+
+    /// Unsaved 3-way merge work lives only in memory, so ask before quitting throws it away.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let model = AppModel.shared else { return .terminateNow }
+        let unsaved = model.mergesWithUnsavedChanges
+        guard let first = unsaved.first else { return .terminateNow }
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = unsaved.count == 1
+            ? "“\(first.title)” has unsaved changes"
+            : "\(unsaved.count) merges have unsaved changes"
+        alert.informativeText = "If you quit now, your conflict choices and Result edits will be lost."
+        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: "Quit Anyway")
+        guard alert.runModal() == .alertSecondButtonReturn else {
+            model.route = .comparison(first.id)
+            return .terminateCancel
+        }
+        return .terminateNow
+    }
 }

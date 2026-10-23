@@ -13,8 +13,9 @@ struct ComparisonDetailView: View {
         case .folder:
             FolderComparisonView(a: comparison.a, b: comparison.b)
         case .merge:
-            MergeView(base: comparison.base ?? .empty(name: "base"),
-                      left: comparison.a, right: comparison.b)
+            if let session = comparison.mergeSession {
+                MergeView(session: session)
+            }
         case .binary:
             BinaryComparisonView(a: comparison.a, b: comparison.b)
         case .pasted:

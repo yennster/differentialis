@@ -10,6 +10,13 @@ When cutting a release, add a section here and use it as the release notes:
 
 ## [Unreleased]
 
+### Fixed
+- A **3-way merge** now keeps your conflict choices, line-ending choice, Result edits, and
+  Review/Result tab when you switch to another sidebar item and back
+  ([#11](https://github.com/yennster/differentialis/issues/11)). **Refresh** (`⌘R`) and **Close**
+  now ask to save first when the merge has unsaved work, and quitting with an unsaved merge asks
+  for confirmation.
+
 ## [0.3.1] — 2026-10-10
 
 ### Fixed

@@ -165,8 +165,18 @@ final class AppModel {
     // MARK: - Closing
 
     func closeComparison(_ id: UUID) {
+        if let session = comparison(id)?.mergeSession, session.hasUnsavedChanges {
+            // Show the merge being asked about, so the prompt isn't about an unseen tab.
+            route = .comparison(id)
+            guard session.confirmDiscardingChanges(before: .close) else { return }
+        }
         comparisons.removeAll { $0.id == id }
         if route == .comparison(id) { route = .welcome }
+    }
+
+    /// Open merges whose choices or Result edits have not been saved.
+    var mergesWithUnsavedChanges: [Comparison] {
+        comparisons.filter { $0.mergeSession?.hasUnsavedChanges == true }
     }
 
     func closeChangeset(_ id: UUID) {
