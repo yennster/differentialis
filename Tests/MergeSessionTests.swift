@@ -90,19 +90,27 @@ struct MergeSessionTests {
         #expect(session.needsLoad)
         let load = Task { await session.load() }
         await Task.yield()
+        #expect(!session.loaded)
         #expect(!session.needsLoad)
         await load.value
         #expect(session.loaded)
         #expect(!session.needsLoad)
     }
 
-    @Test("a failed load reports the error and is retried when the view returns")
+    @Test("a failed reload reports the error, clears unsaved work, and is retried when the view returns")
     func failedLoad() async throws {
-        let missing = FileManager.default.temporaryDirectory
-            .appendingPathComponent("differentialis-missing-\(UUID().uuidString).txt")
-        let session = MergeSession(base: .text(content: "a", name: "base"),
-                                   left: .file(missing),
-                                   right: .text(content: "c", name: "right"))
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("differentialis-merge-\(UUID().uuidString).txt")
+        try "value = 2\nshared".write(to: url, atomically: true, encoding: .utf8)
+        let session = MergeSession(base: .text(content: "value = 1\nshared", name: "base"),
+                                   left: .file(url),
+                                   right: .text(content: "value = 3\nshared", name: "right"))
+        await session.load()
+        let conflict = try #require(firstConflict(session))
+        session.resolve(hunk: conflict.id, as: .takeLeft, lines: conflict.leftLines)
+        #expect(session.hasUnsavedChanges)
+
+        try FileManager.default.removeItem(at: url)
         await session.load()
         #expect(session.loadError != nil)
         #expect(!session.loaded)
