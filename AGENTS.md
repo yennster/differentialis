@@ -247,8 +247,8 @@ Important feature invariants:
 - In `MergeView`, manually edited `resultText` is authoritative (`resultDirty`).
   Hunk/format changes do not regenerate dirty output; “Reset from Review” explicitly
   does. Refresh reloads the sources and resets edits. Saving warns about remaining
-  conflict marker fragments; unresolved line-style choices block saving generated
-  output until reviewed. Save rewrites every terminator to the chosen line ending
+  conflict marker fragments; an unresolved line-style choice blocks saving, edited
+  or not, until reviewed. Save rewrites every terminator to the chosen line ending
   (`ThreeWayMerge.normalizingLineEndings`), so typed or pasted lines can't mix styles.
 - Editable code views (`DiffTextEditor`, the merge Result's `PlainCodeEditor`) use
   `NSTextView.configureForPlainCode()`; never use SwiftUI `TextEditor` for code,

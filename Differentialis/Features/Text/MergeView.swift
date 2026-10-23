@@ -204,7 +204,9 @@ struct MergeView: View {
     }
 
     private func save() {
-        if lineStyleConflict && !resultDirty {
+        // Save rewrites every line to the chosen line ending, so an edited result needs that
+        // choice made too.
+        if lineStyleConflict {
             let alert = NSAlert()
             alert.alertStyle = .warning
             alert.messageText = "Choose an output line-ending style"

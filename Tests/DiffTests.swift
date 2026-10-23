@@ -302,12 +302,13 @@ struct ThreeWayMergeTests {
         #expect(ThreeWayMerge.mergedText([], finalNewline: true) == "")
     }
 
+    /// Bytes, not a String: String equality would treat "\r\n" as one Character.
+    private func normalized(_ text: String, _ ending: String, _ finalNewline: Bool) -> [UInt8] {
+        Array(ThreeWayMerge.normalizingLineEndings(text, to: ending, finalNewline: finalNewline).utf8)
+    }
+
     @Test("hand-edited results are normalized to the chosen line ending")
     func normalizesLineEndings() {
-        // Compare bytes: Swift's String equality would treat "\r\n" as one Character.
-        func normalized(_ text: String, _ ending: String, _ finalNewline: Bool) -> [UInt8] {
-            Array(ThreeWayMerge.normalizingLineEndings(text, to: ending, finalNewline: finalNewline).utf8)
-        }
         let mixed = "a\r\nb\nc\rd"
         #expect(normalized(mixed, "\r\n", false) == Array("a\r\nb\r\nc\r\nd".utf8))
         #expect(normalized(mixed, "\n", false) == Array("a\nb\nc\nd".utf8))
@@ -325,14 +326,12 @@ struct ThreeWayMergeTests {
 
     @Test("normalizing adds a missing final newline but never removes one")
     func normalizesFinalNewline() {
-        func normalized(_ text: String, _ ending: String, _ finalNewline: Bool) -> [UInt8] {
-            Array(ThreeWayMerge.normalizingLineEndings(text, to: ending, finalNewline: finalNewline).utf8)
-        }
         #expect(normalized("a\nb", "\r\n", true) == Array("a\r\nb\r\n".utf8))
         #expect(normalized("a\nb\n", "\r\n", true) == Array("a\r\nb\r\n".utf8))
         #expect(normalized("a\nb\r", "\r\n", true) == Array("a\r\nb\r\n".utf8))
         #expect(normalized("a\nb\n", "\n", false) == Array("a\nb\n".utf8))
         #expect(normalized("a\n\n", "\r", false) == Array("a\r\r".utf8))
+        #expect(normalized("a\r", "\n", false) == Array("a\n".utf8))
         #expect(normalized("", "\r\n", true).isEmpty)
         // Non-ASCII content and combining marks pass through untouched.
         #expect(normalized("e\u{301}\n👋", "\r\n", false) == Array("e\u{301}\r\n👋".utf8))
