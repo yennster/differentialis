@@ -41,6 +41,9 @@ struct PlainCodeEditor: NSViewRepresentable {
             // A change made outside the editor (Reset from Review, a new merge) is adopted wholesale.
             // Its undo history was recorded against the old text, so drop it rather than let an
             // undo edit the wrong range of the new text.
+            // Close any open typing action first, or the next keystroke would extend the one just
+            // removed and undo would skip it.
+            textView.breakUndoCoalescing()
             textView.string = text
             textView.font = font
             context.coordinator.textUndoManager.removeAllActions()
