@@ -140,17 +140,16 @@ struct MergeView: View {
             .padding(.horizontal, 14).padding(.vertical, 7)
             .background(.ultraThinMaterial)
 
-            TextEditor(text: Binding(
+            PlainCodeEditor(text: Binding(
                 get: { resultText },
                 set: { newValue in
                     resultText = newValue
                     resultDirty = true
-                }))
-                .font(Theme.codeFont)
-                .scrollContentBackground(.hidden)
+                }),
+                font: DiffEditorStyle.codeFont(Theme.codeFontSize),
+                accessibilityLabel: "Merged result")
                 .padding(8)
                 .background(Theme.well)
-                .accessibilityLabel("Merged result")
         }
     }
 
@@ -239,7 +238,11 @@ struct MergeView: View {
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
         do {
-            try resultText.write(to: url, atomically: true, encoding: .utf8)
+            // Return in the editor always types LF, and pasted text keeps its own terminators, so
+            // write every line with the merge's chosen line ending rather than a mix.
+            let output = ThreeWayMerge.normalizingLineEndings(resultText, to: lineEnding,
+                                                               finalNewline: finalNewline)
+            try output.write(to: url, atomically: true, encoding: .utf8)
         } catch {
             let alert = NSAlert()
             alert.alertStyle = .warning

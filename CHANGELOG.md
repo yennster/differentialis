@@ -10,6 +10,13 @@ When cutting a release, add a section here and use it as the release notes:
 
 ## [Unreleased]
 
+### Fixed
+- The merge **Result** editor no longer changes what you type: straight quotes stay straight,
+  `--` stays two hyphens, and autocorrect and text replacement are off, whatever the system text
+  settings say. **Save Merged…** now writes every line with the merge's line ending, so a line
+  typed or pasted into a CRLF merge is saved as CRLF instead of a bare LF
+  ([#12](https://github.com/yennster/differentialis/issues/12)).
+
 ## [0.3.1] — 2026-10-10
 
 ### Fixed

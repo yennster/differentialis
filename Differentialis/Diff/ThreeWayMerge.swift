@@ -149,6 +149,42 @@ enum ThreeWayMerge {
         return finalNewline && !lines.isEmpty ? body + lineEnding : body
     }
 
+    /// `text` with every terminator (CRLF, CR, or LF) rewritten as `ending`, so a hand-edited
+    /// result saves with one consistent line style. With `finalNewline`, non-empty text that
+    /// doesn't end in a terminator gets one; an existing trailing terminator is never removed,
+    /// since that would delete a line the user typed.
+    static func normalizingLineEndings(_ text: String, to ending: String,
+                                       finalNewline: Bool) -> String {
+        let terminator = ending.unicodeScalars
+        var output = String.UnicodeScalarView()
+        var afterCR = false
+        var endsWithTerminator = false
+        // Scalars, not Characters: Swift treats "\r\n" as a single Character.
+        for scalar in text.unicodeScalars {
+            if afterCR {
+                afterCR = false
+                // The LF half of a CRLF; its terminator was already written for the CR.
+                if scalar == "\n" { continue }
+            }
+            switch scalar {
+            case "\r":
+                output.append(contentsOf: terminator)
+                afterCR = true
+                endsWithTerminator = true
+            case "\n":
+                output.append(contentsOf: terminator)
+                endsWithTerminator = true
+            default:
+                output.append(scalar)
+                endsWithTerminator = false
+            }
+        }
+        if finalNewline && !output.isEmpty && !endsWithTerminator {
+            output.append(contentsOf: terminator)
+        }
+        return String(output)
+    }
+
     static func conflictCount(_ hunks: [MergeHunk]) -> Int {
         hunks.filter { $0.isConflict && !$0.resolved }.count
     }
