@@ -437,7 +437,16 @@ summaries in step:
   questions drift apart.
 - `site/llms.txt` is a plain-text product summary for AI assistants; update it with
   feature or requirement changes.
-- Bump `<lastmod>` in `site/sitemap.xml` when the page content changes.
+- Bump `<lastmod>` in `site/sitemap.xml` and the `WebPage` node's `dateModified` together when
+  the page content changes; the check fails if they differ.
+- When `MARKETING_VERSION` changes, update the site's version too: both `data-version` spans,
+  `softwareVersion` in the JSON-LD, and the "Current version" line in `llms.txt`. The check
+  compares all three with `project.yml`, so a release bump fails CI until the site follows.
+- The FAQ check compares answer text as well as questions; in the JSON-LD write `⌘N` as
+  `Command-N` and drop HTML tags.
+- `site/404.html` is served for unknown paths, so its references are root-relative.
+  `site/vercel.json` redirects `/index.html` to `/`. Favicons (`favicon.ico`,
+  `apple-touch-icon.png`, `assets/icon-192.png`) are cropped from `assets/icon.png`.
 - Screenshots live in `site/assets/screens/` (WebP); the README gallery reuses them.
 - The social card (`site/assets/og.jpg`) is generated from `tools/og-card/`: edit
   `card.html` and run `node tools/og-card/render.mjs` (needs Google Chrome).
