@@ -445,8 +445,10 @@ summaries in step:
 - The FAQ check compares answer text as well as questions. Each visible answer is a single `<p>`
   right after its `<summary>`; in the JSON-LD write `⌘N` as `Command-N` and drop HTML tags.
 - `site/404.html` is served for unknown paths, so its references are root-relative.
-  `site/vercel.json` redirects `/index.html` to `/`. Favicons (`favicon.ico`,
-  `apple-touch-icon.png`, `assets/icon-192.png`) are cropped from `assets/icon.png`.
+  `site/vercel.json` redirects `/index.html` to `/`. `favicon.ico` and
+  `assets/icon-192.png` are `assets/icon.png` cropped to its squircle; `apple-touch-icon.png`
+  is the same crop over the icon's own vertical gradient, filled to the corners, because iOS
+  applies its own mask.
 - Screenshots live in `site/assets/screens/` (WebP); the README gallery reuses them.
 - The social card (`site/assets/og.jpg`) is generated from `tools/og-card/`: edit
   `card.html` and run `node tools/og-card/render.mjs` (needs Google Chrome).
