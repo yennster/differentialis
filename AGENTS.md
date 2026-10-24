@@ -442,8 +442,8 @@ summaries in step:
 - When `MARKETING_VERSION` changes, update the site's version too: both `data-version` spans,
   `softwareVersion` in the JSON-LD, and the "Current version" line in `llms.txt`. The check
   compares all three with `project.yml`, so a release bump fails CI until the site follows.
-- The FAQ check compares answer text as well as questions; in the JSON-LD write `⌘N` as
-  `Command-N` and drop HTML tags.
+- The FAQ check compares answer text as well as questions. Each visible answer is a single `<p>`
+  right after its `<summary>`; in the JSON-LD write `⌘N` as `Command-N` and drop HTML tags.
 - `site/404.html` is served for unknown paths, so its references are root-relative.
   `site/vercel.json` redirects `/index.html` to `/`. Favicons (`favicon.ico`,
   `apple-touch-icon.png`, `assets/icon-192.png`) are cropped from `assets/icon.png`.
@@ -455,7 +455,11 @@ summaries in step:
 
 `scripts/changelog.sh <version>` extracts release notes from `CHANGELOG.md`; it
 does not publish a release. Bump `MARKETING_VERSION` in `project.yml` and update
-the changelog when cutting one.
+the changelog when cutting one, and in the same commit bump the site's version
+(both `data-version` spans and `softwareVersion` in `site/index.html`, and the
+"Current version" line in `site/llms.txt`); `scripts/check-site.py` fails CI
+until they match. Publish the GitHub release promptly after that commit lands,
+since Vercel deploys `main` and the site then advertises the new version.
 
 `.github/workflows/release.yml` runs on a published GitHub Release or a manual
 tag input. It checks out that tag, builds on macOS 26/Xcode 26, overrides the

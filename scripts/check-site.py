@@ -49,6 +49,9 @@ for document, base in DOCUMENTS.items():
             if not is_local(ref) or not path:
                 continue
             checked += 1
+            # The 404 page is served at any depth (/a/b), so a relative reference would break there.
+            if document.name == "404.html" and not ref.startswith("/"):
+                problems.append(f"{document.relative_to(ROOT)}: {ref} must be root-relative (start with /)")
             # Root-relative paths ("/styles.css") resolve against the document's site root.
             if not (base / path.lstrip("/")).exists():
                 problems.append(f"{document.relative_to(ROOT)}: missing file {ref}")
@@ -77,11 +80,13 @@ def node_of(kind: str):
 
 faq = node_of("FAQPage")
 visible = [(plain(q), plain(a)) for q, a in
-           re.findall(r"<summary>(.*?)</summary>\s*<p>(.*?)</p>", html, re.S)]
+           re.findall(r"<summary[^>]*>((?:(?!</summary>).)*)</summary>\s*<p>((?:(?!</p>|<summary).)*)</p>", html, re.S)]
+if len(visible) != html.count("<summary"):
+    problems.append("site/index.html: every visible FAQ answer must be a single <p> right after its <summary>")
 if faq is None:
     problems.append("site/index.html: no FAQPage structured data")
 else:
-    marked_up = [(q["name"], q["acceptedAnswer"]["text"]) for q in faq.get("mainEntity", [])]
+    marked_up = [(q.get("name"), (q.get("acceptedAnswer") or {}).get("text")) for q in faq.get("mainEntity", [])]
     if [q for q, _ in marked_up] != [q for q, _ in visible]:
         problems.append("site/index.html: FAQ structured data and the visible FAQ list different questions\n"
                         f"    structured: {[q for q, _ in marked_up]}\n    visible:    {[q for q, _ in visible]}")
@@ -92,7 +97,10 @@ else:
                                 f"    structured: {structured}\n    visible:    {shown}")
 
 # Version: what the site and llms.txt say vs. the app's MARKETING_VERSION.
-version = re.search(r'MARKETING_VERSION:\s*"?([\d.]+)', (ROOT / "project.yml").read_text(encoding="utf-8")).group(1)
+match = re.search(r'MARKETING_VERSION:\s*"?([^"\s]+)', (ROOT / "project.yml").read_text(encoding="utf-8"))
+version = match.group(1) if match else None
+if version is None:
+    problems.append("project.yml: no MARKETING_VERSION")
 app = node_of("SoftwareApplication") or {}
 if app.get("softwareVersion") != version:
     problems.append(f"site/index.html: softwareVersion is {app.get('softwareVersion')!r}, project.yml says {version}")
@@ -100,18 +108,19 @@ shown_versions = set(re.findall(r"<span data-version>v?([^<]+)</span>", html))
 if shown_versions != {version}:
     problems.append(f"site/index.html: visible version {sorted(shown_versions)}, project.yml says {version}")
 llms = (SITE / "llms.txt").read_text(encoding="utf-8")
-if f"Current version: {version} " not in llms:
+if not re.search(rf"^- Current version: {re.escape(str(version))}\b", llms, re.M):
     problems.append(f"site/llms.txt: no \"Current version: {version}\" line")
 
 # Sitemap.
 try:
     sitemap = xml.dom.minidom.parse(str(SITE / "sitemap.xml"))
-    lastmod = [node.firstChild.data.strip() for node in sitemap.getElementsByTagName("lastmod")]
+except Exception as error:  # noqa: BLE001 — any parse failure is the finding
+    problems.append(f"site/sitemap.xml: not well-formed ({error})")
+else:
+    lastmod = [node.firstChild.data.strip() if node.firstChild else "" for node in sitemap.getElementsByTagName("lastmod")]
     modified = (node_of("WebPage") or {}).get("dateModified")
     if lastmod != [modified]:
         problems.append(f"site/sitemap.xml: lastmod {lastmod} doesn't match the page's dateModified {modified!r}")
-except Exception as error:  # noqa: BLE001 — any parse failure is the finding
-    problems.append(f"site/sitemap.xml: not well-formed ({error})")
 
 if problems:
     print("Site and README checks failed:")

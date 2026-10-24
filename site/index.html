@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Differentialis — free diff &amp; merge app for Mac</title>
-  <meta name="description" content="Free, open-source diff and merge app for Mac. Compare text files, pasted snippets, images, and folders, resolve three-way merges, and browse git history. Native SwiftUI." />
+  <meta name="description" content="Free, open-source diff and merge app for Mac. Compare text files, pasted snippets, images, and folders, resolve three-way merges, and browse git history." />
   <meta name="author" content="Jenny Speelman" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
   <meta name="theme-color" content="#0b0a12" />
@@ -32,10 +32,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
-  <!-- Structured data: what the app is, where its source lives, how to install it, and the FAQ
-       shown on the page. Keep the FAQ in sync with the visible #faq section, softwareVersion and the
-       visible version with MARKETING_VERSION in project.yml, and dateModified with the sitemap's
-       lastmod; scripts/check-site.py fails if they drift. -->
+  <!-- Structured data: what the app is, where its source lives, and the FAQ shown on the page.
+       Keep the FAQ in sync with the visible #faq section, softwareVersion and the visible version
+       with MARKETING_VERSION in project.yml, and dateModified with the sitemap's lastmod;
+       scripts/check-site.py fails if they drift. -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -120,20 +120,6 @@
         "author": { "@id": "https://www.differentialis.app/#author" }
       },
       {
-        "@type": "HowTo",
-        "@id": "https://www.differentialis.app/#install",
-        "name": "How to install Differentialis on a Mac",
-        "description": "Install the free Differentialis diff and merge app on macOS 26 Tahoe or later.",
-        "totalTime": "PT2M",
-        "tool": [{ "@type": "HowToTool", "name": "A Mac running macOS 26 Tahoe or later" }],
-        "step": [
-          { "@type": "HowToStep", "position": 1, "name": "Download", "text": "Download the Apple-notarized Differentialis .dmg from the latest GitHub release.", "url": "https://github.com/yennster/differentialis/releases/latest" },
-          { "@type": "HowToStep", "position": 2, "name": "Install", "text": "Open the .dmg and drag Differentialis into the Applications folder." },
-          { "@type": "HowToStep", "position": 3, "name": "Open", "text": "Open Differentialis from Applications. It checks for updates itself from then on." },
-          { "@type": "HowToStep", "position": 4, "name": "Add the command-line tool (optional)", "text": "Choose Differentialis ▸ Install Command Line Tool… to run differentialis from Terminal." }
-        ]
-      },
-      {
         "@type": "FAQPage",
         "@id": "https://www.differentialis.app/#faq",
         "mainEntity": [
@@ -180,7 +166,7 @@
           {
             "@type": "Question",
             "name": "Does Differentialis upload my files?",
-            "acceptedAnswer": { "@type": "Answer", "text": "No. Every comparison and merge runs locally on your Mac, and your files never leave it. The only network request Differentialis makes is checking GitHub Releases for app updates. There's no account and no telemetry." }
+            "acceptedAnswer": { "@type": "Answer", "text": "No. Every comparison and merge runs locally on your Mac, and Differentialis never uploads your files. Its own network traffic is checking GitHub Releases for updates, and downloading one when you choose to update. There's no account and no telemetry." }
           },
           {
             "@type": "Question",
@@ -200,7 +186,7 @@
           {
             "@type": "Question",
             "name": "How is Differentialis different from FileMerge?",
-            "acceptedAnswer": { "@type": "Answer", "text": "FileMerge (opendiff) comes with Xcode and compares text files and folders. Differentialis doesn't need Xcode, and adds image and pasted-text comparison, git history and branch comparisons, and light and dark themes." }
+            "acceptedAnswer": { "@type": "Answer", "text": "FileMerge (opendiff) comes with Xcode and compares text files and folders. Differentialis doesn't need Xcode, and adds image and pasted-text comparison, git history and branch comparisons, and color themes with custom and .tmTheme import." }
           }
         ]
       }
@@ -561,9 +547,9 @@ differentialis base.txt mine.txt theirs.txt</code></pre>
         </details>
         <details class="glass" data-reveal>
           <summary><h3>Does Differentialis upload my files?</h3></summary>
-          <p>No. Every comparison and merge runs locally on your Mac, and your files never leave it. The
-            only network request Differentialis makes is checking GitHub Releases for app updates.
-            There's no account and no telemetry.</p>
+          <p>No. Every comparison and merge runs locally on your Mac, and Differentialis never uploads
+            your files. Its own network traffic is checking GitHub Releases for updates, and
+            downloading one when you choose to update. There's no account and no telemetry.</p>
         </details>
         <details class="glass" data-reveal>
           <summary><h3>How do I install and update Differentialis?</h3></summary>
@@ -589,7 +575,7 @@ differentialis base.txt mine.txt theirs.txt</code></pre>
           <summary><h3>How is Differentialis different from FileMerge?</h3></summary>
           <p>FileMerge (<code>opendiff</code>) comes with Xcode and compares text files and folders.
             Differentialis doesn't need Xcode, and adds image and pasted-text comparison, git history
-            and branch comparisons, and light and dark themes.</p>
+            and branch comparisons, and color themes with custom and <code>.tmTheme</code> import.</p>
         </details>
       </div>
     </section>
