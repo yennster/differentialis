@@ -78,7 +78,7 @@ enum FilePropertiesBuilder {
         // Git can report a committed blob's size without transferring the blob into this process.
         if case let .gitBlob(repo, ref, path, _) = source,
            let raw = try? GitRepository(url: repo).run([
-               "cat-file", "-s",
+               "cat-file", "-s", "--end-of-options",
                ComparisonSource.isIndexReference(ref) ? ":\(path)" : "\(ref):\(path)",
            ]),
            let size = Int64(raw.trimmingCharacters(in: .whitespacesAndNewlines)) {

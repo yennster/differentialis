@@ -79,6 +79,7 @@ struct CustomComparisonPopover: View {
             .buttonStyle(.borderless)
             .foregroundStyle(Theme.removed)
             .help("Open comparison")
+            .disabled(hasInvalidSide)
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 14)
@@ -166,6 +167,7 @@ struct CustomComparisonPopover: View {
     private func resolvedSubject(for hash: String) -> String? {
         let h = hash.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !h.isEmpty else { return nil }
+        guard !CustomSide.isOptionLike(h) else { return "Not a commit hash or reference" }
         if let c = commits.first(where: { $0.id == h || $0.id.hasPrefix(h) || $0.shortSHA == h }) {
             return c.summary
         }
@@ -214,12 +216,14 @@ struct CustomComparisonPopover: View {
                 Label("Save", systemImage: "bookmark")
             }
             .buttonStyle(.bordered)
+            .disabled(hasInvalidSide)
 
             Button { compare() } label: {
                 Text("Compare").fontWeight(.semibold).padding(.horizontal, 10)
             }
             .buttonStyle(.glassProminent)
             .tint(Theme.brand)
+            .disabled(hasInvalidSide)
         }
         .padding(.horizontal, 20)
     }
@@ -242,6 +246,9 @@ struct CustomComparisonPopover: View {
     private func trimmed(_ value: String) -> String {
         value.trimmingCharacters(in: .whitespacesAndNewlines)
     }
+    /// A side git would parse as an option can't be compared or saved (unknown refs still fail
+    /// cleanly at compare time, once git can look them up off the main thread).
+    private var hasInvalidSide: Bool { makeA().hasOptionLikeRef || makeB().hasOptionLikeRef }
     private var defaultName: String { "\(makeA().label) ↔ \(makeB().label)" }
 
     private func compare() {

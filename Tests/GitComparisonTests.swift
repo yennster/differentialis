@@ -291,6 +291,82 @@ struct GitComparisonTests {
         #expect(try comparison.a.loadData().isEmpty)
         #expect(try comparison.b.loadText() == "staged bytes\n")
     }
+
+    @Test("option-like refs fail cleanly and never reach git as options")
+    func optionLikeRefsRejected() throws {
+        let fixture = try TemporaryGitRepository()
+        try fixture.write("base\n", to: "file.txt")
+        try fixture.commitAll("base")
+        let target = fixture.directory.appendingPathComponent("x")
+        let injected = "--output=\(target.path)"
+
+        let sides: [(CustomSide, CustomSide)] = [
+            (.commit(injected), .reference("HEAD")),
+            (.reference("HEAD"), .commit(injected)),
+            (.commit(injected), .workingCopy(.staged)),
+            (.commit(injected), .workingCopy(.all)),
+        ]
+        for (a, b) in sides {
+            let error = #expect(throws: GitError.self) {
+                try fixture.repository.customChangeset(a: a, b: b)
+            }
+            guard case .unknownRevision(let ref)? = error else {
+                Issue.record("Expected unknownRevision, got \(String(describing: error))")
+                continue
+            }
+            #expect(ref == injected)
+        }
+        #expect(!FileManager.default.fileExists(atPath: target.path))
+
+        // The lower-level entry points pass revisions after --end-of-options, so even an
+        // unvalidated caller makes git report a bad revision rather than write the file.
+        #expect(throws: GitError.self) { try fixture.repository.changedFiles(from: injected, to: "HEAD") }
+        #expect(throws: GitError.self) { try fixture.repository.changedFiles(inCommit: injected) }
+        #expect(throws: GitError.self) { try fixture.repository.changedFilesFromReferenceToIndex(injected) }
+        #expect(throws: GitError.self) { try fixture.repository.blobData(ref: injected, path: "file.txt") }
+        #expect(fixture.repository.parentSHA(of: injected) == nil)
+        #expect(!FileManager.default.fileExists(atPath: target.path))
+
+        #expect(CustomSide.commit(injected).hasOptionLikeRef)
+        #expect(!CustomSide.reference("main").hasOptionLikeRef)
+        #expect(!CustomSide.workingCopy(.all).hasOptionLikeRef)
+    }
+
+    @Test("unknown refs report a clean error instead of raw git output")
+    func unknownRefRejected() throws {
+        let fixture = try TemporaryGitRepository()
+        try fixture.write("base\n", to: "file.txt")
+        try fixture.commitAll("base")
+
+        let error = #expect(throws: GitError.self) {
+            try fixture.repository.customChangeset(a: .commit("deadbeef"), b: .reference("HEAD"))
+        }
+        #expect(error?.localizedDescription == "Unknown commit or reference “deadbeef”.")
+    }
+
+    @Test("a branch named like a tracked file still compares")
+    func branchNamedLikeFile() throws {
+        let fixture = try TemporaryGitRepository()
+        try fixture.write("base\n", to: "notes")
+        try fixture.commitAll("base")
+        try fixture.git(["branch", "notes"])
+        try fixture.write("changed\n", to: "notes")
+        try fixture.commitAll("changed")
+
+        let commitRange = try fixture.repository.customChangeset(
+            a: .reference("notes"), b: .reference("HEAD"))
+        #expect(commitRange.files.map(\.path) == ["notes"])
+
+        try fixture.write("working\n", to: "notes")
+        try fixture.git(["add", "--", "notes"])
+        let staged = try fixture.repository.customChangeset(
+            a: .reference("notes"), b: .workingCopy(.staged))
+        let file = try #require(staged.files.first { $0.path == "notes" })
+        let comparison = fixture.repository.makeComparison(
+            file: file, a: staged.a, aLabel: staged.aLabel, b: staged.b, bLabel: staged.bLabel)
+        #expect(try comparison.a.loadText() == "base\n")
+        #expect(try comparison.b.loadText() == "working\n")
+    }
 }
 
 private final class TemporaryGitRepository {

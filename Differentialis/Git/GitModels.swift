@@ -109,11 +109,13 @@ enum WorkingScope: String, Codable, Hashable, CaseIterable {
 enum GitError: LocalizedError {
     case notARepository(URL)
     case commandFailed(String)
+    case unknownRevision(String)
 
     var errorDescription: String? {
         switch self {
         case .notARepository(let url): return "Not a git repository: \(url.path)"
         case .commandFailed(let message): return message
+        case .unknownRevision(let ref): return "Unknown commit or reference “\(ref)”."
         }
     }
 }

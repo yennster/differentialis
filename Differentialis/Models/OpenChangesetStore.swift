@@ -38,7 +38,8 @@ final class OpenChangesetStore {
         // Element-tolerant like the other stores: one malformed entry becomes nil instead of
         // throwing away the whole list; a wholly-corrupt file is quarantined, not overwritten.
         if let decoded = try? JSONDecoder().decode([LenientDecodable<PersistedChangeset>].self, from: data) {
-            items = decoded.compactMap(\.value)
+            // A ref git would parse as an option can never run; drop it rather than replay it.
+            items = decoded.compactMap(\.value).filter { !$0.a.hasOptionLikeRef && !$0.b.hasOptionLikeRef }
         } else {
             let backup = fileURL.appendingPathExtension("corrupt")
             try? FileManager.default.removeItem(at: backup)

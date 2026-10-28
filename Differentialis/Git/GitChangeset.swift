@@ -63,6 +63,8 @@ extension GitRepository {
     /// The "Compare:" (A) side is always a reference/commit; "with:" (B) may be the working copy.
     func customChangeset(a: CustomSide, b: CustomSide) throws -> ResolvedChangeset {
         let aRef = a.refString
+        try validateRevision(aRef)
+        if !b.isWorkingCopy { try validateRevision(b.refString) }
         if case .workingCopy(let scope) = b {
             switch scope {
             case .staged:

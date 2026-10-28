@@ -49,20 +49,36 @@ struct GitRepository {
     }
 
     func parentSHA(of sha: String) -> String? {
-        let out = try? run(["rev-parse", "--verify", "--quiet", "\(sha)^"])
+        let out = try? run(["rev-parse", "--verify", "--quiet", "--end-of-options", "\(sha)^"])
         let trimmed = out?.trimmingCharacters(in: .whitespacesAndNewlines)
         return (trimmed?.isEmpty == false) ? trimmed : nil
     }
 
     // MARK: - Changed files
 
+    /// Rejects a user-entered revision (a pasted hash, a saved or restored comparison) before it
+    /// reaches any other git command. A value beginning with `-` would otherwise be parsed as an
+    /// option (`--output=<file>` makes `git diff` write a file), and an unknown one would surface as
+    /// a raw git error. `HEAD` is exempt from the lookup because an unborn HEAD is still a valid
+    /// working-copy base (see `diffBase`).
+    func validateRevision(_ ref: String) throws {
+        guard !ref.isEmpty, !CustomSide.isOptionLike(ref) else { throw GitError.unknownRevision(ref) }
+        guard ref != "HEAD" else { return }
+        guard (try? run(["rev-parse", "--verify", "--quiet", "--end-of-options", "\(ref)^{commit}"])) != nil else {
+            throw GitError.unknownRevision(ref)
+        }
+    }
+
     func changedFiles(inCommit sha: String) throws -> [GitChangedFile] {
-        let out = try run(["diff-tree", "--no-commit-id", "--name-status", "-r", "--root", "-M", "-z", sha])
+        let out = try run([
+            "diff-tree", "--no-commit-id", "--name-status", "-r", "--root", "-M", "-z", "--end-of-options", sha,
+        ])
         return parseNameStatus(out)
     }
 
     func changedFiles(from: String, to: String) throws -> [GitChangedFile] {
-        let out = try run(["diff", "--name-status", "-M", "-z", from, to])
+        // `--` also keeps a ref that shares its name with a tracked file from being "ambiguous".
+        let out = try run(["diff", "--name-status", "-M", "-z", "--end-of-options", from, to, "--"])
         return parseNameStatus(out)
     }
 
@@ -90,7 +106,7 @@ struct GitRepository {
     func changedFilesFromReferenceToIndex(_ ref: String) throws -> [GitChangedFile] {
         let base = try diffBase(for: ref)
         let files = parseNameStatus(try run([
-            "diff", "--name-status", "-M", "-z", "--cached", base, "--",
+            "diff", "--name-status", "-M", "-z", "--cached", "--end-of-options", base, "--",
         ]))
         return try applyingCurrentConflicts(to: files)
     }
@@ -214,7 +230,7 @@ struct GitRepository {
     // MARK: - Blobs
 
     func blobData(ref: String, path: String) throws -> Data {
-        try runData(["show", "\(ref):\(path)"])
+        try runData(["show", "--end-of-options", "\(ref):\(path)"])
     }
 
     /// Reads the stage-0 blob for a path directly from the index, independent of both HEAD and the
