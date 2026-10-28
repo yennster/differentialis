@@ -29,8 +29,8 @@ struct MergeView: View {
                                                    choose: session.resolveLineStyle)
                         }
                         ForEach(session.hunks) { hunk in
-                            HunkBlock(hunk: hunk) { resolution, lines in
-                                session.resolve(hunk: hunk.id, as: resolution, lines: lines)
+                            HunkBlock(hunk: hunk) { source in
+                                session.resolve(hunk: hunk.id, as: source)
                             }
                         }
                     }
@@ -262,7 +262,7 @@ private struct LineStyleConflictBlock: View {
 
 private struct HunkBlock: View {
     let hunk: MergeHunk
-    let choose: (MergeResolution, [String]) -> Void
+    let choose: (MergeResolution) -> Void
 
     var body: some View {
         if hunk.resolution == .unchanged {
@@ -312,16 +312,16 @@ private struct HunkBlock: View {
             }
             HStack(alignment: .top, spacing: 8) {
                 conflictColumn(title: "Left", lines: hunk.leftLines, color: Theme.removed) {
-                    resolve(.takeLeft, lines: hunk.leftLines)
+                    choose(.takeLeft)
                 }
                 conflictColumn(title: "Right", lines: hunk.rightLines, color: Theme.modified) {
-                    resolve(.takeRight, lines: hunk.rightLines)
+                    choose(.takeRight)
                 }
             }
             HStack(spacing: 8) {
-                Button("Use Both") { resolve(.takeBoth, lines: hunk.leftLines + hunk.rightLines) }
+                Button("Use Both") { choose(.takeBoth) }
                     .buttonStyle(.bordered)
-                Button("Use Base") { resolve(.unchanged, lines: hunk.baseLines) }
+                Button("Use Base") { choose(.takeBase) }
                     .buttonStyle(.bordered)
             }
             .controlSize(.small)
@@ -353,19 +353,15 @@ private struct HunkBlock: View {
 
     private var sourceMenu: some View {
         Menu {
-            Button("Left") { resolve(.takeLeft, lines: hunk.leftLines) }
-            Button("Right") { resolve(.takeRight, lines: hunk.rightLines) }
-            Button("Both") { resolve(.takeBoth, lines: hunk.leftLines + hunk.rightLines) }
-            Button("Base") { resolve(.unchanged, lines: hunk.baseLines) }
+            Button("Left") { choose(.takeLeft) }
+            Button("Right") { choose(.takeRight) }
+            Button("Both") { choose(.takeBoth) }
+            Button("Base") { choose(.takeBase) }
         } label: {
             Image(systemName: "arrow.triangle.2.circlepath").font(.system(size: 10))
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
-    }
-
-    private func resolve(_ resolution: MergeResolution, lines: [String]) {
-        choose(resolution, lines)
     }
 
     private func lineText(_ text: String, color: Color) -> some View {

@@ -101,11 +101,10 @@ final class MergeSession {
         loaded = true
     }
 
-    func resolve(hunk id: MergeHunk.ID, as resolution: MergeResolution, lines: [String]) {
-        guard let index = hunks.firstIndex(where: { $0.id == id }) else { return }
-        hunks[index].resolution = resolution
-        hunks[index].chosen = lines
-        hunks[index].resolved = true
+    func resolve(hunk id: MergeHunk.ID, as source: MergeResolution) {
+        guard let index = hunks.firstIndex(where: { $0.id == id }),
+              source != .unchanged, source != .conflict else { return }
+        hunks[index].choose(source)
         hasUnsavedChanges = true
         if !resultDirty { synchronizeResult() }
     }

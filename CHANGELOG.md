@@ -11,6 +11,12 @@ When cutting a release, add a section here and use it as the release notes:
 ## [Unreleased]
 
 ### Fixed
+- Choosing **Base** for a merge hunk (**Use Base** on a conflict, or **Base** from a resolved hunk's
+  ↻ menu) no longer turns the hunk into plain unchanged context. It now shows **Took Base** and keeps
+  its source menu, so you can switch back to Left, Right, or Both without refreshing
+  ([#13](https://github.com/yennster/differentialis/issues/13)).
+- Picking **Both** from the ↻ menu of a hunk where both sides made the same edit no longer
+  duplicates its lines, and the hunk label now reads **Took Both** instead of "Both (same)".
 - A **3-way merge** now keeps your conflict choices, line-ending choice, Result edits, and
   Review/Result tab when you switch to another sidebar item and back
   ([#11](https://github.com/yennster/differentialis/issues/11)). **Refresh** (`⌘R`) and **Close**
