@@ -104,11 +104,62 @@ enum ComparisonSource: Hashable {
         // Cheap byte sniff for on-disk sources only (git blobs would require a subprocess, so they
         // default to text). Reads at most 4 KB, so it can't beachball on a huge file.
         if let sample = sniffPrefix() {
-            if sample.isEmpty { return .text }
-            if sample.contains(0) { return .binary }              // NUL byte ⇒ binary
-            return String(data: sample, encoding: .utf8) != nil ? .text : .binary
+            return Self.classifySniffedPrefix(sample, truncated: sample.count == Self.sniffLimit)
         }
         return .text
+    }
+
+    /// How many leading bytes `kind` reads from an on-disk source with an unrecognised extension.
+    static let sniffLimit = 4096
+
+    /// Classifies a sniffed prefix as text or binary. `truncated` means the prefix may end partway
+    /// through the file (and so partway through a multi-byte UTF-8 character). Follows what
+    /// `decodeText` handles well: BOM-marked UTF-8/UTF-16, plain UTF-8, and NUL-free 8-bit text
+    /// (shown via its Latin-1 fallback) count as text; NULs or many control bytes mean binary.
+    /// BOM-less UTF-16 still sniffs as binary because of its NULs.
+    static func classifySniffedPrefix(_ sample: Data, truncated: Bool) -> ContentKind {
+        if sample.isEmpty { return .text }
+        if sample.starts(with: [0xEF, 0xBB, 0xBF])              // UTF-8 BOM
+            || sample.starts(with: [0xFF, 0xFE])                // UTF-16 LE BOM
+            || sample.starts(with: [0xFE, 0xFF]) {              // UTF-16 BE BOM
+            return .text
+        }
+        if sample.contains(0) { return .binary }                // NUL byte ⇒ binary
+        let utf8 = truncated ? trimmingIncompleteUTF8Tail(sample) : sample
+        if String(data: utf8, encoding: .utf8) != nil { return .text }
+        // Not UTF-8 and no NULs: 8-bit text (decoded via the Latin-1 fallback) has almost no C0
+        // control bytes besides tab/LF/FF/CR/ESC, whereas compressed or packed data is full of them.
+        let controls = sample.reduce(0) { count, byte in
+            switch byte {
+            case 0x09, 0x0A, 0x0C, 0x0D, 0x1B: return count       // tab, LF, FF, CR, ESC
+            case 0x00..<0x20, 0x7F: return count + 1
+            default: return count
+            }
+        }
+        return controls * 100 <= sample.count ? .text : .binary   // ≤ 1% control bytes ⇒ text
+    }
+
+    /// Drops a final UTF-8 sequence that the prefix cut short (a lead byte followed by fewer
+    /// continuation bytes than it announces), so a character straddling the sniff boundary
+    /// doesn't make an otherwise valid UTF-8 prefix fail to decode. Anything else is left as is.
+    static func trimmingIncompleteUTF8Tail(_ data: Data) -> Data {
+        let bytes = [UInt8](data.suffix(4))
+        var continuations = 0
+        var index = bytes.count - 1
+        while index >= 0, bytes[index] & 0xC0 == 0x80, continuations < 3 {
+            continuations += 1
+            index -= 1
+        }
+        guard index >= 0 else { return data }
+        let expected: Int
+        switch bytes[index] {
+        case 0xC2...0xDF: expected = 1
+        case 0xE0...0xEF: expected = 2
+        case 0xF0...0xF4: expected = 3
+        default: return data
+        }
+        guard continuations < expected else { return data }
+        return data.prefix(data.count - continuations - 1)
     }
 
     /// The on-disk URL backing this source, if any (nil for git blobs, in-memory text, empty).
@@ -121,7 +172,7 @@ enum ComparisonSource: Hashable {
     }
 
     /// Reads a bounded prefix for text/binary sniffing without loading the whole file.
-    private func sniffPrefix(_ limit: Int = 4096) -> Data? {
+    private func sniffPrefix(_ limit: Int = ComparisonSource.sniffLimit) -> Data? {
         guard let url = onDiskURL, let handle = try? FileHandle(forReadingFrom: url) else { return nil }
         defer { try? handle.close() }
         return (try? handle.read(upToCount: limit)) ?? Data()
