@@ -17,6 +17,12 @@ When cutting a release, add a section here and use it as the release notes:
   straddles the 4 KB sniff no longer breaks detection, UTF-16 files with a BOM are recognised
   as text, and other NUL-free 8-bit text (such as Latin-1) diffs as text instead of showing the
   size/SHA card.
+- Choosing **Base** for a merge hunk (**Use Base** on a conflict, or **Base** from a resolved hunk's
+  ↻ menu) no longer turns the hunk into plain unchanged context. It now shows **Took Base** and keeps
+  its source menu, so you can switch back to Left, Right, or Both without refreshing
+  ([#13](https://github.com/yennster/differentialis/issues/13)).
+- Picking **Both** from the ↻ menu of a hunk where both sides made the same edit no longer
+  duplicates its lines, and the hunk label now reads **Took Both** instead of "Both (same)".
 - A **3-way merge** now keeps your conflict choices, line-ending choice, Result edits, and
   Review/Result tab when you switch to another sidebar item and back
   ([#11](https://github.com/yennster/differentialis/issues/11)). **Refresh** (`⌘R`) and **Close**
@@ -27,6 +33,13 @@ When cutting a release, add a section here and use it as the release notes:
   settings say. **Save Merged…** now writes every line with the merge's line ending, so a line
   typed or pasted into a CRLF merge is saved as CRLF instead of a bare LF
   ([#12](https://github.com/yennster/differentialis/issues/12)).
+- A commit hash pasted into **Custom Comparison** can no longer be read by git as an option: a
+  value starting with `-` (such as `--output=<file>`) is rejected in the popover, dropped from
+  saved and restored comparisons, and always passed to git after `--end-of-options`. A side must
+  now name a commit: an unknown hash (or a tree-only object) reports "Unknown commit or reference"
+  instead of a raw git error, and a branch that shares its name with a tracked file compares
+  instead of failing as "ambiguous"
+  ([#17](https://github.com/yennster/differentialis/issues/17)).
 
 ## [0.3.1] — 2026-10-10
 

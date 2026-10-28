@@ -50,7 +50,8 @@ final class ComparisonStore {
         // wiping every saved comparison. If the whole file is unparseable, move it aside rather
         // than letting the next persist() silently overwrite recoverable data.
         if let decoded = try? decoder.decode([LenientDecodable<SavedComparison>].self, from: data) {
-            saved = decoded.compactMap(\.value)
+            // A ref git would parse as an option can never run; drop it rather than replay it.
+            saved = decoded.compactMap(\.value).filter { !$0.a.hasOptionLikeRef && !$0.b.hasOptionLikeRef }
         } else {
             let backup = fileURL.appendingPathExtension("corrupt")
             try? FileManager.default.removeItem(at: backup)

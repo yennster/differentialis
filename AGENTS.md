@@ -85,7 +85,7 @@ includes `Tests/` automatically through XcodeGen.
 | `Tests/DiffTests.swift` | Myers reconstruction/bounded fallback, character and line diffs, whitespace/format diagnostics, git parsing, diff3 conflicts and line styles |
 | `Tests/MergeSessionTests.swift` | Merge session state: choices, manual Result edits, unsaved-work tracking, reload, ownership by `Comparison` |
 | `Tests/PastedTextTests.swift` | Two-way hunk copying, line correspondence, terminator preservation, UTF-16 ranges, editor decorations |
-| `Tests/GitComparisonTests.swift` | Real disposable git repos: index/worktree snapshots, staged reversions, conflicts, unborn HEAD, SHA-256 empty trees |
+| `Tests/GitComparisonTests.swift` | Real disposable git repos: index/worktree snapshots, staged reversions, conflicts, unborn HEAD, SHA-256 empty trees, option-like/unknown/file-named refs |
 | `Tests/FolderAndFilterTests.swift` | Package traversal, scan errors, stable identities, composed git filters, file properties |
 | `Tests/ThemeImportTests.swift` | `.tmTheme` import, hex colors, observable settings clamping |
 
@@ -223,7 +223,10 @@ git or diff work in `Task { ... }` does **not** move it off the main actor.
   allows compatible adjacent edits without falsely conflicting. Content hunks and
   `MergeLineStyleDecision` are separate: two conflicting format edits also require
   resolution. `mergedText` emits git-style markers for unresolved content; never
-  silently save just the chosen/left side of an unresolved conflict.
+  silently save just the chosen/left side of an unresolved conflict. User source
+  choices go through `MergeSession.resolve(hunk:as:)`, which calls `MergeHunk.choose`;
+  choosing Base records `.takeBase`, never `.unchanged`, which `MergeView` renders
+  as plain context with no source menu.
 
 ### Feature owners
 

@@ -137,7 +137,8 @@ final class AppModel {
 
     /// Reopens the changesets from the last session, re-resolving each against its repository.
     /// Failures (repo missing or offline, unresolvable sides) are skipped quietly — a launch
-    /// should never start with an error alert — and stay persisted for a later launch.
+    /// should never start with an error alert — and stay persisted for a later launch. (Entries
+    /// with a ref git would read as an option are the exception: `OpenChangesetStore` drops them.)
     func restoreOpenChangesets() async {
         guard changesets.isEmpty else { return }
         for item in openStore.items {

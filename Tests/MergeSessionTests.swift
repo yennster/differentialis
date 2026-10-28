@@ -33,10 +33,24 @@ struct MergeSessionTests {
     func resolveConflict() async throws {
         let session = await loadedSession()
         let conflict = try #require(firstConflict(session))
-        session.resolve(hunk: conflict.id, as: .takeRight, lines: conflict.rightLines)
+        session.resolve(hunk: conflict.id, as: .takeRight)
         #expect(session.hasUnsavedChanges)
         #expect(session.unresolvedConflicts == 0)
         #expect(session.resultText == "value = 3\nshared")
+    }
+
+    @Test("choosing Base keeps the hunk re-choosable and still clears the conflict")
+    func resolveToBase() async throws {
+        let session = await loadedSession()
+        let conflict = try #require(firstConflict(session))
+        session.resolve(hunk: conflict.id, as: .takeBase)
+        #expect(session.hasUnsavedChanges)
+        #expect(session.unresolvedConflicts == 0)
+        #expect(session.resultText == "value = 1\nshared")
+        #expect(session.hunks.first { $0.id == conflict.id }?.resolution == .takeBase)
+
+        session.resolve(hunk: conflict.id, as: .takeLeft)
+        #expect(session.resultText == "value = 2\nshared")
     }
 
     @Test("a manual Result edit is kept when hunk choices change, until Reset from Review")
@@ -47,7 +61,7 @@ struct MergeSessionTests {
         #expect(session.hasUnsavedChanges)
 
         let conflict = try #require(firstConflict(session))
-        session.resolve(hunk: conflict.id, as: .takeLeft, lines: conflict.leftLines)
+        session.resolve(hunk: conflict.id, as: .takeLeft)
         #expect(session.resultText == "hand written")
 
         session.resetResultFromReview()
@@ -107,7 +121,7 @@ struct MergeSessionTests {
                                    right: .text(content: "value = 3\nshared", name: "right"))
         await session.load()
         let conflict = try #require(firstConflict(session))
-        session.resolve(hunk: conflict.id, as: .takeLeft, lines: conflict.leftLines)
+        session.resolve(hunk: conflict.id, as: .takeLeft)
         #expect(session.hasUnsavedChanges)
 
         try FileManager.default.removeItem(at: url)
@@ -132,7 +146,7 @@ struct MergeSessionTests {
     func markSaved() async throws {
         let session = await loadedSession()
         let conflict = try #require(firstConflict(session))
-        session.resolve(hunk: conflict.id, as: .takeLeft, lines: conflict.leftLines)
+        session.resolve(hunk: conflict.id, as: .takeLeft)
         session.markSaved()
         #expect(!session.hasUnsavedChanges)
         session.editResult("more")
@@ -143,7 +157,7 @@ struct MergeSessionTests {
     func reloadResets() async throws {
         let session = await loadedSession()
         let conflict = try #require(firstConflict(session))
-        session.resolve(hunk: conflict.id, as: .takeLeft, lines: conflict.leftLines)
+        session.resolve(hunk: conflict.id, as: .takeLeft)
         session.editResult("hand written")
         session.presentation = .result
 
@@ -163,7 +177,7 @@ struct MergeSessionTests {
         let session = try #require(comparison.mergeSession)
         await session.load()
         let conflict = try #require(firstConflict(session))
-        session.resolve(hunk: conflict.id, as: .takeRight, lines: conflict.rightLines)
+        session.resolve(hunk: conflict.id, as: .takeRight)
 
         // A view rebuilt from the same comparison sees the same, already-resolved session.
         let copy = comparison
