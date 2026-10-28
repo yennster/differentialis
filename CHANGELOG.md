@@ -10,6 +10,8 @@ When cutting a release, add a section here and use it as the release notes:
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-10-28
+
 ### Added
 - **`git difftool` and `git mergetool` support.** The `differentialis` command-line tool takes
   `--wait`, which blocks until you finish in the app, and `--output <file>` for merges: **Save**

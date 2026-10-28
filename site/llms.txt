@@ -4,7 +4,7 @@
 
 Key facts:
 
-- Current version: 0.3.1. Release notes are in the changelog linked below.
+- Current version: 0.4.0. Release notes are in the changelog linked below.
 - Price: free and open source (MIT). No account, subscription, or telemetry.
 - Privacy: comparisons and merges run locally on the Mac, and the app never uploads files. Its own network traffic is the update check against GitHub Releases, and downloading an update when the user chooses to.
 - Requirements: macOS 26 Tahoe or later; universal build for Apple silicon and Intel Macs.
@@ -36,7 +36,7 @@ Key facts:
 - Is there a Windows or Linux version? No. It is a native macOS app.
 - How do I compare two text files on a Mac? Choose New Text Comparison (⌘N) and pick the files, or drag both onto the window. From Terminal: `differentialis file1 file2`.
 - Can I compare text without saving files? Yes. Paste Text (⌘T) diffs two editable panes live.
-- Can it be used as git difftool or mergetool? Not automatically yet; the command-line launcher opens comparisons and merges, and git difftool/mergetool setup is on the roadmap.
+- Can it be used as git difftool or mergetool? Yes, since 0.4.0: the command-line launcher takes --wait (git waits until you finish) and --output for merges; the README has the ~/.gitconfig snippet. Reinstall the command-line tool from the app menu if it was installed before 0.4.0.
 - How is it different from FileMerge? FileMerge (opendiff) comes with Xcode and compares text files and folders. Differentialis doesn't need Xcode, and adds image and pasted-text comparison, git history and branch comparisons, and color themes with custom and .tmTheme import.
 
 ## Docs

@@ -209,7 +209,7 @@ locally).
 The full, prioritized backlog is in [docs/ROADMAP.md](docs/ROADMAP.md). Highlights:
 
 - ~~A `diff`-style command-line companion~~ — shipped; see the [command-line launcher](#command-line-launcher) above. A URL scheme is still planned.
-- Git mergetool / difftool auto-configuration
+- ~~Git mergetool / difftool support~~ — shipped; see [git difftool and git mergetool](#git-difftool-and-git-mergetool) above. Writing the `~/.gitconfig` entries for you is still planned.
 - PDF export of comparisons
 
 ## License
