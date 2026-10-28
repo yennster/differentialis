@@ -5,12 +5,13 @@ one at a time. Read [AGENTS.md](../AGENTS.md#autonomous-roadmap-work) before cla
 
 _Last reviewed: 2026-10-10, at v0.3.1; every Open item was checked against the code and confirmed not yet implemented._
 
-## Where we are (v0.3.1)
+## Where we are (v0.4.0)
 
 Shipped: Myers text diff with character-level highlights (split/unified), Paste Text comparisons
 with per-change copy, image diff (Two-Up / One-Up / Split / Difference), recursive folder diff,
 three-way merge, git history and changed-files views, Custom Comparison (ref/commit/working copy,
-saved), themes and fonts, a bundled `differentialis` CLI launcher, and Sparkle self-update.
+saved), themes and fonts, a bundled `differentialis` CLI launcher that also works as git difftool/mergetool (`--wait`,
+`--output`), and Sparkle self-update.
 See the [changelog](../CHANGELOG.md). There are no open GitHub issues; this file is the backlog.
 
 ## Product direction

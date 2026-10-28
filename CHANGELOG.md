@@ -17,8 +17,8 @@ When cutting a release, add a section here and use it as the release notes:
   `--wait`, which blocks until you finish in the app, and `--output <file>` for merges: **Save**
   writes the merged result straight to git's file and returns to git, which marks it resolved only
   when no conflict markers remain. The README has the `~/.gitconfig` snippet
-  ([#22](https://github.com/yennster/differentialis/issues/22)). Reinstall the command-line tool
-  from the app menu to get the new options.
+  ([#22](https://github.com/yennster/differentialis/issues/22)). If you installed the command-line
+  tool before this release, uninstall and reinstall it from the app menu to get the new options.
 
 ### Fixed
 - Text files with no recognised extension (`Makefile`, `.env`, `notes`, …) no longer open as
@@ -353,7 +353,8 @@ When cutting a release, add a section here and use it as the release notes:
 - Native SwiftUI + Liquid Glass, **zero third-party dependencies**.
 - GitHub Actions release workflow that builds and attaches a drag-to-Applications `.dmg`.
 
-[Unreleased]: https://github.com/yennster/differentialis/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/yennster/differentialis/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/yennster/differentialis/releases/tag/v0.4.0
 [0.3.1]: https://github.com/yennster/differentialis/releases/tag/v0.3.1
 [0.3.0]: https://github.com/yennster/differentialis/releases/tag/v0.3.0
 [0.2.2]: https://github.com/yennster/differentialis/releases/tag/v0.2.2

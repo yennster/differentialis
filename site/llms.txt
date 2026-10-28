@@ -20,7 +20,7 @@ Key facts:
 - Three-way merge: base, left, and right files; one-sided changes merge automatically, conflicts can be resolved by taking left, right, both, or base, and the result is editable before saving. Unresolved conflicts are saved with standard conflict markers.
 - Git: open a repository to browse commit history and staged/unstaged working-copy changes, and compare any branch, tag, commit, or the working copy against another. Comparisons can be saved and reopened. Uses the system git.
 - Appearance: Light, Dark, or Auto, with per-appearance themes (Differentialis, Mariana, Monokai, One Dark, Solarized, GitHub), a theme editor, JSON and .tmTheme import, and code font family and size settings.
-- Command line: install from Differentialis ▸ Install Command Line Tool…, then run `differentialis <repo>` (open a repository), `differentialis a b` (compare two files or folders), or `differentialis base mine theirs` (three-way merge).
+- Command line: install from Differentialis ▸ Install Command Line Tool…, then run `differentialis <repo>` (open a repository), `differentialis a b` (compare two files or folders), or `differentialis base mine theirs` (three-way merge). With `--wait` (and `--output <file>` for merges) it works as git difftool and mergetool; the README has the ~/.gitconfig snippet.
 
 ## Keyboard shortcuts
 
@@ -36,7 +36,7 @@ Key facts:
 - Is there a Windows or Linux version? No. It is a native macOS app.
 - How do I compare two text files on a Mac? Choose New Text Comparison (⌘N) and pick the files, or drag both onto the window. From Terminal: `differentialis file1 file2`.
 - Can I compare text without saving files? Yes. Paste Text (⌘T) diffs two editable panes live.
-- Can it be used as git difftool or mergetool? Yes, since 0.4.0: the command-line launcher takes --wait (git waits until you finish) and --output for merges; the README has the ~/.gitconfig snippet. Reinstall the command-line tool from the app menu if it was installed before 0.4.0.
+- Can it be used as git difftool or mergetool? Yes, since 0.4.0: the command-line launcher takes --wait (git waits until you finish) and --output for merges; the README has the ~/.gitconfig snippet. If the command-line tool was installed before 0.4.0, uninstall and reinstall it from the app menu.
 - How is it different from FileMerge? FileMerge (opendiff) comes with Xcode and compares text files and folders. Differentialis doesn't need Xcode, and adds image and pasted-text comparison, git history and branch comparisons, and color themes with custom and .tmTheme import.
 
 ## Docs
