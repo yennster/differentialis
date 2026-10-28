@@ -8,60 +8,30 @@ func containsConflictMarkerFragment(_ text: String) -> Bool {
 }
 
 struct MergeView: View {
-    let base: ComparisonSource
-    let left: ComparisonSource
-    let right: ComparisonSource
-
-    @State private var hunks: [MergeHunk] = []
-    @State private var loadError: String?
-    @State private var loaded = false
-    @State private var lineEnding = "\n"
-    @State private var finalNewline = false
-    @State private var presentation = Presentation.review
-    @State private var resultText = ""
-    @State private var resultDirty = false
-    @State private var baseLineStyle = TextLineStyle(ending: "\n", finalNewline: false)
-    @State private var leftLineStyle = TextLineStyle(ending: "\n", finalNewline: false)
-    @State private var rightLineStyle = TextLineStyle(ending: "\n", finalNewline: false)
-    @State private var lineStyleConflict = false
-    @State private var loadToken: UUID?
-
-    private enum Presentation: Hashable { case review, result }
-
-    private var unresolvedConflicts: Int {
-        hunks.filter { $0.isConflict && !$0.resolved }.count + (lineStyleConflict ? 1 : 0)
-    }
-
-    private var taskKey: String {
-        "\(base.displayName)|\(base.subtitle)|\(left.displayName)|\(left.subtitle)|\(right.displayName)|\(right.subtitle)"
-    }
-
-    private var defaultSaveName: String {
-        if case .file(let url) = left { return url.lastPathComponent }
-        if case .file(let url) = base { return url.lastPathComponent }
-        return "merged.txt"
-    }
+    @Bindable var session: MergeSession
 
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider().opacity(0.4)
-            if let loadError {
+            if let loadError = session.loadError {
                 ContentUnavailableView("Couldn’t load files", systemImage: "exclamationmark.triangle",
                                        description: Text(loadError))
-            } else if !loaded {
+            } else if !session.loaded {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if presentation == .review {
+            } else if session.presentation == .review {
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        if lineStyleConflict {
-                            LineStyleConflictBlock(base: baseLineStyle,
-                                                   left: leftLineStyle,
-                                                   right: rightLineStyle,
-                                                   choose: resolveLineStyle)
+                        if session.lineStyleConflict {
+                            LineStyleConflictBlock(base: session.baseLineStyle,
+                                                   left: session.leftLineStyle,
+                                                   right: session.rightLineStyle,
+                                                   choose: session.resolveLineStyle)
                         }
-                        ForEach($hunks) { $hunk in
-                            HunkBlock(hunk: $hunk)
+                        ForEach(session.hunks) { hunk in
+                            HunkBlock(hunk: hunk) { source in
+                                session.resolve(hunk: hunk.id, as: source)
+                            }
                         }
                     }
                     .padding(.vertical, 6)
@@ -72,11 +42,13 @@ struct MergeView: View {
             }
         }
         .codeFontZoomGesture()
-        .task(id: taskKey) { await load() }
-        .focusedSceneValue(\.diffCommands, DiffCommandActions(refresh: { Task { await load() } }))
-        .onChange(of: hunks) { _, _ in
-            if !resultDirty { synchronizeResult() }
-        }
+        // The session outlives this view, so coming back to an already-loaded merge keeps its
+        // choices and edits instead of re-reading the sources.
+        .task { if session.needsLoad { await session.load() } }
+        .focusedSceneValue(\.diffCommands, DiffCommandActions(refresh: {
+            guard session.confirmDiscardingChanges(before: .reload) else { return }
+            Task { await session.load() }
+        }))
     }
 
     private var header: some View {
@@ -89,9 +61,9 @@ struct MergeView: View {
                 legend("Right", Theme.modified)
             }
             Spacer()
-            if loaded {
+            if session.loaded {
                 GlassSegmentedControl(
-                    selection: $presentation,
+                    selection: $session.presentation,
                     options: [
                         .init(value: .review, title: "Review", systemImage: "list.bullet.rectangle"),
                         .init(value: .result, title: "Result", systemImage: "square.and.pencil"),
@@ -99,22 +71,23 @@ struct MergeView: View {
                     compact: true)
                 .fixedSize()
             }
-            if unresolvedConflicts > 0 {
-                StatChip(text: "\(unresolvedConflicts) conflict\(unresolvedConflicts == 1 ? "" : "s")",
+            if session.unresolvedConflicts > 0 {
+                let count = session.unresolvedConflicts
+                StatChip(text: "\(count) conflict\(count == 1 ? "" : "s")",
                          color: Theme.conflict, systemImage: "exclamationmark.triangle.fill")
-            } else if loaded {
+            } else if session.loaded {
                 StatChip(text: "Resolved", color: Theme.added, systemImage: "checkmark.seal.fill")
             }
-            if resultDirty {
+            if session.resultDirty {
                 StatChip(text: "Edited", color: Theme.brandAlt, systemImage: "pencil")
             }
             Button {
-                save()
+                session.saveInteractively()
             } label: {
                 Label("Save Merged…", systemImage: "square.and.arrow.down")
             }
             .buttonStyle(.glass)
-            .disabled(!loaded)
+            .disabled(!session.loaded)
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
     }
@@ -122,16 +95,15 @@ struct MergeView: View {
     private var resultEditor: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
-                Text(resultDirty
+                Text(session.resultDirty
                      ? "Manual edits take precedence over the hunk selections."
                      : "This is the exact text that will be saved.")
                     .font(.system(size: 11.5))
                     .foregroundStyle(.secondary)
                 Spacer()
-                if resultDirty {
+                if session.resultDirty {
                     Button("Reset from Review") {
-                        resultDirty = false
-                        synchronizeResult()
+                        session.resetResultFromReview()
                     }
                     .buttonStyle(.borderless)
                     .controlSize(.small)
@@ -140,17 +112,13 @@ struct MergeView: View {
             .padding(.horizontal, 14).padding(.vertical, 7)
             .background(.ultraThinMaterial)
 
-            TextEditor(text: Binding(
-                get: { resultText },
-                set: { newValue in
-                    resultText = newValue
-                    resultDirty = true
-                }))
-                .font(Theme.codeFont)
-                .scrollContentBackground(.hidden)
+            PlainCodeEditor(text: Binding(
+                get: { session.resultText },
+                set: { session.editResult($0) }),
+                font: DiffEditorStyle.codeFont(Theme.codeFontSize),
+                accessibilityLabel: "Merged result")
                 .padding(8)
                 .background(Theme.well)
-                .accessibilityLabel("Merged result")
         }
     }
 
@@ -160,52 +128,47 @@ struct MergeView: View {
             Text(text).font(.system(size: 11)).foregroundStyle(.secondary)
         }
     }
+}
 
-    private func load() async {
-        let token = UUID()
-        loadToken = token
-        loaded = false
-        loadError = nil
-        let base = base, left = left, right = right
-        let key = taskKey
-        // Read all three files and run the diff3 merge off the main actor — for large files this
-        // is heavy and would otherwise freeze the UI.
-        let outcome: (([MergeHunk], MergeLineStyleDecision)?, String?) = await offMain {
-            do {
-                let baseText = try base.loadText()
-                let leftText = try left.loadText()
-                let rightText = try right.loadText()
-                let hunks = ThreeWayMerge.merge(base: baseText, left: leftText, right: rightText)
-                let style = ThreeWayMerge.lineStyleDecision(base: baseText,
-                                                            left: leftText,
-                                                            right: rightText)
-                return ((hunks, style), nil)
-            } catch {
-                return (nil, error.localizedDescription)
-            }
+/// The save and discard prompts for a merge session. They live with the view layer because they
+/// run AppKit alerts and panels; `AppModel` uses them when closing a merge or quitting.
+@MainActor
+extension MergeSession {
+    enum DiscardReason { case reload, close(title: String) }
+
+    /// Asks before an action that would throw away unsaved merge work. Returns true when the
+    /// action may go ahead: there was nothing to lose, the user saved, or chose not to save.
+    func confirmDiscardingChanges(before reason: DiscardReason) -> Bool {
+        guard loaded, hasUnsavedChanges else { return true }
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        switch reason {
+        case .reload:
+            alert.messageText = "Save the merge before reloading?"
+            alert.informativeText = "Reloading re-reads the files and discards your conflict choices and Result edits."
+        case .close(let title):
+            alert.messageText = "Save “\(title)” before closing?"
+            alert.informativeText = "Your conflict choices and Result edits will be lost if you don’t save them."
         }
-        // Ignore a result from a comparison the user has already navigated away from.
-        guard !Task.isCancelled, token == loadToken, key == taskKey else { return }
-        if let result = outcome.0 {
-            hunks = result.0
-            let style = result.1
-            lineEnding = style.selected.ending
-            finalNewline = style.selected.finalNewline
-            baseLineStyle = style.base
-            leftLineStyle = style.left
-            rightLineStyle = style.right
-            lineStyleConflict = style.hasConflict
-            resultDirty = false
-            resultText = ThreeWayMerge.mergedText(result.0, lineEnding: style.selected.ending,
-                                                   finalNewline: style.selected.finalNewline)
-            loaded = true
-        } else {
-            loadError = outcome.1
+        alert.addButton(withTitle: "Save…")
+        alert.addButton(withTitle: "Cancel")
+        let discard = alert.addButton(withTitle: "Don’t Save")
+        discard.keyEquivalent = "d"
+        discard.keyEquivalentModifierMask = .command
+        switch alert.runModal() {
+        case .alertFirstButtonReturn: return saveInteractively()
+        case .alertThirdButtonReturn: return true
+        default: return false
         }
     }
 
-    private func save() {
-        if lineStyleConflict && !resultDirty {
+    /// Runs the save flow: conflict warnings, then the save panel. Returns true only when the
+    /// Result was written.
+    @discardableResult
+    func saveInteractively() -> Bool {
+        // Save rewrites every line to the chosen line ending, so an edited result needs that
+        // choice made too.
+        if lineStyleConflict {
             let alert = NSAlert()
             alert.alertStyle = .warning
             alert.messageText = "Choose an output line-ending style"
@@ -213,7 +176,7 @@ struct MergeView: View {
             alert.addButton(withTitle: "Review")
             alert.runModal()
             presentation = .review
-            return
+            return false
         }
 
         // Never silently write the left side over an unresolved conflict — warn, then emit
@@ -230,16 +193,22 @@ struct MergeView: View {
             }
             alert.addButton(withTitle: "Save with Markers")
             alert.addButton(withTitle: "Cancel")
-            guard alert.runModal() == .alertFirstButtonReturn else { return }
+            guard alert.runModal() == .alertFirstButtonReturn else { return false }
         }
 
         let panel = NSSavePanel()
         panel.nameFieldStringValue = defaultSaveName
         panel.canCreateDirectories = true
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard panel.runModal() == .OK, let url = panel.url else { return false }
 
         do {
-            try resultText.write(to: url, atomically: true, encoding: .utf8)
+            // Return in the editor always types LF, and pasted text keeps its own terminators, so
+            // write every line with the merge's chosen line ending rather than a mix.
+            let output = ThreeWayMerge.normalizingLineEndings(resultText, to: lineEnding,
+                                                               finalNewline: finalNewline)
+            try output.write(to: url, atomically: true, encoding: .utf8)
+            markSaved()
+            return true
         } catch {
             let alert = NSAlert()
             alert.alertStyle = .warning
@@ -247,19 +216,8 @@ struct MergeView: View {
             alert.informativeText = error.localizedDescription
             alert.addButton(withTitle: "OK")
             alert.runModal()
+            return false
         }
-    }
-
-    private func synchronizeResult() {
-        resultText = ThreeWayMerge.mergedText(hunks, lineEnding: lineEnding,
-                                               finalNewline: finalNewline)
-    }
-
-    private func resolveLineStyle(_ style: TextLineStyle) {
-        lineEnding = style.ending
-        finalNewline = style.finalNewline
-        lineStyleConflict = false
-        if !resultDirty { synchronizeResult() }
     }
 }
 
@@ -303,7 +261,8 @@ private struct LineStyleConflictBlock: View {
 }
 
 private struct HunkBlock: View {
-    @Binding var hunk: MergeHunk
+    let hunk: MergeHunk
+    let choose: (MergeResolution) -> Void
 
     var body: some View {
         if hunk.resolution == .unchanged {
@@ -353,16 +312,16 @@ private struct HunkBlock: View {
             }
             HStack(alignment: .top, spacing: 8) {
                 conflictColumn(title: "Left", lines: hunk.leftLines, color: Theme.removed) {
-                    hunk.choose(.takeLeft)
+                    choose(.takeLeft)
                 }
                 conflictColumn(title: "Right", lines: hunk.rightLines, color: Theme.modified) {
-                    hunk.choose(.takeRight)
+                    choose(.takeRight)
                 }
             }
             HStack(spacing: 8) {
-                Button("Use Both") { hunk.choose(.takeBoth) }
+                Button("Use Both") { choose(.takeBoth) }
                     .buttonStyle(.bordered)
-                Button("Use Base") { hunk.choose(.takeBase) }
+                Button("Use Base") { choose(.takeBase) }
                     .buttonStyle(.bordered)
             }
             .controlSize(.small)
@@ -394,10 +353,10 @@ private struct HunkBlock: View {
 
     private var sourceMenu: some View {
         Menu {
-            Button("Left") { hunk.choose(.takeLeft) }
-            Button("Right") { hunk.choose(.takeRight) }
-            Button("Both") { hunk.choose(.takeBoth) }
-            Button("Base") { hunk.choose(.takeBase) }
+            Button("Left") { choose(.takeLeft) }
+            Button("Right") { choose(.takeRight) }
+            Button("Both") { choose(.takeBoth) }
+            Button("Base") { choose(.takeBase) }
         } label: {
             Image(systemName: "arrow.triangle.2.circlepath").font(.system(size: 10))
         }

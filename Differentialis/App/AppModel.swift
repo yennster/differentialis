@@ -165,8 +165,18 @@ final class AppModel {
     // MARK: - Closing
 
     func closeComparison(_ id: UUID) {
+        if let comparison = comparison(id), let session = comparison.mergeSession {
+            // The prompt names the merge rather than switching to it, so closing from the sidebar
+            // leaves the current route (and any repository open in flight) alone.
+            guard session.confirmDiscardingChanges(before: .close(title: comparison.title)) else { return }
+        }
         comparisons.removeAll { $0.id == id }
         if route == .comparison(id) { route = .welcome }
+    }
+
+    /// Open merges whose choices or Result edits have not been saved.
+    var mergesWithUnsavedChanges: [Comparison] {
+        comparisons.filter { $0.mergeSession?.hasUnsavedChanges == true }
     }
 
     func closeChangeset(_ id: UUID) {

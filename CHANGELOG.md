@@ -17,6 +17,16 @@ When cutting a release, add a section here and use it as the release notes:
   ([#13](https://github.com/yennster/differentialis/issues/13)).
 - Picking **Both** from the ↻ menu of a hunk where both sides made the same edit no longer
   duplicates its lines, and the hunk label now reads **Took Both** instead of "Both (same)".
+- A **3-way merge** now keeps your conflict choices, line-ending choice, Result edits, and
+  Review/Result tab when you switch to another sidebar item and back
+  ([#11](https://github.com/yennster/differentialis/issues/11)). **Refresh** (`⌘R`) and **Close**
+  now ask to save first when the merge has unsaved work, and quitting with an unsaved merge asks
+  for confirmation.
+- The merge **Result** editor no longer changes what you type: straight quotes stay straight,
+  `--` stays two hyphens, and autocorrect and text replacement are off, whatever the system text
+  settings say. **Save Merged…** now writes every line with the merge's line ending, so a line
+  typed or pasted into a CRLF merge is saved as CRLF instead of a bare LF
+  ([#12](https://github.com/yennster/differentialis/issues/12)).
 
 ## [0.3.1] — 2026-10-10
 

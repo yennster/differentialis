@@ -83,6 +83,7 @@ includes `Tests/` automatically through XcodeGen.
 | Test file | Coverage |
 | --- | --- |
 | `Tests/DiffTests.swift` | Myers reconstruction/bounded fallback, character and line diffs, whitespace/format diagnostics, git parsing, diff3 conflicts and line styles |
+| `Tests/MergeSessionTests.swift` | Merge session state: choices, manual Result edits, unsaved-work tracking, reload, ownership by `Comparison` |
 | `Tests/PastedTextTests.swift` | Two-way hunk copying, line correspondence, terminator preservation, UTF-16 ranges, editor decorations |
 | `Tests/GitComparisonTests.swift` | Real disposable git repos: index/worktree snapshots, staged reversions, conflicts, unborn HEAD, SHA-256 empty trees |
 | `Tests/FolderAndFilterTests.swift` | Package traversal, scan errors, stable identities, composed git filters, file properties |
@@ -102,7 +103,7 @@ Differentialis/
 ├── App/          Lifecycle, AppModel routing, focused menu commands, concurrency, CLI installer
 ├── Diff/         Pure Swift Myers, line/character diff, two-way edits, three-way merge
 ├── Git/          Process runner, git models/parsers, changeset-to-comparison bridge
-├── Models/       Comparison sources, pasted document, JSON stores, Sparkle bridge
+├── Models/       Comparison sources, pasted document, merge session, JSON stores, Sparkle bridge
 ├── Features/     Text (including paste/merge), Image, Folder, Repo, Settings, Welcome
 ├── DesignSystem/ Theme accessors/manager/import, Liquid Glass components, AppKit popover
 └── Resources/    Assets.xcassets, Info.plist, bundled differentialis launcher
@@ -223,8 +224,9 @@ git or diff work in `Task { ... }` does **not** move it off the main actor.
   `MergeLineStyleDecision` are separate: two conflicting format edits also require
   resolution. `mergedText` emits git-style markers for unresolved content; never
   silently save just the chosen/left side of an unresolved conflict. User source
-  choices go through `MergeHunk.choose`; choosing Base records `.takeBase`, never
-  `.unchanged`, which `MergeView` renders as plain context with no source menu.
+  choices go through `MergeSession.resolve(hunk:as:)`, which calls `MergeHunk.choose`;
+  choosing Base records `.takeBase`, never `.unchanged`, which `MergeView` renders
+  as plain context with no source menu.
 
 ### Feature owners
 
@@ -233,7 +235,7 @@ git or diff work in `Task { ... }` does **not** move it off the main actor.
 | Text diff | `Features/Text/TextComparisonView.swift`: async load, whitespace options, split/unified layout, gaps, navigation, format diagnostics; `DiffRowView.swift` renders highlighted rows |
 | Pasted text | `PastedTextComparisonView.swift`: live analysis with typing debounce, editor/diff presentations, hunk actions; `PastedTextAnalysis.swift` shapes rows into UTF-16 decorations and scroll mappings |
 | Native editors | `DiffTextEditor.swift`: TextKit 1 `NSTextView`, line-number ruler, SwiftUI representable, `PastedTextEditorController` for edits/scroll synchronization/shared undo |
-| Three-way merge | `MergeView.swift`: Review and editable Result, hunk choices, format resolution, save warnings and atomic UTF-8 save |
+| Three-way merge | `MergeView.swift`: Review and editable Result (`PlainCodeEditor.swift`), hunk choices, format resolution, save warnings and atomic UTF-8 save |
 | Images | `Features/Image/ImageComparisonView.swift`: Two-Up, One-Up/blink, Split, Difference; `ImageSupport.swift`: shared zoom/pan gestures, checkerboard, Core Image difference renderer |
 | Folders | `Features/Folder/FolderScanner.swift`: inventory and byte comparison; `FolderComparisonView.swift`: filtering, issues, selection, embedded file comparison |
 | Git | `Features/Repo/RepositoryView.swift`: history/working changes; `GitChangesetView.swift` and `ChangesetDetailView.swift`: file lists/detail; `CustomComparisonPopover.swift`: endpoint selection; `GitFileFilterBar.swift`: shared path/type/status filtering |
@@ -246,11 +248,22 @@ Important feature invariants:
   launches. Programmatic edits should go through `PastedTextEditorController` while
   editors are mounted to preserve undo, caret, and scroll; its shared undo manager
   must not outlive its text views.
-- In `MergeView`, manually edited `resultText` is authoritative (`resultDirty`).
+- `MergeSession` is a reference type retained by `Comparison` for `.merge`, holding
+  the hunk and line-style choices, Result text, and Review/Result tab, so a merge
+  survives detail-view teardown; `MergeView` loads only when `needsLoad`. It is not
+  persisted across launches. `hasUnsavedChanges` is set by any choice, Result edit,
+  or Reset from Review, and cleared by a load or successful save. Refresh and Close
+  ask before discarding it (`confirmDiscardingChanges`); Quit asks in
+  `AppDelegate.applicationShouldTerminate`.
+- In `MergeSession`, manually edited `resultText` is authoritative (`resultDirty`).
   Hunk/format changes do not regenerate dirty output; “Reset from Review” explicitly
   does. Refresh reloads the sources and resets edits. Saving warns about remaining
-  conflict marker fragments; unresolved line-style choices block saving generated
-  output until reviewed.
+  conflict marker fragments; an unresolved line-style choice blocks saving, edited
+  or not, until reviewed. Save rewrites every terminator to the chosen line ending
+  (`ThreeWayMerge.normalizingLineEndings`), so typed or pasted lines can't mix styles.
+- Editable code views (`DiffTextEditor`, the merge Result's `PlainCodeEditor`) use
+  `NSTextView.configureForPlainCode()`; never use SwiftUI `TextEditor` for code,
+  since it follows the system's smart-quote, dash, and autocorrect settings.
 - Images load bytes off-main, then construct lazy-decoding `NSImage`s. Expensive
   Difference rendering runs off-main only when that mode needs it and is guarded
   by image revision. Preserve shared zoom/pan and one-sided image handling.

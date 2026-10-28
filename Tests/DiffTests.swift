@@ -363,6 +363,41 @@ struct ThreeWayMergeTests {
         #expect(ThreeWayMerge.mergedText([], finalNewline: true) == "")
     }
 
+    /// Bytes, not a String: String equality would treat "\r\n" as one Character.
+    private func normalized(_ text: String, _ ending: String, _ finalNewline: Bool) -> [UInt8] {
+        Array(ThreeWayMerge.normalizingLineEndings(text, to: ending, finalNewline: finalNewline).utf8)
+    }
+
+    @Test("hand-edited results are normalized to the chosen line ending")
+    func normalizesLineEndings() {
+        let mixed = "a\r\nb\nc\rd"
+        #expect(normalized(mixed, "\r\n", false) == Array("a\r\nb\r\nc\r\nd".utf8))
+        #expect(normalized(mixed, "\n", false) == Array("a\nb\nc\nd".utf8))
+        #expect(normalized(mixed, "\r", false) == Array("a\rb\rc\rd".utf8))
+        // CR followed by CRLF is two line breaks; LF then CR is two as well.
+        #expect(normalized("a\r\r\nb\n\rc", "\r\n", false) == Array("a\r\n\r\nb\r\n\r\nc".utf8))
+        // A line typed with Return in a CRLF merge.
+        #expect(normalized("x\r\nlet s = \"x\"\ny\r\n", "\r\n", true)
+                == Array("x\r\nlet s = \"x\"\r\ny\r\n".utf8))
+        // Already-normalized text, including what mergedText produces, is unchanged.
+        for text in ["", "\r\n", "a\r\nb\r\n", "a\r\nb"] {
+            #expect(normalized(text, "\r\n", text.unicodeScalars.last == "\n") == Array(text.utf8))
+        }
+    }
+
+    @Test("normalizing adds a missing final newline but never removes one")
+    func normalizesFinalNewline() {
+        #expect(normalized("a\nb", "\r\n", true) == Array("a\r\nb\r\n".utf8))
+        #expect(normalized("a\nb\n", "\r\n", true) == Array("a\r\nb\r\n".utf8))
+        #expect(normalized("a\nb\r", "\r\n", true) == Array("a\r\nb\r\n".utf8))
+        #expect(normalized("a\nb\n", "\n", false) == Array("a\nb\n".utf8))
+        #expect(normalized("a\n\n", "\r", false) == Array("a\r\r".utf8))
+        #expect(normalized("a\r", "\n", false) == Array("a\n".utf8))
+        #expect(normalized("", "\r\n", true).isEmpty)
+        // Non-ASCII content and combining marks pass through untouched.
+        #expect(normalized("e\u{301}\n👋", "\r\n", false) == Array("e\u{301}\r\n👋".utf8))
+    }
+
     @Test("line style chooses the most frequent terminator")
     func dominantLineEnding() {
         let lfDominant = ThreeWayMerge.lineStyle(of: "a\nb\nc\r\n")
