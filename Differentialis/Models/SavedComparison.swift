@@ -26,6 +26,12 @@ enum CustomSide: Codable, Hashable {
         if case .workingCopy = self { return true }
         return false
     }
+
+    /// Git parses an argument beginning with `-` as an option, so such a value is never a usable
+    /// ref; this is checked when entering, decoding and running a comparison.
+    static func isOptionLike(_ ref: String) -> Bool { ref.hasPrefix("-") }
+
+    var hasOptionLikeRef: Bool { !isWorkingCopy && Self.isOptionLike(refString) }
 }
 
 /// A named custom comparison the user has saved to revisit later.
