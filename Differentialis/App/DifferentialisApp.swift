@@ -14,7 +14,7 @@ struct DifferentialisApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup(id: RootView.windowID) {
             RootView()
                 .environment(model)
                 .frame(minWidth: 980, minHeight: 640)

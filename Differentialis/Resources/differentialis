@@ -7,9 +7,9 @@
 #   differentialis <base> <mine> <theirs>      # open a 3-way merge
 #
 #   differentialis --wait <a> <b>               # block until that comparison is closed
-#   differentialis --wait [--merge] <base> <mine> <theirs> --output <merged>
-#                                               # block until the merge is saved (exit 0) or
-#                                               # closed without a resolved save (exit 1)
+#   differentialis --wait [--merge] --output <merged> <base> <mine> <theirs>
+#                                               # block until the merge is saved resolved (exit 0)
+#                                               # or closed without a resolved save (exit 1)
 #
 # --wait is what `git difftool` and `git mergetool` need (see the README for the git config).
 #
@@ -31,7 +31,7 @@ usage() {
   cat <<'USAGE'
 usage: differentialis <path> | <a> <b> | <base> <mine> <theirs>
        differentialis --wait <a> <b>
-       differentialis --wait [--merge] <base> <mine> <theirs> [--output <merged>]
+       differentialis --wait [--merge] --output <merged> <base> <mine> <theirs>
 USAGE
 }
 
@@ -113,6 +113,11 @@ if [ "$kind" = compare ] && { [ "$merge" -eq 1 ] || [ -n "$output" ]; }; then
   echo "differentialis: --merge and --output need three files: <base> <mine> <theirs>" >&2
   exit 64
 fi
+if [ "$kind" = merge ] && [ -z "$output" ]; then
+  # Without it, Save would ask where to write and git's file would keep its conflict markers.
+  echo "differentialis: --wait with three files needs --output <merged>" >&2
+  exit 64
+fi
 if [ -n "$output" ]; then
   # git's $MERGED exists already, but a new file is fine as long as its folder does.
   output="$(resolve "$output")"
@@ -148,7 +153,7 @@ open -b app.differentialis.Differentialis "$request"
 ticks=0
 while [ ! -e "$ack" ] && [ ! -e "$status_file" ]; do
   if [ "$ticks" -ge 600 ]; then
-    echo "differentialis: Differentialis didn't respond to --wait; update the app and reinstall the command-line tool" >&2
+    echo "differentialis: Differentialis didn't respond within 60 seconds; if it is up to date, check for an open dialog, otherwise update it and reinstall the command-line tool" >&2
     exit 69
   fi
   sleep 0.1
@@ -163,7 +168,7 @@ while [ ! -e "$status_file" ]; do
   sleep 0.2
   ticks=$((ticks + 1))
   if [ $((ticks % 10)) -eq 0 ]; then
-    if pgrep -xq Differentialis; then
+    if pgrep -U "$(id -u)" -xq Differentialis; then
       misses=0
     else
       misses=$((misses + 1))

@@ -69,6 +69,9 @@ struct CommandLineWaitTests {
         #expect(throws: CommandLineWait.RequestError.wrongPathCount) {
             try CommandLineWait.parse(requestData([header, "merge", "/out", "/a", "/b"]), token: "T")
         }
+        #expect(throws: CommandLineWait.RequestError.wrongPathCount) {
+            try CommandLineWait.parse(requestData([header, "merge", "", "/a", "/b", "/c"]), token: "T")
+        }
         #expect(throws: CommandLineWait.RequestError.relativePath) {
             try CommandLineWait.parse(requestData([header, "compare", "", "a.txt", "/b"]), token: "T")
         }
@@ -131,6 +134,8 @@ struct CommandLineWaitTests {
         #expect(FileManager.default.fileExists(atPath: ack.path))
         CommandLineWait.finish(token: "T1", status: CommandLineWait.unresolved, in: directory)
         #expect(try String(contentsOf: status, encoding: .utf8) == "1\n")
+        #expect(CommandLineWait.isWaiting(token: "T1", in: directory))
+        #expect(!CommandLineWait.isWaiting(token: "T2", in: directory))
     }
 
     // MARK: - Opening
@@ -176,6 +181,7 @@ struct CommandLineWaitTests {
         #expect(session.left == .file(URL(fileURLWithPath: "/tmp/LOCAL")))
         #expect(session.right == .file(URL(fileURLWithPath: "/tmp/REMOTE")))
         #expect(session.output == output)
+        #expect(session.waitToken == "T")
         #expect(session.defaultSaveName == "file.swift")
 
         #expect(throws: CommandLineWait.RequestError.mergeNeedsFiles) {
@@ -186,7 +192,7 @@ struct CommandLineWaitTests {
     // MARK: - Merge save result
 
     @Test("a save reports resolved only when no conflict markers were written")
-    func savedResolved() async throws {
+    func outputResolvedAfterSave() async throws {
         let directory = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let output = directory.appendingPathComponent("merged.txt")
@@ -195,17 +201,37 @@ struct CommandLineWaitTests {
                                    right: .text(content: "value = 3\nshared", name: "right"),
                                    output: output)
         await session.load()
-        #expect(!session.savedResolved)
+        #expect(!session.outputResolved)
 
         try session.write(to: output)
-        #expect(!session.savedResolved)
+        #expect(!session.outputResolved)
         #expect(try String(contentsOf: output, encoding: .utf8).contains("<<<<<<< left"))
 
         session.editResult("value = 3\nshared")
         #expect(session.hasUnsavedChanges)
         try session.write(to: output)
-        #expect(session.savedResolved)
+        #expect(session.outputResolved)
         #expect(!session.hasUnsavedChanges)
         #expect(try String(contentsOf: output, encoding: .utf8) == "value = 3\nshared")
+    }
+
+    @Test("only a whole conflict block counts as unresolved, not a lone ======= line")
+    func conflictMarkers() {
+        #expect(containsConflictMarkers("a\n<<<<<<< left\nx\n=======\ny\n>>>>>>> right\nb"))
+        #expect(!containsConflictMarkers("Title\n=======\n\nText"))
+        #expect(!containsConflictMarkers(">>>>>>> before\n<<<<<<< after"))
+    }
+
+    @Test("a save somewhere other than git's file doesn't count as resolving it")
+    func saveElsewhere() async throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let session = MergeSession(base: .text(content: "a", name: "base"),
+                                   left: .text(content: "a", name: "left"),
+                                   right: .text(content: "a", name: "right"),
+                                   output: directory.appendingPathComponent("merged.txt"))
+        await session.load()
+        try session.write(to: directory.appendingPathComponent("elsewhere.txt"))
+        #expect(!session.outputResolved)
     }
 }

@@ -56,6 +56,9 @@ final class AppModel {
     private var didProcessLaunchArguments = false
     private var repositoryOpenRequest = UUID()
     private var pastedTextCount = 0
+    /// Brings back a window when none is open, so a `--wait` request never lands out of sight.
+    /// Set by `RootView`, which has the `openWindow` action.
+    @ObservationIgnored var showMainWindow: (@MainActor () -> Void)?
 
     // MARK: - Opening from paths (command line or `open` Apple Event)
 
@@ -110,7 +113,8 @@ final class AppModel {
         do {
             // A few hundred bytes the launcher has just written; small enough to read here.
             let request = try CommandLineWait.parse(Data(contentsOf: url), token: token)
-            open(try CommandLineWait.comparison(for: request, isDirectory: isDirectory))
+            open(try CommandLineWait.comparison(for: request, isDirectory: { self.isDirectory($0) }))
+            showMainWindow?()
         } catch {
             errorMessage = error.localizedDescription
             CommandLineWait.finish(token: token, status: CommandLineWait.unresolved, in: directory)
@@ -118,10 +122,11 @@ final class AppModel {
     }
 
     /// Tells a waiting launcher how its comparison ended. A merge succeeds only when its last save
-    /// left no conflict markers, which is what `git mergetool` (with `trustExitCode`) checks.
+    /// to git's file left no conflict markers, which is what `git mergetool` (with `trustExitCode`)
+    /// checks.
     private func finishWaiting(for comparison: Comparison) {
         guard let token = comparison.waitToken else { return }
-        let resolved = comparison.mergeSession.map(\.savedResolved) ?? true
+        let resolved = comparison.mergeSession.map(\.outputResolved) ?? true
         CommandLineWait.finish(token: token,
                                status: resolved ? CommandLineWait.success : CommandLineWait.unresolved)
     }

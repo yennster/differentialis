@@ -39,7 +39,7 @@ enum CommandLineWait {
             switch self {
             case .malformed: return "The command-line request couldn’t be read."
             case .unsupportedVersion: return "The command-line tool is a different version than the app. Reinstall it from the app menu."
-            case .wrongPathCount: return "--wait compares two files or folders, or merges three files."
+            case .wrongPathCount: return "--wait compares two files or folders, or merges three files into --output."
             case .relativePath: return "The command-line request contained a relative path."
             case .mixedFilesAndFolders: return "Choose either two files or two folders to compare."
             case .mergeNeedsFiles: return "A 3-way merge requires three files: base, left, and right."
@@ -102,7 +102,7 @@ enum CommandLineWait {
         case .compare:
             guard paths.count == 2, outputPath.isEmpty else { throw RequestError.wrongPathCount }
         case .merge:
-            guard paths.count == 3 else { throw RequestError.wrongPathCount }
+            guard paths.count == 3, !outputPath.isEmpty else { throw RequestError.wrongPathCount }
         }
         return Request(token: token, kind: kind,
                        paths: paths.map { URL(fileURLWithPath: $0) },
@@ -125,6 +125,7 @@ enum CommandLineWait {
                                           output: request.output)
         }
         comparison.waitToken = request.token
+        comparison.mergeSession?.waitToken = request.token
         return comparison
     }
 
@@ -132,6 +133,12 @@ enum CommandLineWait {
     /// side (an added or deleted file in `git difftool`), not an empty one.
     static func source(for url: URL) -> ComparisonSource {
         url.path == "/dev/null" ? .empty(name: "No File") : .file(url)
+    }
+
+    /// The launcher is still waiting: it removes its request file when it exits.
+    static func isWaiting(token: String, in directory: URL = directory) -> Bool {
+        FileManager.default.fileExists(
+            atPath: directory.appendingPathComponent("\(token).\(requestExtension)").path)
     }
 
     static func acknowledge(token: String, in directory: URL = directory) {
@@ -146,8 +153,7 @@ enum CommandLineWait {
     }
 
     private static func write(_ data: Data, to url: URL, token: String, in directory: URL) {
-        let request = directory.appendingPathComponent("\(token).\(requestExtension)")
-        guard FileManager.default.fileExists(atPath: request.path) else { return }
+        guard isWaiting(token: token, in: directory) else { return }
         try? data.write(to: url, options: .atomic)
     }
 }

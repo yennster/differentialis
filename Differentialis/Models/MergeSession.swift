@@ -14,6 +14,8 @@ final class MergeSession {
     let right: ComparisonSource
     /// Set when `git mergetool` opened the merge: Save writes here without asking where.
     let output: URL?
+    /// The `--wait` launcher this merge answers; once it has gone, Save stops writing to `output`.
+    var waitToken: String?
 
     private(set) var hunks: [MergeHunk] = []
     private(set) var loadError: String?
@@ -29,8 +31,8 @@ final class MergeSession {
     private(set) var lineStyleConflict = false
     /// A hunk choice, line-style choice, or Result edit made since the last load or save.
     private(set) var hasUnsavedChanges = false
-    /// The last successful save wrote a Result with no conflict markers left in it.
-    private(set) var savedResolved = false
+    /// The last save to `output` left no conflict markers: what git mergetool's exit status reports.
+    private(set) var outputResolved = false
     @ObservationIgnored private var loadToken: UUID?
 
     init(base: ComparisonSource, left: ComparisonSource, right: ComparisonSource, output: URL? = nil) {
@@ -47,6 +49,13 @@ final class MergeSession {
     /// True until the first load has finished (or after a failed one), unless a load is running.
     /// A view appearing again for an already-loaded session must not reload and wipe the work.
     var needsLoad: Bool { !loaded && loadToken == nil }
+
+    /// Save writes straight to `output`: git mergetool named it and is still waiting on the answer.
+    /// If the launcher was interrupted, git may have moved on, so Save asks where instead.
+    var savesToOutput: Bool {
+        guard output != nil else { return false }
+        return waitToken.map { CommandLineWait.isWaiting(token: $0) } ?? true
+    }
 
     var defaultSaveName: String {
         if let output { return output.lastPathComponent }
@@ -154,7 +163,9 @@ final class MergeSession {
                                                          finalNewline: finalNewline)
         try text.write(to: url, atomically: true, encoding: .utf8)
         hasUnsavedChanges = false
-        savedResolved = !containsConflictMarkerFragment(text)
+        if url.standardizedFileURL == output?.standardizedFileURL {
+            outputResolved = !containsConflictMarkers(text)
+        }
     }
 
     private func synchronizeResult() {

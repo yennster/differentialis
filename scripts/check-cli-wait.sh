@@ -56,6 +56,7 @@ printf 'a\n' > "$work/files/a.txt"
 printf 'b\n' > "$work/files/b.txt"
 printf 'c\n' > "$work/files/c.txt"
 printf 'merged\n' > "$work/files/merged.txt"
+printf 'dash\n' > "$work/files/-c.txt"
 cd "$work/files"
 
 failures=0
@@ -92,6 +93,7 @@ expect_exit 64 "--wait with four paths" --wait a.txt b.txt c.txt merged.txt
 expect_exit 64 "--output with two paths" --wait a.txt b.txt --output merged.txt
 expect_exit 64 "--output names a folder" --wait --merge a.txt b.txt c.txt --output sub
 expect_exit 64 "--output with no value" --wait a.txt b.txt c.txt --output
+expect_exit 64 "--wait merge without --output" --wait a.txt b.txt c.txt
 expect_exit 66 "missing path" --wait a.txt missing.txt
 expect_exit 66 "--output in a missing folder" --wait a.txt b.txt c.txt --output nowhere/merged.txt
 
@@ -107,7 +109,7 @@ FAKE_APP=status-1 expect_exit 1 "--wait merge unresolved" --wait --merge a.txt b
 [ "$(fields "$FAKE_LOG.request")" = "differentialis-wait 1"$'\n'"merge"$'\n'"$work/files/merged.txt"$'\n'"$work/files/a.txt"$'\n'"$work/files/b.txt"$'\n'"$work/files/c.txt" ] \
   || fail "merge request fields: $(fields "$FAKE_LOG.request")"
 FAKE_APP=status-0 expect_exit 0 "--wait merge resolved (git mergetool order)" --wait a.txt b.txt c.txt --output merged.txt
-FAKE_APP=status-0 expect_exit 0 "paths after --" --wait -- a.txt b.txt
+FAKE_APP=status-0 expect_exit 0 "paths after -- (README form)" --wait --output merged.txt -- a.txt b.txt -c.txt
 
 # The app going away without answering ends the wait instead of hanging.
 FAKE_APP=quit expect_exit 1 "app quit while waiting" --wait a.txt b.txt

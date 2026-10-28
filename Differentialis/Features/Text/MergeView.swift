@@ -1,6 +1,17 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// A whole `<<<<<<<` … `>>>>>>>` conflict block. Stricter than a fragment check, since a lone
+/// `=======` line is ordinary content in Markdown and reStructuredText.
+func containsConflictMarkers(_ text: String) -> Bool {
+    var open = false
+    for line in text.components(separatedBy: .newlines) {
+        if line.hasPrefix("<<<<<<<") { open = true }
+        else if open, line.hasPrefix(">>>>>>>") { return true }
+    }
+    return false
+}
+
 func containsConflictMarkerFragment(_ text: String) -> Bool {
     text.components(separatedBy: .newlines).contains { line in
         line.hasPrefix("<<<<<<<") || line == "=======" || line.hasPrefix(">>>>>>>")
@@ -83,8 +94,10 @@ struct MergeView: View {
                 StatChip(text: "Edited", color: Theme.brandAlt, systemImage: "pencil")
             }
             Button {
-                // A merge from git mergetool is finished by saving it: git is waiting on the close.
-                if session.saveInteractively(), session.output != nil {
+                // A merge from git mergetool is finished by saving it resolved: git is waiting on the
+                // close. A save that keeps conflict markers is progress, so the merge stays open.
+                let finishes = session.savesToOutput
+                if session.saveInteractively(), finishes, session.outputResolved {
                     model.finishMerge(session)
                 }
             } label: {
@@ -154,7 +167,7 @@ extension MergeSession {
             alert.messageText = "Save “\(title)” before closing?"
             alert.informativeText = "Your conflict choices and Result edits will be lost if you don’t save them."
         }
-        alert.addButton(withTitle: output == nil ? "Save…" : "Save")
+        alert.addButton(withTitle: savesToOutput ? "Save" : "Save…")
         alert.addButton(withTitle: "Cancel")
         let discard = alert.addButton(withTitle: "Don’t Save")
         discard.keyEquivalent = "d"
@@ -201,7 +214,7 @@ extension MergeSession {
         }
 
         let url: URL
-        if let output {
+        if savesToOutput, let output {
             // git mergetool named the file to write; asking again would just invite a wrong answer.
             url = output
         } else {

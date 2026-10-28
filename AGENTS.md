@@ -354,7 +354,8 @@ session-only.
   `AppModel.open(urls:)` honors only request files in that owner-only directory, writes
   `<token>.ack`, and tags the comparison with `waitToken`. Closing it (or quitting) writes
   `<token>.status`: 0, or for a merge 0 only if its last save had no conflict markers. A merge
-  with `--output` saves there without a panel and closes itself after saving. Keep the request
+  with `--output` saves there without a panel (while its launcher is still waiting) and closes
+  itself after a save with no conflict markers. Keep the request
   format in step on both sides; `scripts/check-cli-wait.sh` (run in CI) tests the launcher half.
 - `Resources/Info.plist` declares folder/item document types as Viewer/Alternate
   so Finder and already-running-app opens reach `AppDelegate` without making the

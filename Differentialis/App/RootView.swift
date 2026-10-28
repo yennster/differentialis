@@ -2,7 +2,10 @@ import SwiftUI
 import AppKit
 
 struct RootView: View {
+    static let windowID = "main"
+
     @Environment(AppModel.self) private var model
+    @Environment(\.openWindow) private var openWindow
     @State private var sidebarVisible = true
 
     var body: some View {
@@ -36,6 +39,16 @@ struct RootView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear {
+            model.showMainWindow = { [openWindow] in
+                guard !NSApp.windows.contains(where: { $0.isVisible && $0.canBecomeMain }) else { return }
+                if let minimized = NSApp.windows.first(where: \.isMiniaturized) {
+                    minimized.deminiaturize(nil)
+                } else {
+                    openWindow(id: RootView.windowID)
+                }
+            }
+        }
         .task {
             await model.openFromLaunchArguments()
             await model.restoreOpenChangesets()

@@ -149,11 +149,11 @@ Put this in `~/.gitconfig`:
 [diff]
     tool = differentialis
 [difftool "differentialis"]
-    cmd = differentialis --wait \"$LOCAL\" \"$REMOTE\"
+    cmd = differentialis --wait -- \"$LOCAL\" \"$REMOTE\"
 [merge]
     tool = differentialis
 [mergetool "differentialis"]
-    cmd = differentialis --wait --merge \"$BASE\" \"$LOCAL\" \"$REMOTE\" --output \"$MERGED\"
+    cmd = differentialis --wait --output \"$MERGED\" -- \"$BASE\" \"$LOCAL\" \"$REMOTE\"
     trustExitCode = true
 ```
 
@@ -161,8 +161,10 @@ Put this in `~/.gitconfig`:
   comparison). `git difftool --dir-diff` opens one folder comparison. Added and deleted files show
   their missing side as absent.
 - `git mergetool` opens a 3-way merge whose **Save** writes the result straight to the conflicted
-  file and closes the merge. git marks the file resolved only if the saved result has no conflict
-  markers left; **Cancel Merge** (or closing without saving) leaves it unresolved.
+  file (as UTF-8). Once no conflict markers are left, saving also closes the merge and git marks the
+  file resolved; a save that still has markers keeps the merge open. **Cancel Merge** (or closing
+  without a resolved save) leaves the file unresolved.
+- git waits until you finish, even if you close the window; reopen it from the Dock to carry on.
 - If you installed the command-line tool before `--wait` existed, reinstall it from the app menu.
 
 You can also launch straight into a comparison with `open` directly:
