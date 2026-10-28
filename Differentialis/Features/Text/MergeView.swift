@@ -1,6 +1,17 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// A whole `<<<<<<<` … `>>>>>>>` conflict block. Stricter than a fragment check, since a lone
+/// `=======` line is ordinary content in Markdown and reStructuredText.
+func containsConflictMarkers(_ text: String) -> Bool {
+    var open = false
+    for line in text.components(separatedBy: .newlines) {
+        if line.hasPrefix("<<<<<<<") { open = true }
+        else if open, line.hasPrefix(">>>>>>>") { return true }
+    }
+    return false
+}
+
 func containsConflictMarkerFragment(_ text: String) -> Bool {
     text.components(separatedBy: .newlines).contains { line in
         line.hasPrefix("<<<<<<<") || line == "=======" || line.hasPrefix(">>>>>>>")
@@ -9,6 +20,7 @@ func containsConflictMarkerFragment(_ text: String) -> Bool {
 
 struct MergeView: View {
     @Bindable var session: MergeSession
+    @Environment(AppModel.self) private var model
 
     var body: some View {
         VStack(spacing: 0) {
@@ -82,9 +94,14 @@ struct MergeView: View {
                 StatChip(text: "Edited", color: Theme.brandAlt, systemImage: "pencil")
             }
             Button {
-                session.saveInteractively()
+                // A merge from git mergetool is finished by saving it resolved: git is waiting on the
+                // close. A save that keeps conflict markers is progress, so the merge stays open.
+                let finishes = session.savesToOutput
+                if session.saveInteractively(), finishes, session.outputResolved {
+                    model.finishMerge(session)
+                }
             } label: {
-                Label("Save Merged…", systemImage: "square.and.arrow.down")
+                Label(session.savesToOutput ? "Save" : "Save Merged…", systemImage: "square.and.arrow.down")
             }
             .buttonStyle(.glass)
             .disabled(!session.loaded)
@@ -150,7 +167,7 @@ extension MergeSession {
             alert.messageText = "Save “\(title)” before closing?"
             alert.informativeText = "Your conflict choices and Result edits will be lost if you don’t save them."
         }
-        alert.addButton(withTitle: "Save…")
+        alert.addButton(withTitle: savesToOutput ? "Save" : "Save…")
         alert.addButton(withTitle: "Cancel")
         let discard = alert.addButton(withTitle: "Don’t Save")
         discard.keyEquivalent = "d"
@@ -181,7 +198,8 @@ extension MergeSession {
 
         // Never silently write the left side over an unresolved conflict — warn, then emit
         // standard conflict markers so nothing is lost.
-        let conflictMarkersRemain = containsConflictMarkerFragment(resultText)
+        // A whole marker block: a lone ======= line is a Markdown or reStructuredText heading.
+        let conflictMarkersRemain = containsConflictMarkers(resultText)
         if (!resultDirty && unresolvedConflicts > 0) || conflictMarkersRemain {
             let alert = NSAlert()
             alert.alertStyle = .warning
@@ -196,18 +214,20 @@ extension MergeSession {
             guard alert.runModal() == .alertFirstButtonReturn else { return false }
         }
 
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = defaultSaveName
-        panel.canCreateDirectories = true
-        guard panel.runModal() == .OK, let url = panel.url else { return false }
+        let url: URL
+        if savesToOutput, let output {
+            // git mergetool named the file to write; asking again would just invite a wrong answer.
+            url = output
+        } else {
+            let panel = NSSavePanel()
+            panel.nameFieldStringValue = defaultSaveName
+            panel.canCreateDirectories = true
+            guard panel.runModal() == .OK, let chosen = panel.url else { return false }
+            url = chosen
+        }
 
         do {
-            // Return in the editor always types LF, and pasted text keeps its own terminators, so
-            // write every line with the merge's chosen line ending rather than a mix.
-            let output = ThreeWayMerge.normalizingLineEndings(resultText, to: lineEnding,
-                                                               finalNewline: finalNewline)
-            try output.write(to: url, atomically: true, encoding: .utf8)
-            markSaved()
+            try write(to: url)
             return true
         } catch {
             let alert = NSAlert()

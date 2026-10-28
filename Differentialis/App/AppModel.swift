@@ -56,6 +56,9 @@ final class AppModel {
     private var didProcessLaunchArguments = false
     private var repositoryOpenRequest = UUID()
     private var pastedTextCount = 0
+    /// Brings back a window when none is open, so a `--wait` request never lands out of sight.
+    /// Set by `RootView`, which has the `openWindow` action.
+    @ObservationIgnored var showMainWindow: (@MainActor () -> Void)?
 
     // MARK: - Opening from paths (command line or `open` Apple Event)
 
@@ -64,6 +67,10 @@ final class AppModel {
     /// app whether it is being launched or already running — not just on a fresh launch.
     func open(urls: [URL]) async {
         guard !urls.isEmpty else { return }
+        if urls.count == 1, urls[0].pathExtension == CommandLineWait.requestExtension {
+            openWaitRequest(at: urls[0])
+            return
+        }
 
         switch urls.count {
         case 1:
@@ -88,6 +95,45 @@ final class AppModel {
         default:
             errorMessage = "Open one repository, two items to compare, or three files to merge."
         }
+    }
+
+    /// Opens the comparison a waiting `differentialis --wait` asked for (see `CommandLineWait`).
+    private func openWaitRequest(at url: URL) {
+        let directory = CommandLineWait.directory
+        guard let token = CommandLineWait.token(forRequestAt: url, in: directory) else {
+            errorMessage = "“\(url.lastPathComponent)” is not a request from the differentialis command-line tool."
+            return
+        }
+        // The same request delivered twice must not open a second tab the launcher never hears
+        // about, and one whose launcher has already exited (and removed it) has nobody waiting.
+        guard !comparisons.contains(where: { $0.waitToken == token }),
+              FileManager.default.fileExists(atPath: url.path) else { return }
+        CommandLineWait.acknowledge(token: token, in: directory)
+
+        do {
+            // A few hundred bytes the launcher has just written; small enough to read here.
+            let request = try CommandLineWait.parse(Data(contentsOf: url), token: token)
+            open(try CommandLineWait.comparison(for: request, isDirectory: { self.isDirectory($0) }))
+            showMainWindow?()
+        } catch {
+            errorMessage = error.localizedDescription
+            CommandLineWait.finish(token: token, status: CommandLineWait.unresolved, in: directory)
+        }
+    }
+
+    /// Tells a waiting launcher how its comparison ended. A merge succeeds only when its last save
+    /// to git's file left no conflict markers, which is what `git mergetool` (with `trustExitCode`)
+    /// checks.
+    private func finishWaiting(for comparison: Comparison) {
+        guard let token = comparison.waitToken else { return }
+        let resolved = comparison.mergeSession.map(\.outputResolved) ?? true
+        CommandLineWait.finish(token: token,
+                               status: resolved ? CommandLineWait.success : CommandLineWait.unresolved)
+    }
+
+    /// Releases every waiting launcher as the app quits.
+    func finishAllWaits() {
+        for comparison in comparisons { finishWaiting(for: comparison) }
     }
 
     private func isDirectory(_ url: URL) -> Bool {
@@ -166,13 +212,21 @@ final class AppModel {
     // MARK: - Closing
 
     func closeComparison(_ id: UUID) {
-        if let comparison = comparison(id), let session = comparison.mergeSession {
+        let closing = comparison(id)
+        if let closing, let session = closing.mergeSession {
             // The prompt names the merge rather than switching to it, so closing from the sidebar
             // leaves the current route (and any repository open in flight) alone.
-            guard session.confirmDiscardingChanges(before: .close(title: comparison.title)) else { return }
+            guard session.confirmDiscardingChanges(before: .close(title: closing.title)) else { return }
         }
         comparisons.removeAll { $0.id == id }
         if route == .comparison(id) { route = .welcome }
+        if let closing { finishWaiting(for: closing) }
+    }
+
+    /// Saving a merge that `git mergetool` opened finishes it, so git can move on.
+    func finishMerge(_ session: MergeSession) {
+        guard let comparison = comparisons.first(where: { $0.mergeSession === session }) else { return }
+        closeComparison(comparison.id)
     }
 
     /// Open merges whose choices or Result edits have not been saved.

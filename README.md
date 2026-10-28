@@ -133,11 +133,39 @@ differentialis <path>                       # open a git repository (error if no
 differentialis fileA.txt fileB.txt           # compare two files (auto-detects text/image/folder)
 differentialis folderA folderB               # folder diff
 differentialis base.txt mine.txt theirs.txt  # 3-way merge
+differentialis --wait fileA.txt fileB.txt    # …and wait until that comparison is closed
 ```
 
 Paths are resolved against the current directory. The launcher talks to Differentialis by bundle id
 (`app.differentialis.Differentialis`), so it resolves to the registered release install — not a
 stale Debug build — and works whether the app is already running or not.
+
+#### git difftool and git mergetool
+
+Add `--wait` and the launcher blocks until you're done in the app, which is what git's tools need.
+Put this in `~/.gitconfig`:
+
+```ini
+[diff]
+    tool = differentialis
+[difftool "differentialis"]
+    cmd = differentialis --wait -- \"$LOCAL\" \"$REMOTE\"
+[merge]
+    tool = differentialis
+[mergetool "differentialis"]
+    cmd = differentialis --wait --output \"$MERGED\" -- \"$BASE\" \"$LOCAL\" \"$REMOTE\"
+    trustExitCode = true
+```
+
+- `git difftool` opens each file and moves to the next one when you click **Done** (or close the
+  comparison). `git difftool --dir-diff` opens one folder comparison. Added and deleted files show
+  their missing side as absent.
+- `git mergetool` opens a 3-way merge whose **Save** writes the result straight to the conflicted
+  file (as UTF-8). Once no conflict markers are left, saving also closes the merge and git marks the
+  file resolved; a save that still has markers keeps the merge open. **Cancel Merge** (or closing
+  without a resolved save) leaves the file unresolved.
+- git waits until you finish, even if you close the window; reopen it from the Dock to carry on.
+- If you installed the command-line tool before `--wait` existed, reinstall it from the app menu.
 
 You can also launch straight into a comparison with `open` directly:
 

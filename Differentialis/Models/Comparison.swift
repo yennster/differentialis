@@ -12,6 +12,8 @@ struct Comparison: Identifiable, Hashable {
     var base: ComparisonSource?   // only for `.merge`
     var pasted: PastedTextDocument?   // only for `.pasted`
     var mergeSession: MergeSession?   // only for `.merge`
+    /// Set when `differentialis --wait` opened it: the launcher blocks until it is closed.
+    var waitToken: String?
 
     var symbol: String {
         switch mode {
@@ -39,11 +41,11 @@ struct Comparison: Identifiable, Hashable {
     }
 
     static func merge(base: ComparisonSource, left: ComparisonSource, right: ComparisonSource,
-                      title: String? = nil) -> Comparison {
+                      output: URL? = nil, title: String? = nil) -> Comparison {
         Comparison(mode: .merge,
-                   title: title ?? "Merge: \(left.displayName)",
+                   title: title ?? "Merge: \(output?.lastPathComponent ?? left.displayName)",
                    a: left, b: right, base: base,
-                   mergeSession: MergeSession(base: base, left: left, right: right))
+                   mergeSession: MergeSession(base: base, left: left, right: right, output: output))
     }
 
     /// A comparison of two texts typed or pasted straight into the app — no files involved.

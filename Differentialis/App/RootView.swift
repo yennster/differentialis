@@ -2,7 +2,10 @@ import SwiftUI
 import AppKit
 
 struct RootView: View {
+    static let windowID = "main"
+
     @Environment(AppModel.self) private var model
+    @Environment(\.openWindow) private var openWindow
     @State private var sidebarVisible = true
 
     var body: some View {
@@ -36,6 +39,24 @@ struct RootView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear {
+            model.showMainWindow = { [openWindow] in
+                if NSApp.isHidden {
+                    NSApp.unhide(nil)
+                    return
+                }
+                // The Settings window (SwiftUI's "com_apple_SwiftUI_Settings_window") doesn't count.
+                let mainWindows = NSApp.windows.filter {
+                    $0.canBecomeMain && $0.identifier?.rawValue.contains("Settings") != true
+                }
+                guard !mainWindows.contains(where: \.isVisible) else { return }
+                if let minimized = mainWindows.first(where: \.isMiniaturized) {
+                    minimized.deminiaturize(nil)
+                } else {
+                    openWindow(id: RootView.windowID)
+                }
+            }
+        }
         .task {
             await model.openFromLaunchArguments()
             await model.restoreOpenChangesets()
@@ -76,6 +97,11 @@ struct RootView: View {
                 // .id keys the subtree to the comparison so switching tabs fully resets child state
                 // (scroll position, selection, stale content) instead of reusing the prior view.
                 ComparisonDetailView(comparison: comparison)
+                    .safeAreaInset(edge: .top, spacing: 0) {
+                        if comparison.waitToken != nil {
+                            CommandLineWaitBanner(comparison: comparison)
+                        }
+                    }
                     .id(comparison.id)
             } else {
                 WelcomeView()

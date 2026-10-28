@@ -14,7 +14,7 @@ struct DifferentialisApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup(id: RootView.windowID) {
             RootView()
                 .environment(model)
                 .frame(minWidth: 980, minHeight: 640)
@@ -89,5 +89,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return .terminateCancel
         }
         return .terminateNow
+    }
+
+    /// A launcher still waiting on `--wait` would otherwise block git until it noticed the app is gone.
+    func applicationWillTerminate(_ notification: Notification) {
+        AppModel.shared?.finishAllWaits()
     }
 }

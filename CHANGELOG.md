@@ -10,6 +10,14 @@ When cutting a release, add a section here and use it as the release notes:
 
 ## [Unreleased]
 
+### Added
+- **`git difftool` and `git mergetool` support.** The `differentialis` command-line tool takes
+  `--wait`, which blocks until you finish in the app, and `--output <file>` for merges: **Save**
+  writes the merged result straight to git's file and returns to git, which marks it resolved only
+  when no conflict markers remain. The README has the `~/.gitconfig` snippet
+  ([#22](https://github.com/yennster/differentialis/issues/22)). Reinstall the command-line tool
+  from the app menu to get the new options.
+
 ### Fixed
 - Text files with no recognised extension (`Makefile`, `.env`, `notes`, …) no longer open as
   **binary** when they contain non-ASCII text

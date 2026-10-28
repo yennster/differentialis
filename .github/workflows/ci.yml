@@ -1,7 +1,7 @@
 name: CI
 
 # Builds the app and runs the unit tests on every push to main and every pull request, and checks
-# the README and website (local links, structured data, FAQ, sitemap).
+# the README and website (local links, structured data, FAQ, sitemap) and the CLI launcher script.
 
 on:
   push:
@@ -85,7 +85,7 @@ jobs:
           if-no-files-found: ignore
 
   links:
-    name: Site & README checks
+    name: Site, README & launcher checks
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -94,3 +94,6 @@ jobs:
 
       - name: Check links, structured data, and sitemap
         run: python3 scripts/check-site.py
+
+      - name: Check the command-line launcher (--wait handshake)
+        run: scripts/check-cli-wait.sh
