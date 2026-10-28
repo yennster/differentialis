@@ -165,7 +165,7 @@ Put this in `~/.gitconfig`:
   file resolved; a save that still has markers keeps the merge open. **Cancel Merge** (or closing
   without a resolved save) leaves the file unresolved.
 - git waits until you finish, even if you close the window; reopen it from the Dock to carry on.
-- If you installed the command-line tool before `--wait` existed, reinstall it from the app menu.
+- If you installed the command-line tool before `--wait` existed, uninstall and reinstall it from the app menu.
 
 You can also launch straight into a comparison with `open` directly:
 
@@ -209,7 +209,7 @@ locally).
 The full, prioritized backlog is in [docs/ROADMAP.md](docs/ROADMAP.md). Highlights:
 
 - ~~A `diff`-style command-line companion~~ — shipped; see the [command-line launcher](#command-line-launcher) above. A URL scheme is still planned.
-- Git mergetool / difftool auto-configuration
+- ~~Git mergetool / difftool support~~ — shipped; see [git difftool and git mergetool](#git-difftool-and-git-mergetool) above. Writing the `~/.gitconfig` entries for you is still planned.
 - PDF export of comparisons
 
 ## License

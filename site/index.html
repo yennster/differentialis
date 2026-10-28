@@ -59,7 +59,7 @@
         "about": { "@id": "https://www.differentialis.app/#app" },
         "mainEntity": { "@id": "https://www.differentialis.app/#app" },
         "primaryImageOfPage": { "@type": "ImageObject", "url": "https://www.differentialis.app/assets/screens/text.webp", "width": 1800, "height": 1203 },
-        "dateModified": "2026-10-24"
+        "dateModified": "2026-10-28"
       },
       {
         "@type": "Person",
@@ -75,7 +75,7 @@
         "url": "https://www.differentialis.app/",
         "applicationCategory": "DeveloperApplication",
         "applicationSubCategory": "File comparison and merge tool",
-        "softwareVersion": "0.3.1",
+        "softwareVersion": "0.4.0",
         "operatingSystem": "macOS 26 (Tahoe) or later",
         "processorRequirements": "Apple silicon or Intel",
         "isAccessibleForFree": true,
@@ -176,7 +176,7 @@
           {
             "@type": "Question",
             "name": "Can I use Differentialis as a git difftool or mergetool?",
-            "acceptedAnswer": { "@type": "Answer", "text": "Not automatically yet. The differentialis command-line tool opens two files or folders for comparison, or three files for a merge, and you can browse any repository's changes in the app. Setting it up as git difftool and mergetool, with git waiting for you to finish, is on the roadmap." }
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. The differentialis command-line tool takes --wait, which keeps git waiting until you finish in the app, and --output for merges, so Save writes the result straight to the conflicted file. Add the difftool and mergetool entries from the README to your ~/.gitconfig, and if you installed the command-line tool before version 0.4.0, uninstall and reinstall it from the app menu." }
           },
           {
             "@type": "Question",
@@ -231,7 +231,7 @@
           </a>
           <a class="btn btn-ghost magnetic" href="https://github.com/yennster/differentialis" target="_blank" rel="noopener">View source</a>
         </div>
-        <p class="cta-note"><span data-version>v0.3.1</span> · Apple-notarized · free &amp; open source · requires macOS 26</p>
+        <p class="cta-note"><span data-version>v0.4.0</span> · Apple-notarized · free &amp; open source · requires macOS 26</p>
       </div>
 
       <div class="hero-stage parallax" data-depth="1.4">
@@ -561,10 +561,11 @@ differentialis base.txt mine.txt theirs.txt</code></pre>
         </details>
         <details class="glass" data-reveal>
           <summary><h3>Can I use Differentialis as a git difftool or mergetool?</h3></summary>
-          <p>Not automatically yet. The <code>differentialis</code> command-line tool opens two files or
-            folders for comparison, or three files for a merge, and you can browse any repository's
-            changes in the app. Setting it up as <code>git difftool</code> and <code>mergetool</code>,
-            with git waiting for you to finish, is on the roadmap.</p>
+          <p>Yes. The <code>differentialis</code> command-line tool takes <code>--wait</code>, which keeps
+            git waiting until you finish in the app, and <code>--output</code> for merges, so Save writes
+            the result straight to the conflicted file. Add the difftool and mergetool entries from the
+            README to your <code>~/.gitconfig</code>, and if you installed the command-line tool before
+            version 0.4.0, uninstall and reinstall it from the app menu.</p>
         </details>
         <details class="glass" data-reveal>
           <summary><h3>Is Differentialis available for Windows or Linux?</h3></summary>
@@ -590,7 +591,7 @@ differentialis base.txt mine.txt theirs.txt</code></pre>
         <a class="btn btn-primary btn-lg magnetic" data-dl href="https://github.com/yennster/differentialis/releases/latest">
           Download for macOS
         </a>
-        <p class="cta-note"><span data-version>v0.3.1</span> · Apple Silicon &amp; Intel · macOS 26 Tahoe</p>
+        <p class="cta-note"><span data-version>v0.4.0</span> · Apple Silicon &amp; Intel · macOS 26 Tahoe</p>
       </div>
     </section>
   </main>
