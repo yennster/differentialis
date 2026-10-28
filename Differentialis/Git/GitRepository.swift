@@ -59,11 +59,12 @@ struct GitRepository {
     /// Rejects a user-entered revision (a pasted hash, a saved or restored comparison) before it
     /// reaches any other git command. A value beginning with `-` would otherwise be parsed as an
     /// option (`--output=<file>` makes `git diff` write a file), and an unknown one would surface as
-    /// a raw git error. `HEAD` is exempt from the lookup because an unborn HEAD is still a valid
-    /// working-copy base (see `diffBase`).
-    func validateRevision(_ ref: String) throws {
-        guard !ref.isEmpty, !CustomSide.isOptionLike(ref) else { throw GitError.unknownRevision(ref) }
-        guard ref != "HEAD" else { return }
+    /// a raw git error. With `allowsUnbornHead`, `HEAD` skips the lookup because an unborn HEAD
+    /// is still a valid base for a working-copy comparison (see `diffBase`).
+    func validateRevision(_ ref: String, allowsUnbornHead: Bool = false) throws {
+        guard !ref.isEmpty else { throw GitError.missingRevision }
+        guard !CustomSide.isOptionLike(ref) else { throw GitError.unknownRevision(ref) }
+        if allowsUnbornHead, ref == "HEAD" { return }
         guard (try? run(["rev-parse", "--verify", "--quiet", "--end-of-options", "\(ref)^{commit}"])) != nil else {
             throw GitError.unknownRevision(ref)
         }

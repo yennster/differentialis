@@ -23,9 +23,10 @@ When cutting a release, add a section here and use it as the release notes:
   ([#12](https://github.com/yennster/differentialis/issues/12)).
 - A commit hash pasted into **Custom Comparison** can no longer be read by git as an option: a
   value starting with `-` (such as `--output=<file>`) is rejected in the popover, dropped from
-  saved and restored comparisons, and always passed to git after `--end-of-options`. An unknown
-  hash now reports "Unknown commit or reference" instead of a raw git error, and a branch that
-  shares its name with a tracked file compares instead of failing as "ambiguous"
+  saved and restored comparisons, and always passed to git after `--end-of-options`. A side must
+  now name a commit: an unknown hash (or a tree-only object) reports "Unknown commit or reference"
+  instead of a raw git error, and a branch that shares its name with a tracked file compares
+  instead of failing as "ambiguous"
   ([#17](https://github.com/yennster/differentialis/issues/17)).
 
 ## [0.3.1] — 2026-10-10

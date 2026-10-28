@@ -342,6 +342,17 @@ struct GitComparisonTests {
             try fixture.repository.customChangeset(a: .commit("deadbeef"), b: .reference("HEAD"))
         }
         #expect(error?.localizedDescription == "Unknown commit or reference “deadbeef”.")
+
+        // HEAD is only exempt from the lookup as a working-copy base; ref↔ref on an unborn HEAD
+        // still gets the clean error.
+        let unborn = try TemporaryGitRepository()
+        let unbornError = #expect(throws: GitError.self) {
+            try unborn.repository.customChangeset(a: .reference("HEAD"), b: .reference("HEAD"))
+        }
+        #expect(unbornError?.localizedDescription == "Unknown commit or reference “HEAD”.")
+        #expect(throws: GitError.self) {
+            try fixture.repository.customChangeset(a: .commit(""), b: .reference("HEAD"))
+        }
     }
 
     @Test("a branch named like a tracked file still compares")
