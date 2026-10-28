@@ -12,6 +12,8 @@ final class MergeSession {
     let base: ComparisonSource
     let left: ComparisonSource
     let right: ComparisonSource
+    /// Set when `git mergetool` opened the merge: Save writes here without asking where.
+    let output: URL?
 
     private(set) var hunks: [MergeHunk] = []
     private(set) var loadError: String?
@@ -27,12 +29,15 @@ final class MergeSession {
     private(set) var lineStyleConflict = false
     /// A hunk choice, line-style choice, or Result edit made since the last load or save.
     private(set) var hasUnsavedChanges = false
+    /// The last successful save wrote a Result with no conflict markers left in it.
+    private(set) var savedResolved = false
     @ObservationIgnored private var loadToken: UUID?
 
-    init(base: ComparisonSource, left: ComparisonSource, right: ComparisonSource) {
+    init(base: ComparisonSource, left: ComparisonSource, right: ComparisonSource, output: URL? = nil) {
         self.base = base
         self.left = left
         self.right = right
+        self.output = output
     }
 
     var unresolvedConflicts: Int {
@@ -44,6 +49,7 @@ final class MergeSession {
     var needsLoad: Bool { !loaded && loadToken == nil }
 
     var defaultSaveName: String {
+        if let output { return output.lastPathComponent }
         if case .file(let url) = left { return url.lastPathComponent }
         if case .file(let url) = base { return url.lastPathComponent }
         return "merged.txt"
@@ -139,6 +145,16 @@ final class MergeSession {
     /// The current Result has been written to disk.
     func markSaved() {
         hasUnsavedChanges = false
+    }
+
+    /// Writes the Result with every line in the merge's chosen line ending: Return in the editor
+    /// always types LF, and pasted text keeps its own terminators, so it would otherwise be a mix.
+    func write(to url: URL) throws {
+        let text = ThreeWayMerge.normalizingLineEndings(resultText, to: lineEnding,
+                                                         finalNewline: finalNewline)
+        try text.write(to: url, atomically: true, encoding: .utf8)
+        hasUnsavedChanges = false
+        savedResolved = !containsConflictMarkerFragment(text)
     }
 
     private func synchronizeResult() {

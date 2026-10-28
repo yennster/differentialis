@@ -90,4 +90,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         return .terminateNow
     }
+
+    /// A launcher still waiting on `--wait` would otherwise block git until it noticed the app is gone.
+    func applicationWillTerminate(_ notification: Notification) {
+        AppModel.shared?.finishAllWaits()
+    }
 }

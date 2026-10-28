@@ -76,6 +76,11 @@ struct RootView: View {
                 // .id keys the subtree to the comparison so switching tabs fully resets child state
                 // (scroll position, selection, stale content) instead of reusing the prior view.
                 ComparisonDetailView(comparison: comparison)
+                    .safeAreaInset(edge: .top, spacing: 0) {
+                        if comparison.waitToken != nil {
+                            CommandLineWaitBanner(comparison: comparison)
+                        }
+                    }
                     .id(comparison.id)
             } else {
                 WelcomeView()

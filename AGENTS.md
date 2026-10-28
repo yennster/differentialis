@@ -41,6 +41,7 @@ installed packages. `.agents/resume` does no installation or authentication.
   ```bash
   swiftc -swift-version 6 -typecheck Differentialis/Diff/*.swift Differentialis/Models/DiffStats.swift
   python3 scripts/check-site.py
+  scripts/check-cli-wait.sh
   ```
 
   These are not substitutes for the macOS test suite. There is no root SwiftPM
@@ -88,6 +89,7 @@ includes `Tests/` automatically through XcodeGen.
 | `Tests/GitComparisonTests.swift` | Real disposable git repos: index/worktree snapshots, staged reversions, conflicts, unborn HEAD, SHA-256 empty trees |
 | `Tests/FolderAndFilterTests.swift` | Package traversal, scan errors, stable identities, composed git filters, file properties |
 | `Tests/ThemeImportTests.swift` | `.tmTheme` import, hex colors, observable settings clamping |
+| `Tests/CommandLineWaitTests.swift` | `--wait` request parsing and location checks, launcher acknowledgement/status, request-to-comparison routing, merge save result |
 
 **Add or update tests when changing the diff or merge engines.** Extend the relevant
 suite for other behavioral changes; prefer observable results over private helper
@@ -111,7 +113,7 @@ Differentialis/
 Tests/            Swift Testing suites; git tests create real temporary repositories
 docs/             ROADMAP.md (claimable feature backlog) + README images
 site/             Static marketing site (HTML/CSS/JS), screenshots, llms.txt
-scripts/          Changelog extraction, DMG packaging, site/README checks
+scripts/          Changelog extraction, DMG packaging, site/README checks, CLI launcher check
 tools/            Icon generator and social-card renderer
 .agents/          Orb setup/resume scripts
 .github/workflows/ci.yml        Build + tests on every push to main and every PR
@@ -346,6 +348,14 @@ session-only.
   a stale Debug install). `AppModel.open(urls:)` handles one repository, two files
   or two folders, or three files ordered **base, left, right**; invalid combinations
   produce an in-app error. Launch arguments and Apple Events share that routing.
+- `--wait` (for `git difftool` / `git mergetool`) is a file handshake, owned by
+  `App/CommandLineWait.swift`: the launcher writes a NUL-delimited request into
+  `<getconf DARWIN_USER_TEMP_DIR>/differentialis-wait/<token>.differentialis-wait` and opens it;
+  `AppModel.open(urls:)` honors only request files in that owner-only directory, writes
+  `<token>.ack`, and tags the comparison with `waitToken`. Closing it (or quitting) writes
+  `<token>.status`: 0, or for a merge 0 only if its last save had no conflict markers. A merge
+  with `--output` saves there without a panel and closes itself after saving. Keep the request
+  format in step on both sides; `scripts/check-cli-wait.sh` (run in CI) tests the launcher half.
 - `Resources/Info.plist` declares folder/item document types as Viewer/Alternate
   so Finder and already-running-app opens reach `AppDelegate` without making the
   app the default handler. Preserve this when changing launching behavior.

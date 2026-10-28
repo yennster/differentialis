@@ -6,6 +6,13 @@
 #   differentialis <a> <b>                      # compare two files or folders (auto-detect mode)
 #   differentialis <base> <mine> <theirs>      # open a 3-way merge
 #
+#   differentialis --wait <a> <b>               # block until that comparison is closed
+#   differentialis --wait [--merge] <base> <mine> <theirs> --output <merged>
+#                                               # block until the merge is saved (exit 0) or
+#                                               # closed without a resolved save (exit 1)
+#
+# --wait is what `git difftool` and `git mergetool` need (see the README for the git config).
+#
 # Resolves relative paths against the current directory and forwards them to the
 # app by bundle id (not app name — name lookup can resolve to a stale Debug build
 # registered with LaunchServices). Works whether Differentialis is running or not.
@@ -20,19 +27,62 @@
 
 set -euo pipefail
 
-if [ "$#" -eq 0 ]; then
-  echo "usage: differentialis <path> | <a> <b> | <base> <mine> <theirs>" >&2
+usage() {
+  cat <<'USAGE'
+usage: differentialis <path> | <a> <b> | <base> <mine> <theirs>
+       differentialis --wait <a> <b>
+       differentialis --wait [--merge] <base> <mine> <theirs> [--output <merged>]
+USAGE
+}
+
+wait=0
+merge=0
+output=""
+inputs=()
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --wait) wait=1 ;;
+    --merge) merge=1 ;;
+    --output)
+      if [ "$#" -lt 2 ]; then
+        echo "differentialis: --output needs a path" >&2
+        exit 64
+      fi
+      output="$2"
+      shift
+      ;;
+    --output=*) output="${1#--output=}" ;;
+    -h|--help) usage; exit 0 ;;
+    --) shift; inputs+=("$@"); break ;;
+    -?*)
+      echo "differentialis: unknown option: $1" >&2
+      usage >&2
+      exit 64
+      ;;
+    *) inputs+=("$1") ;;
+  esac
+  shift
+done
+
+if [ "${#inputs[@]}" -eq 0 ]; then
+  usage >&2
   exit 64
 fi
 
-args=()
-for arg in "$@"; do
-  dir="$(dirname -- "$arg")"
+# Absolute, symlink-free directory + the name as given. The path itself must exist.
+resolve() {
+  local dir
+  dir="$(dirname -- "$1")"
   if [ ! -d "$dir" ]; then
-    echo "differentialis: no such path: $arg" >&2
+    echo "differentialis: no such path: $1" >&2
     exit 66
   fi
-  path="$(cd -- "$dir" && pwd -P)/$(basename -- "$arg")"
+  printf '%s/%s' "$(cd -- "$dir" && pwd -P)" "$(basename -- "$1")"
+}
+
+args=()
+for arg in "${inputs[@]}"; do
+  path="$(resolve "$arg")"
   if [ ! -e "$path" ]; then
     echo "differentialis: no such path: $arg" >&2
     exit 66
@@ -40,5 +90,93 @@ for arg in "$@"; do
   args+=("$path")
 done
 
-# Bundle id resolves to the registered release install, not a stale Debug build.
-exec open -b app.differentialis.Differentialis "${args[@]}"
+if [ "$wait" -eq 0 ]; then
+  if [ "$merge" -eq 1 ] || [ -n "$output" ]; then
+    echo "differentialis: --merge and --output require --wait" >&2
+    exit 64
+  fi
+  # Bundle id resolves to the registered release install, not a stale Debug build.
+  exec open -b app.differentialis.Differentialis "${args[@]}"
+fi
+
+# --- --wait: hand the app a request file and block until it writes back a status. ---
+
+case "${#args[@]}" in
+  2) kind=compare ;;
+  3) kind=merge ;;
+  *)
+    echo "differentialis: --wait compares two files or folders, or merges three files" >&2
+    exit 64
+    ;;
+esac
+if [ "$kind" = compare ] && { [ "$merge" -eq 1 ] || [ -n "$output" ]; }; then
+  echo "differentialis: --merge and --output need three files: <base> <mine> <theirs>" >&2
+  exit 64
+fi
+if [ -n "$output" ]; then
+  # git's $MERGED exists already, but a new file is fine as long as its folder does.
+  output="$(resolve "$output")"
+  if [ -d "$output" ]; then
+    echo "differentialis: --output must be a file, not a folder: $output" >&2
+    exit 64
+  fi
+fi
+
+# The app only honors requests in this per-user directory (see CommandLineWait.swift). getconf
+# matches what the app reads; $TMPDIR may differ in an ssh or tmux session.
+temp="$(getconf DARWIN_USER_TEMP_DIR)"
+wait_dir="${temp%/}/differentialis-wait"
+mkdir -p -m 700 "$wait_dir"
+token="$(uuidgen)"
+request="$wait_dir/$token.differentialis-wait"
+ack="$wait_dir/$token.ack"
+status_file="$wait_dir/$token.status"
+
+cleanup() { rm -f "$request" "$request.tmp" "$ack" "$status_file"; }
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM HUP
+
+# NUL-delimited fields: format header, kind, output (empty for none), then the paths.
+printf '%s\0' "differentialis-wait 1" "$kind" "$output" "${args[@]}" > "$request.tmp"
+mv -f "$request.tmp" "$request"
+
+open -b app.differentialis.Differentialis "$request"
+
+# An app from before --wait would open the request as an ordinary (non-repository) file and never
+# answer, so give up if there is no acknowledgement. First launch can be slow (Gatekeeper).
+ticks=0
+while [ ! -e "$ack" ] && [ ! -e "$status_file" ]; do
+  if [ "$ticks" -ge 600 ]; then
+    echo "differentialis: Differentialis didn't respond to --wait; update the app and reinstall the command-line tool" >&2
+    exit 69
+  fi
+  sleep 0.1
+  ticks=$((ticks + 1))
+done
+
+# Wait for the comparison to be closed. If the app goes away without answering (a crash or a
+# force quit), stop waiting instead of hanging git forever.
+misses=0
+ticks=0
+while [ ! -e "$status_file" ]; do
+  sleep 0.2
+  ticks=$((ticks + 1))
+  if [ $((ticks % 10)) -eq 0 ]; then
+    if pgrep -xq Differentialis; then
+      misses=0
+    else
+      misses=$((misses + 1))
+      if [ "$misses" -ge 2 ] && [ ! -e "$status_file" ]; then
+        echo "differentialis: Differentialis quit before the comparison was closed" >&2
+        exit 1
+      fi
+    fi
+  fi
+done
+
+status="$(head -n 1 "$status_file" 2>/dev/null || true)"
+case "$status" in
+  ''|*[!0-9]*) exit 1 ;;
+  *) exit "$status" ;;
+esac
