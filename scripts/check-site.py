@@ -2,11 +2,14 @@
 """Checks the README and the website for things that silently break.
 
 - Every local file the README or the site references exists (a renamed or removed screenshot fails).
-- The site's JSON-LD structured data parses, and its FAQ questions match the visible FAQ section.
-- sitemap.xml is well-formed.
+- The site's JSON-LD structured data parses, and its FAQ questions and answers match the visible
+  FAQ section.
+- The version the site and llms.txt state matches MARKETING_VERSION in project.yml.
+- sitemap.xml is well-formed, and its lastmod matches the page's dateModified.
 
 External URLs and in-page anchors are skipped. Run from anywhere: `python3 scripts/check-site.py`.
 """
+import html as htmllib
 import json
 import re
 import sys
@@ -21,6 +24,7 @@ SITE = ROOT / "site"
 DOCUMENTS = {
     ROOT / "README.md": ROOT,
     SITE / "index.html": SITE,
+    SITE / "404.html": SITE,
 }
 
 LINK_PATTERNS = [
@@ -45,7 +49,11 @@ for document, base in DOCUMENTS.items():
             if not is_local(ref) or not path:
                 continue
             checked += 1
-            if not (base / path).exists():
+            # The 404 page is served at any depth (/a/b), so a relative reference would break there.
+            if document.name == "404.html" and not ref.startswith("/"):
+                problems.append(f"{document.relative_to(ROOT)}: {ref} must be root-relative (start with /)")
+            # Root-relative paths ("/styles.css") resolve against the document's site root.
+            if not (base / path.lstrip("/")).exists():
                 problems.append(f"{document.relative_to(ROOT)}: missing file {ref}")
 
 # Structured data, and the FAQ it repeats.
@@ -58,19 +66,61 @@ for block in blocks:
         nodes += data.get("@graph", [data])
     except json.JSONDecodeError as error:
         problems.append(f"site/index.html: JSON-LD doesn't parse ({error})")
-faq = next((node for node in nodes if node.get("@type") == "FAQPage"), None)
-visible = [re.sub(r"<[^>]+>", "", q).strip() for q in re.findall(r"<summary>(.*?)</summary>", html, re.S)]
-if faq is not None:
-    marked_up = [question["name"] for question in faq.get("mainEntity", [])]
-    if marked_up != visible:
+
+
+def plain(fragment: str) -> str:
+    """Text of an HTML fragment as the JSON-LD spells it: no tags, single spaces, ⌘ as "Command-"."""
+    text = htmllib.unescape(re.sub(r"<[^>]+>", "", fragment))
+    return re.sub(r"\s+", " ", text.replace("⌘", "Command-")).strip()
+
+
+def node_of(kind: str):
+    return next((node for node in nodes if node.get("@type") == kind), None)
+
+
+faq = node_of("FAQPage")
+visible = [(plain(q), plain(a)) for q, a in
+           re.findall(r"<summary[^>]*>((?:(?!</summary>).)*)</summary>\s*<p>((?:(?!</p>|<summary).)*)</p>", html, re.S)]
+if len(visible) != html.count("<summary"):
+    problems.append("site/index.html: every visible FAQ answer must be a single <p> right after its <summary>")
+if faq is None:
+    problems.append("site/index.html: no FAQPage structured data")
+else:
+    marked_up = [(q.get("name"), (q.get("acceptedAnswer") or {}).get("text")) for q in faq.get("mainEntity", [])]
+    if [q for q, _ in marked_up] != [q for q, _ in visible]:
         problems.append("site/index.html: FAQ structured data and the visible FAQ list different questions\n"
-                        f"    structured: {marked_up}\n    visible:    {visible}")
+                        f"    structured: {[q for q, _ in marked_up]}\n    visible:    {[q for q, _ in visible]}")
+    else:
+        for (question, structured), (_, shown) in zip(marked_up, visible):
+            if structured != shown:
+                problems.append(f"site/index.html: FAQ answer to \"{question}\" differs\n"
+                                f"    structured: {structured}\n    visible:    {shown}")
+
+# Version: what the site and llms.txt say vs. the app's MARKETING_VERSION.
+match = re.search(r'MARKETING_VERSION:\s*"?([^"\s]+)', (ROOT / "project.yml").read_text(encoding="utf-8"))
+version = match.group(1) if match else None
+if version is None:
+    problems.append("project.yml: no MARKETING_VERSION")
+app = node_of("SoftwareApplication") or {}
+if app.get("softwareVersion") != version:
+    problems.append(f"site/index.html: softwareVersion is {app.get('softwareVersion')!r}, project.yml says {version}")
+shown_versions = set(re.findall(r"<span data-version>v?([^<]+)</span>", html))
+if shown_versions != {version}:
+    problems.append(f"site/index.html: visible version {sorted(shown_versions)}, project.yml says {version}")
+llms = (SITE / "llms.txt").read_text(encoding="utf-8")
+if not re.search(rf"^- Current version: {re.escape(str(version))}\b", llms, re.M):
+    problems.append(f"site/llms.txt: no \"Current version: {version}\" line")
 
 # Sitemap.
 try:
-    xml.dom.minidom.parse(str(SITE / "sitemap.xml"))
+    sitemap = xml.dom.minidom.parse(str(SITE / "sitemap.xml"))
 except Exception as error:  # noqa: BLE001 — any parse failure is the finding
     problems.append(f"site/sitemap.xml: not well-formed ({error})")
+else:
+    lastmod = [node.firstChild.data.strip() if node.firstChild else "" for node in sitemap.getElementsByTagName("lastmod")]
+    modified = (node_of("WebPage") or {}).get("dateModified")
+    if lastmod != [modified]:
+        problems.append(f"site/sitemap.xml: lastmod {lastmod} doesn't match the page's dateModified {modified!r}")
 
 if problems:
     print("Site and README checks failed:")
@@ -78,4 +128,4 @@ if problems:
         print(f"  {problem}")
     sys.exit(1)
 
-print(f"All {checked} local references resolve; structured data, FAQ, and sitemap are valid.")
+print(f"All {checked} local references resolve; structured data, FAQ, version, and sitemap are valid.")

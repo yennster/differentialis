@@ -164,11 +164,11 @@
     .then((releases) => {
       if (!Array.isArray(releases) || releases.length === 0) return;
       const rel = releases.find((r) => (r.assets || []).some((a) => a.name && a.name.endsWith(".dmg"))) || releases[0];
-      const tag = rel.tag_name || "v0.2.2";
+      const tag = rel.tag_name;
       const dmg = (rel.assets || []).find((a) => a.name && a.name.endsWith(".dmg"));
       const url = dmg ? dmg.browser_download_url : rel.html_url;
       if (url) document.querySelectorAll("[data-dl]").forEach((a) => (a.href = url));
-      document.querySelectorAll("[data-version]").forEach((s) => (s.textContent = tag));
+      if (tag) document.querySelectorAll("[data-version]").forEach((s) => (s.textContent = tag));
     })
     .catch(() => {});
 })();

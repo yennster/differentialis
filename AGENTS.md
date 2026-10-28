@@ -437,7 +437,18 @@ summaries in step:
   questions drift apart.
 - `site/llms.txt` is a plain-text product summary for AI assistants; update it with
   feature or requirement changes.
-- Bump `<lastmod>` in `site/sitemap.xml` when the page content changes.
+- Bump `<lastmod>` in `site/sitemap.xml` and the `WebPage` node's `dateModified` together when
+  the page content changes; the check fails if they differ.
+- When `MARKETING_VERSION` changes, update the site's version too: both `data-version` spans,
+  `softwareVersion` in the JSON-LD, and the "Current version" line in `llms.txt`. The check
+  compares all three with `project.yml`, so a release bump fails CI until the site follows.
+- The FAQ check compares answer text as well as questions. Each visible answer is a single `<p>`
+  right after its `<summary>`; in the JSON-LD write `⌘N` as `Command-N` and drop HTML tags.
+- `site/404.html` is served for unknown paths, so its references are root-relative.
+  `site/vercel.json` redirects `/index.html` to `/`. `favicon.ico` and
+  `assets/icon-192.png` are `assets/icon.png` cropped to its squircle; `apple-touch-icon.png`
+  is the same crop over the icon's own vertical gradient, filled to the corners, because iOS
+  applies its own mask.
 - Screenshots live in `site/assets/screens/` (WebP); the README gallery reuses them.
 - The social card (`site/assets/og.jpg`) is generated from `tools/og-card/`: edit
   `card.html` and run `node tools/og-card/render.mjs` (needs Google Chrome).
@@ -446,7 +457,11 @@ summaries in step:
 
 `scripts/changelog.sh <version>` extracts release notes from `CHANGELOG.md`; it
 does not publish a release. Bump `MARKETING_VERSION` in `project.yml` and update
-the changelog when cutting one.
+the changelog when cutting one, and in the same commit bump the site's version
+(both `data-version` spans and `softwareVersion` in `site/index.html`, and the
+"Current version" line in `site/llms.txt`); `scripts/check-site.py` fails CI
+until they match. Publish the GitHub release promptly after that commit lands,
+since Vercel deploys `main` and the site then advertises the new version.
 
 `.github/workflows/release.yml` runs on a published GitHub Release or a manual
 tag input. It checks out that tag, builds on macOS 26/Xcode 26, overrides the

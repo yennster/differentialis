@@ -135,7 +135,7 @@ section { padding-inline: clamp(1rem, 4vw, 2.5rem); }
 }
 .sec-head { max-width: var(--maxw); margin: 0 auto clamp(2rem, 5vw, 3.5rem); }
 .sec-head.center { text-align: center; }
-.sec-head h2, .download h2 {
+.sec-head h2, .download h2, .download h1 {
   font-size: clamp(1.9rem, 4.4vw, 3.1rem); font-weight: 700; letter-spacing: -0.03em; line-height: 1.04;
 }
 
@@ -323,9 +323,11 @@ kbd {
 .download { max-width: var(--maxw); margin: clamp(5rem, 12vw, 9rem) auto; }
 .dl-card { text-align: center; padding: clamp(2.5rem, 6vw, 4.5rem) 1.5rem; position: relative; overflow: hidden; }
 .dl-card .mark { margin: 0 auto 1.4rem; }
-.dl-card h2 { margin-bottom: 0.8rem; }
+.dl-card h2, .dl-card h1 { margin-bottom: 0.8rem; }
 .dl-card p { color: var(--muted); max-width: 52ch; margin: 0 auto 1.8rem; }
 .dl-card .btn { margin: 0 auto 1rem; }
+.dl-card .cta-row { justify-content: center; }
+.dl-card .cta-row .btn { margin: 0; }
 .dl-card::after {
   content: ""; position: absolute; left: 50%; top: -40%; width: 70%; height: 80%;
   transform: translateX(-50%); pointer-events: none;
