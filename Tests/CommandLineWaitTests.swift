@@ -201,8 +201,7 @@ struct CommandLineWaitTests {
         #expect(!session.savedResolved)
         #expect(try String(contentsOf: output, encoding: .utf8).contains("<<<<<<< left"))
 
-        let conflict: MergeHunk = try #require(session.hunks.first(where: { $0.isConflict }))
-        session.resolve(hunk: conflict.id, as: .takeRight, lines: conflict.rightLines)
+        session.editResult("value = 3\nshared")
         #expect(session.hasUnsavedChanges)
         try session.write(to: output)
         #expect(session.savedResolved)
