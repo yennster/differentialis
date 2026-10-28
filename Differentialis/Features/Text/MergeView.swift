@@ -101,7 +101,7 @@ struct MergeView: View {
                     model.finishMerge(session)
                 }
             } label: {
-                Label(session.output == nil ? "Save Merged…" : "Save", systemImage: "square.and.arrow.down")
+                Label(session.savesToOutput ? "Save" : "Save Merged…", systemImage: "square.and.arrow.down")
             }
             .buttonStyle(.glass)
             .disabled(!session.loaded)
@@ -198,7 +198,8 @@ extension MergeSession {
 
         // Never silently write the left side over an unresolved conflict — warn, then emit
         // standard conflict markers so nothing is lost.
-        let conflictMarkersRemain = containsConflictMarkerFragment(resultText)
+        // A whole marker block: a lone ======= line is a Markdown or reStructuredText heading.
+        let conflictMarkersRemain = containsConflictMarkers(resultText)
         if (!resultDirty && unresolvedConflicts > 0) || conflictMarkersRemain {
             let alert = NSAlert()
             alert.alertStyle = .warning

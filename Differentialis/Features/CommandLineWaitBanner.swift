@@ -37,7 +37,7 @@ struct CommandLineWaitBanner: View {
         guard let session = comparison.mergeSession else {
             return "The command line is waiting. Click Done to move on."
         }
-        if let output = session.output {
+        if session.savesToOutput, let output = session.output {
             return "Save writes to \(output.path). Once no conflicts remain, saving returns to the command line."
         }
         return "The command line is waiting. Close this merge when you’re finished."

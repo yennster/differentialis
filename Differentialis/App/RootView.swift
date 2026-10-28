@@ -41,8 +41,16 @@ struct RootView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             model.showMainWindow = { [openWindow] in
-                guard !NSApp.windows.contains(where: { $0.isVisible && $0.canBecomeMain }) else { return }
-                if let minimized = NSApp.windows.first(where: \.isMiniaturized) {
+                if NSApp.isHidden {
+                    NSApp.unhide(nil)
+                    return
+                }
+                // The Settings window (SwiftUI's "com_apple_SwiftUI_Settings_window") doesn't count.
+                let mainWindows = NSApp.windows.filter {
+                    $0.canBecomeMain && $0.identifier?.rawValue.contains("Settings") != true
+                }
+                guard !mainWindows.contains(where: \.isVisible) else { return }
+                if let minimized = mainWindows.first(where: \.isMiniaturized) {
                     minimized.deminiaturize(nil)
                 } else {
                     openWindow(id: RootView.windowID)
