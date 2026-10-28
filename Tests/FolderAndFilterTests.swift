@@ -98,3 +98,69 @@ struct FilePropertiesTests {
         #expect(properties["Size"] == nil)
     }
 }
+
+@Suite("Content kind sniffing")
+struct ContentKindSniffTests {
+    /// Writes `data` to a temp file with no extension, so `kind` has to sniff the bytes.
+    private func kind(of data: Data) throws -> ComparisonSource.ContentKind {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DifferentialisSniff-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try data.write(to: url)
+        return ComparisonSource.file(url).kind
+    }
+
+    @Test("a multi-byte character straddling the sniff limit is still text")
+    func multiByteAcrossBoundary() throws {
+        // 4095 ASCII bytes then a 3-byte character: the 4096-byte prefix ends after its lead byte.
+        let cut1 = Data(String(repeating: "a", count: 4095).utf8) + Data("日本語のテキスト\n".utf8)
+        #expect(try kind(of: cut1) == .text)
+        // 4094 ASCII bytes: the prefix ends after the lead byte and one continuation byte.
+        let cut2 = Data(String(repeating: "a", count: 4094).utf8) + Data("日本語のテキスト\n".utf8)
+        #expect(try kind(of: cut2) == .text)
+        // A 4-byte emoji cut after three of its bytes.
+        let cut3 = Data(String(repeating: "a", count: 4093).utf8) + Data("🙂 done\n".utf8)
+        #expect(try kind(of: cut3) == .text)
+        // Japanese-only text well over the limit, whatever the alignment.
+        let japanese = Data(String(repeating: "こんにちは世界。", count: 300).utf8)
+        #expect(try kind(of: japanese) == .text)
+    }
+
+    @Test("UTF-16 with a BOM is text despite its NUL bytes")
+    func utf16WithBOM() throws {
+        let text = String(repeating: "hello world\n", count: 50)
+        let le = Data([0xFF, 0xFE]) + text.data(using: .utf16LittleEndian)!
+        let be = Data([0xFE, 0xFF]) + text.data(using: .utf16BigEndian)!
+        #expect(try kind(of: le) == .text)
+        #expect(try kind(of: be) == .text)
+        #expect(try kind(of: Data([0xEF, 0xBB, 0xBF]) + Data("hi\n".utf8)) == .text)
+    }
+
+    @Test("Latin-1 text without NULs is text")
+    func latin1() throws {
+        let latin1 = "Café crème, naïve façade, señor.\n".data(using: .isoLatin1)!
+        #expect(String(data: latin1, encoding: .utf8) == nil)
+        #expect(try kind(of: latin1) == .text)
+    }
+
+    @Test("real binary data is still binary")
+    func binary() throws {
+        var withNUL = Data("PK".utf8)
+        withNUL.append(contentsOf: [0x03, 0x04, 0x14, 0x00, 0x00, 0x00, 0x08, 0x00])
+        withNUL.append(contentsOf: (0..<5000).map { UInt8(truncatingIfNeeded: $0 &* 31) })
+        #expect(try kind(of: withNUL) == .binary)
+        // No NULs, not UTF-8, and full of control bytes.
+        let packed = Data((0..<4096).map { UInt8(1 + ($0 &* 37) % 255) })
+        #expect(try kind(of: packed) == .binary)
+    }
+
+    @Test("an invalid sequence that isn't at the boundary is not trimmed away")
+    func trimOnlyIncompleteTail() {
+        let complete = Data("ab日".utf8)
+        #expect(ComparisonSource.trimmingIncompleteUTF8Tail(complete) == complete)
+        #expect(ComparisonSource.trimmingIncompleteUTF8Tail(complete.dropLast()) == Data("ab".utf8))
+        #expect(ComparisonSource.trimmingIncompleteUTF8Tail(complete.dropLast(2)) == Data("ab".utf8))
+        let ascii = Data("plain".utf8)
+        #expect(ComparisonSource.trimmingIncompleteUTF8Tail(ascii) == ascii)
+    }
+}

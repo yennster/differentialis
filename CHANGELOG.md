@@ -11,6 +11,12 @@ When cutting a release, add a section here and use it as the release notes:
 ## [Unreleased]
 
 ### Fixed
+- Text files with no recognised extension (`Makefile`, `.env`, `notes`, …) no longer open as
+  **binary** when they contain non-ASCII text
+  ([#14](https://github.com/yennster/differentialis/issues/14)). A multi-byte character that
+  straddles the 4 KB sniff no longer breaks detection, UTF-16 and UTF-8 files with a BOM are
+  recognised as text, and NUL-free Latin-1 / Windows-1252 text diffs instead of showing the
+  size/SHA card.
 - A **3-way merge** now keeps your conflict choices, line-ending choice, Result edits, and
   Review/Result tab when you switch to another sidebar item and back
   ([#11](https://github.com/yennster/differentialis/issues/11)). **Refresh** (`⌘R`) and **Close**
