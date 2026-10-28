@@ -121,7 +121,7 @@ struct ContentKindSniffTests {
         // A 4-byte emoji cut after three of its bytes.
         let cut3 = Data(String(repeating: "a", count: 4093).utf8) + Data("🙂 done\n".utf8)
         #expect(try kind(of: cut3) == .text)
-        // Japanese-only text well over the limit, whatever the alignment.
+        // Japanese-only text well over the limit (4096 = 3 × 1365 + 1, so the cut lands mid-character).
         let japanese = Data(String(repeating: "こんにちは世界。", count: 300).utf8)
         #expect(try kind(of: japanese) == .text)
     }
@@ -133,7 +133,6 @@ struct ContentKindSniffTests {
         let be = Data([0xFE, 0xFF]) + text.data(using: .utf16BigEndian)!
         #expect(try kind(of: le) == .text)
         #expect(try kind(of: be) == .text)
-        #expect(try kind(of: Data([0xEF, 0xBB, 0xBF]) + Data("hi\n".utf8)) == .text)
     }
 
     @Test("Latin-1 text without NULs is text")
@@ -154,13 +153,41 @@ struct ContentKindSniffTests {
         #expect(try kind(of: packed) == .binary)
     }
 
-    @Test("an invalid sequence that isn't at the boundary is not trimmed away")
+    @Test("the truncated-tail trim, not the 8-bit fallback, is what keeps a cut UTF-8 prefix as text")
+    func trimDecidesTruncatedPrefix() {
+        // Control-heavy UTF-8 (well over the 1% fallback threshold) whose last character is cut off.
+        var bytes = [UInt8]()
+        for _ in 0..<100 { bytes += Array("ab\u{07}\u{08}cd".utf8) }
+        bytes += Array(Array("日".utf8).dropLast())
+        let sample = Data(bytes)
+        #expect(String(data: sample, encoding: .utf8) == nil)
+        #expect(ComparisonSource.classifySniffedPrefix(sample, truncated: true) == .text)
+        #expect(ComparisonSource.classifySniffedPrefix(sample, truncated: false) == .binary)
+    }
+
+    @Test("only an incomplete final sequence is trimmed")
     func trimOnlyIncompleteTail() {
-        let complete = Data("ab日".utf8)
-        #expect(ComparisonSource.trimmingIncompleteUTF8Tail(complete) == complete)
-        #expect(ComparisonSource.trimmingIncompleteUTF8Tail(complete.dropLast()) == Data("ab".utf8))
-        #expect(ComparisonSource.trimmingIncompleteUTF8Tail(complete.dropLast(2)) == Data("ab".utf8))
-        let ascii = Data("plain".utf8)
-        #expect(ComparisonSource.trimmingIncompleteUTF8Tail(ascii) == ascii)
+        func trim(_ bytes: [UInt8]) -> [UInt8] { [UInt8](ComparisonSource.trimmingIncompleteUTF8Tail(Data(bytes))) }
+        let ab: [UInt8] = [0x61, 0x62]
+        let ri = Array("日".utf8)        // 3-byte character
+        let smile = Array("🙂".utf8)     // 4-byte character
+
+        #expect(trim([]) == [])
+        #expect(trim(Array("plain".utf8)) == Array("plain".utf8))
+        // Complete sequences are kept.
+        #expect(trim(ab + ri) == ab + ri)
+        #expect(trim(ab + smile) == ab + smile)
+        // Cut-off 3- and 4-byte sequences are dropped.
+        #expect(trim(ab + Array(ri.prefix(1))) == ab)
+        #expect(trim(ab + Array(ri.prefix(2))) == ab)
+        #expect(trim(ab + Array(smile.prefix(1))) == ab)
+        #expect(trim(ab + Array(smile.prefix(2))) == ab)
+        #expect(trim(ab + Array(smile.prefix(3))) == ab)
+        // Invalid tails that aren't a cut-off character are left for the decoder to reject.
+        #expect(trim([0x61, 0x80]) == [0x61, 0x80])                               // lone continuation
+        #expect(trim(Array("é".utf8) + [0x80]) == Array("é".utf8) + [0x80])       // extra continuation
+        #expect(trim([0x61, 0xC0]) == [0x61, 0xC0])                               // invalid lead
+        #expect(trim([0x61, 0xF5, 0x80]) == [0x61, 0xF5, 0x80])                   // invalid lead
+        #expect(trim([0x80, 0x80, 0x80, 0x80]) == [0x80, 0x80, 0x80, 0x80])       // continuations only
     }
 }

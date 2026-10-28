@@ -113,9 +113,10 @@ enum ComparisonSource: Hashable {
     static let sniffLimit = 4096
 
     /// Classifies a sniffed prefix as text or binary. `truncated` means the prefix may end partway
-    /// through the file (and so partway through a multi-byte UTF-8 character). Mirrors what
-    /// `decodeText` can actually decode: BOM-marked UTF-8/UTF-16, plain UTF-8, and NUL-free 8-bit
-    /// text (Latin-1/Windows-1252) all count as text; NULs or many control bytes mean binary.
+    /// through the file (and so partway through a multi-byte UTF-8 character). Follows what
+    /// `decodeText` handles well: BOM-marked UTF-8/UTF-16, plain UTF-8, and NUL-free 8-bit text
+    /// (shown via its Latin-1 fallback) count as text; NULs or many control bytes mean binary.
+    /// BOM-less UTF-16 still sniffs as binary because of its NULs.
     static func classifySniffedPrefix(_ sample: Data, truncated: Bool) -> ContentKind {
         if sample.isEmpty { return .text }
         if sample.starts(with: [0xEF, 0xBB, 0xBF])              // UTF-8 BOM
@@ -129,8 +130,11 @@ enum ComparisonSource: Hashable {
         // Not UTF-8 and no NULs: 8-bit text (decoded via the Latin-1 fallback) has almost no C0
         // control bytes besides tab/LF/FF/CR/ESC, whereas compressed or packed data is full of them.
         let controls = sample.reduce(0) { count, byte in
-            let isControl = (byte < 0x20 && ![0x09, 0x0A, 0x0C, 0x0D, 0x1B].contains(byte)) || byte == 0x7F
-            return count + (isControl ? 1 : 0)
+            switch byte {
+            case 0x09, 0x0A, 0x0C, 0x0D, 0x1B: return count       // tab, LF, FF, CR, ESC
+            case 0x00..<0x20, 0x7F: return count + 1
+            default: return count
+            }
         }
         return controls * 100 <= sample.count ? .text : .binary   // ≤ 1% control bytes ⇒ text
     }
