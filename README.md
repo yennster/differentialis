@@ -10,7 +10,8 @@ with three-way merge and git built in.
 
 **[differentialis.app](https://www.differentialis.app)** ·
 [Download](https://github.com/yennster/differentialis/releases/latest) ·
-[Changelog](CHANGELOG.md)
+[Changelog](CHANGELOG.md) ·
+[Sponsor](https://github.com/sponsors/yennster)
 
 Written in SwiftUI with Apple's Liquid Glass. The diff, merge, and git engines have no
 third-party dependencies; [Sparkle](https://sparkle-project.org) is the lone dependency, used

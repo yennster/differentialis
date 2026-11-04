@@ -53,3 +53,4 @@ Key facts:
 ## Optional
 
 - [License (MIT)](https://raw.githubusercontent.com/yennster/differentialis/main/LICENSE)
+- [Sponsor the project on GitHub Sponsors](https://github.com/sponsors/yennster)

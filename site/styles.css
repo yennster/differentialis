@@ -344,7 +344,7 @@ kbd {
 }
 .foot-left { display: flex; align-items: center; gap: 0.6rem; color: var(--muted); font-weight: 600; }
 .foot-left .mark { width: 20px; height: 20px; }
-.foot-links { display: flex; gap: 1.4rem; }
+.foot-links { display: flex; flex-wrap: wrap; gap: 0.6rem 1.4rem; }
 .foot-links a { color: var(--muted); transition: color 0.25s; }
 .foot-links a:hover { color: var(--ink); }
 
