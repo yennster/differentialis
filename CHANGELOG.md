@@ -10,6 +10,10 @@ When cutting a release, add a section here and use it as the release notes:
 
 ## [Unreleased]
 
+### Added
+- A **Sponsor** link to [GitHub Sponsors](https://github.com/sponsors/yennster) on the website,
+  in the README, and as the repository's Sponsor button (`.github/FUNDING.yml`).
+
 ## [0.4.0] — 2026-10-28
 
 ### Added
