@@ -10,12 +10,20 @@ When cutting a release, add a section here and use it as the release notes:
 
 ## [Unreleased]
 
+### Added
+- **Conflict navigation in 3-way merges.** **Next Change** / **Previous Change** (`⌘]` / `⌘[`) now
+  work in merge Review: they step through unresolved conflicts, wrapping at either end, and through
+  every changed region once all conflicts are resolved. The header's conflict count is now a button
+  that jumps to the first unresolved conflict
+  ([#23](https://github.com/yennster/differentialis/issues/23)).
+
 ### Fixed
 - A **Custom Comparison** or **saved comparison** can now be refreshed: the new **Refresh** toolbar
-  button, or **View ▸ Refresh** (`⌘R`), re-reads its file list, so a comparison against the **Working Copy** picks up files you
-  edit, stage, create, or revert after opening it, and reloads the open file's diff. The selected
-  file stays selected when it is still listed, even if its status changed (an untracked file you
-  stage, for example) ([#16](https://github.com/yennster/differentialis/issues/16)).
+  button, or **View ▸ Refresh** (`⌘R`), re-reads its file list, so a comparison against the
+  **Working Copy** picks up files you edit, stage, create, or revert after opening it, and reloads
+  the open file's diff. The selected file stays selected when it is still listed, even if its
+  status changed (an untracked file you stage, for example)
+  ([#16](https://github.com/yennster/differentialis/issues/16)).
 
 ## [0.4.0] — 2026-10-28
 

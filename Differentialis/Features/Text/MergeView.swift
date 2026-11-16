@@ -21,6 +21,12 @@ func containsConflictMarkerFragment(_ text: String) -> Bool {
 struct MergeView: View {
     @Bindable var session: MergeSession
     @Environment(AppModel.self) private var model
+    /// The region Next/Previous Change last moved to, highlighted in Review.
+    @State private var currentStopID: UUID?
+    /// Bumped on every navigation so pressing ⌘] on the only conflict scrolls back to it.
+    @State private var scrollRequest = 0
+    /// Scroll identity for the line-ending choice, which is not a hunk.
+    @State private var lineStyleStopID = UUID()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -32,23 +38,7 @@ struct MergeView: View {
             } else if !session.loaded {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if session.presentation == .review {
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        if session.lineStyleConflict {
-                            LineStyleConflictBlock(base: session.baseLineStyle,
-                                                   left: session.leftLineStyle,
-                                                   right: session.rightLineStyle,
-                                                   choose: session.resolveLineStyle)
-                        }
-                        ForEach(session.hunks) { hunk in
-                            HunkBlock(hunk: hunk) { source in
-                                session.resolve(hunk: hunk.id, as: source)
-                            }
-                        }
-                    }
-                    .padding(.vertical, 6)
-                }
-                .background(Theme.well)
+                review
             } else {
                 resultEditor
             }
@@ -57,10 +47,82 @@ struct MergeView: View {
         // The session outlives this view, so coming back to an already-loaded merge keeps its
         // choices and edits instead of re-reading the sources.
         .task { if session.needsLoad { await session.load() } }
-        .focusedSceneValue(\.diffCommands, DiffCommandActions(refresh: {
-            guard session.confirmDiscardingChanges(before: .reload) else { return }
-            Task { await session.load() }
-        }))
+        .focusedSceneValue(\.diffCommands, DiffCommandActions(
+            nextChange: canNavigate ? { navigate(1) } : nil,
+            prevChange: canNavigate ? { navigate(-1) } : nil,
+            refresh: {
+                guard session.confirmDiscardingChanges(before: .reload) else { return }
+                currentStopID = nil
+                Task { await session.load() }
+            }))
+    }
+
+    private var review: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    if session.lineStyleConflict {
+                        LineStyleConflictBlock(base: session.baseLineStyle,
+                                               left: session.leftLineStyle,
+                                               right: session.rightLineStyle,
+                                               isCurrent: currentStopID == lineStyleStopID,
+                                               choose: session.resolveLineStyle)
+                            .id(lineStyleStopID)
+                    }
+                    ForEach(session.hunks) { hunk in
+                        HunkBlock(hunk: hunk, isCurrent: hunk.id == currentStopID) { source in
+                            session.resolve(hunk: hunk.id, as: source)
+                            // Navigation carries on from the hunk the user just worked on.
+                            currentStopID = hunk.id
+                        }
+                        .id(hunk.id)
+                    }
+                }
+                .padding(.vertical, 6)
+            }
+            .background(Theme.well)
+            .onChange(of: scrollRequest) { _, _ in
+                guard let id = currentStopID else { return }
+                withAnimation(.easeInOut(duration: 0.25)) { proxy.scrollTo(id, anchor: .center) }
+            }
+            // The conflict chip can switch from Result to Review, which mounts this list after the
+            // request was made, so a pending target is honoured on appear as well.
+            .onAppear {
+                // Deferred a turn so the lazy list has laid out before scrollTo runs.
+                guard currentStopID != nil else { return }
+                Task { @MainActor in scrollRequest &+= 1 }
+            }
+        }
+    }
+
+    // MARK: - Navigation
+
+    private var navigationStops: [MergeNavigation.Stop] {
+        MergeNavigation.stops(hunks: session.hunks, lineStyleConflict: session.lineStyleConflict,
+                              lineStyleID: lineStyleStopID)
+    }
+
+    /// ⌘] / ⌘[ act on the Review list; the Result editor keeps its own text navigation.
+    private var canNavigate: Bool {
+        session.loaded && session.loadError == nil && session.presentation == .review
+            && navigationStops.contains { $0.changed }
+    }
+
+    private func navigate(_ delta: Int) {
+        guard let target = MergeNavigation.target(from: currentStopID, delta: delta, in: navigationStops)
+        else { return }
+        move(to: target)
+    }
+
+    private func jumpToFirstConflict() {
+        guard let target = MergeNavigation.firstUnresolvedConflict(in: navigationStops) else { return }
+        session.presentation = .review
+        move(to: target)
+    }
+
+    private func move(to id: UUID) {
+        currentStopID = id
+        scrollRequest &+= 1
     }
 
     private var header: some View {
@@ -85,8 +147,14 @@ struct MergeView: View {
             }
             if session.unresolvedConflicts > 0 {
                 let count = session.unresolvedConflicts
-                StatChip(text: "\(count) conflict\(count == 1 ? "" : "s")",
-                         color: Theme.conflict, systemImage: "exclamationmark.triangle.fill")
+                Button(action: jumpToFirstConflict) {
+                    StatChip(text: "\(count) conflict\(count == 1 ? "" : "s")",
+                             color: Theme.conflict, systemImage: "exclamationmark.triangle.fill")
+                }
+                .buttonStyle(.plain)
+                .help("Show the first unresolved conflict (⌘] for the next)")
+                .accessibilityLabel("\(count) unresolved conflict\(count == 1 ? "" : "s")")
+                .accessibilityHint("Shows the first unresolved conflict")
             } else if session.loaded {
                 StatChip(text: "Resolved", color: Theme.added, systemImage: "checkmark.seal.fill")
             }
@@ -245,6 +313,7 @@ private struct LineStyleConflictBlock: View {
     let base: TextLineStyle
     let left: TextLineStyle
     let right: TextLineStyle
+    var isCurrent = false
     let choose: (TextLineStyle) -> Void
 
     var body: some View {
@@ -262,6 +331,7 @@ private struct LineStyleConflictBlock: View {
         .padding(12)
         .background(Theme.conflict.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Theme.conflict.opacity(0.4)))
+        .currentMergeStop(isCurrent, cornerRadius: 10)
         .padding(.horizontal, 12).padding(.vertical, 4)
     }
 
@@ -282,6 +352,7 @@ private struct LineStyleConflictBlock: View {
 
 private struct HunkBlock: View {
     let hunk: MergeHunk
+    var isCurrent = false
     let choose: (MergeResolution) -> Void
 
     var body: some View {
@@ -320,6 +391,7 @@ private struct HunkBlock: View {
         .padding(10)
         .background(hunk.resolution.tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(hunk.resolution.tint.opacity(0.25)))
+        .currentMergeStop(isCurrent, cornerRadius: 8)
         .padding(.horizontal, 12).padding(.vertical, 3)
     }
 
@@ -349,6 +421,7 @@ private struct HunkBlock: View {
         .padding(12)
         .background(Theme.conflict.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Theme.conflict.opacity(0.4)))
+        .currentMergeStop(isCurrent, cornerRadius: 10)
         .padding(.horizontal, 12).padding(.vertical, 4)
     }
 
@@ -391,5 +464,22 @@ private struct HunkBlock: View {
             .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private extension View {
+    /// Marks the region Next/Previous Change moved to, with the same brand tint the text diff
+    /// uses for its current change.
+    func currentMergeStop(_ isCurrent: Bool, cornerRadius: CGFloat) -> some View {
+        overlay {
+            if isCurrent {
+                ZStack {
+                    RoundedRectangle(cornerRadius: cornerRadius).fill(Theme.brand.opacity(0.12))
+                    RoundedRectangle(cornerRadius: cornerRadius)
+                        .strokeBorder(Theme.brand.opacity(0.6), lineWidth: 1.5)
+                }
+                .allowsHitTesting(false)
+            }
+        }
     }
 }
