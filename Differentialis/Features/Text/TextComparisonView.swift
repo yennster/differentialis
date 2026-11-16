@@ -67,6 +67,8 @@ struct TextComparisonView: View {
     let b: ComparisonSource
     /// Extra controls appended to the toolbar (the pasted-text comparison's Edit / Diff switch).
     var accessory: AnyView? = nil
+    @Environment(\.changesetRefresh) private var changesetRefresh
+    @Environment(\.changesetRevision) private var changesetRevision
 
     @State private var document: DiffDocument?
     @AppStorage("diffLayoutUnified") private var unified = false
@@ -94,7 +96,7 @@ struct TextComparisonView: View {
             nextChange: { navigate(1) },
             prevChange: { navigate(-1) },
             toggleLayout: { unified.toggle() },
-            refresh: { Task { await load() } }))
+            refresh: { refresh() }))
         .focusable()
         .focusEffectDisabled()
         .onKeyPress("]") { navigate(1); return .handled }
@@ -102,7 +104,13 @@ struct TextComparisonView: View {
     }
 
     private var taskKey: String {
-        "\(a.displayName)|\(b.displayName)|\(a.subtitle)|\(b.subtitle)|\(whitespacePolicy.rawValue)"
+        "\(a.displayName)|\(b.displayName)|\(a.subtitle)|\(b.subtitle)|\(whitespacePolicy.rawValue)|\(changesetRevision)"
+    }
+
+    /// Inside an open changeset, refreshing the changeset also reloads this file (its revision is
+    /// part of `taskKey`); elsewhere this just reloads the file.
+    private func refresh() {
+        if let changesetRefresh { changesetRefresh() } else { Task { await load() } }
     }
 
     @ViewBuilder

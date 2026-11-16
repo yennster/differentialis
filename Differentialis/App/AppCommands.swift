@@ -14,6 +14,15 @@ struct DiffCommandActions {
     var copyChangeToB: (() -> Void)? = nil
 }
 
+extension EnvironmentValues {
+    /// Set by an open changeset (`ChangesetDetailView`): refreshes its file list. A comparison
+    /// view inside it routes its Refresh (⌘R) here, so ⌘R picks up new and reverted files too.
+    @Entry var changesetRefresh: (@MainActor () -> Void)? = nil
+    /// Counts an open changeset's refreshes. Comparison views fold it into their load key, so a
+    /// refresh reloads the open file in place instead of rebuilding the view.
+    @Entry var changesetRevision = 0
+}
+
 struct DiffCommandsKey: FocusedValueKey {
     typealias Value = DiffCommandActions
 }

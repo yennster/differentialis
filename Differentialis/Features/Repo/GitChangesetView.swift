@@ -10,11 +10,11 @@ struct GitChangesetView: View {
     let aLabel: String
     let b: GitSide
     let bLabel: String
-    /// Bumped each time the changeset is refreshed, so the selected file's diff reloads from disk
-    /// and git even when the refreshed list still contains the same row.
-    var revision = 0
 
     @State private var selection: GitChangedFile.ID?
+    /// The selected row's path. A refresh can change a row's status and so its ID (an untracked
+    /// file becomes added once staged); the path keeps the same file selected and shown.
+    @State private var selectedPath: String?
     @State private var listCollapsed = false
     @State private var filter = GitFileFilter()
 
@@ -56,7 +56,10 @@ struct GitChangesetView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .onChange(of: filter) { _, _ in keepSelectionVisible() }
-            .onChange(of: files) { previous, _ in keepSelectionVisible(previousFiles: previous) }
+            .onChange(of: files) { _, _ in keepSelectionVisible() }
+            .onChange(of: selection) { _, newSelection in
+                if let path = files.first(where: { $0.id == newSelection })?.path { selectedPath = path }
+            }
             .onAppear { keepSelectionVisible() }
         }
     }
@@ -115,9 +118,10 @@ struct GitChangesetView: View {
     // RepositoryView's detail panes).
     private var detail: some View {
         ZStack {
-            if let file = filteredFiles.first(where: { $0.id == selection }) ?? filteredFiles.first {
+            if let id = GitChangedFile.selection(keeping: selection, path: selectedPath, in: filteredFiles),
+               let file = filteredFiles.first(where: { $0.id == id }) {
                 ComparisonDetailView(comparison: repo.makeComparison(file: file, a: a, aLabel: aLabel, b: b, bLabel: bLabel))
-                    .id("\(file.id)\u{1f}\(revision)")
+                    .id(file.id)
             } else {
                 ContentUnavailableView("Select a file", systemImage: "sidebar.left")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -125,9 +129,7 @@ struct GitChangesetView: View {
         }
     }
 
-    /// `previousFiles` is the list before a refresh, used to find the selected row's path.
-    private func keepSelectionVisible(previousFiles: [GitChangedFile]? = nil) {
-        let selectedPath = (previousFiles ?? files).first { $0.id == selection }?.path
+    private func keepSelectionVisible() {
         let kept = GitChangedFile.selection(keeping: selection, path: selectedPath, in: filteredFiles)
         if kept != selection { selection = kept }
     }

@@ -17,3 +17,28 @@ struct Unchecked<Value>: @unchecked Sendable {
     let value: Value
     init(_ value: Value) { self.value = value }
 }
+
+/// Tracks the newest request for each key, so async work that a newer request (or a cancel)
+/// superseded can tell its result is stale and drop it.
+struct LatestRequests<Key: Hashable> {
+    private var pending: [Key: UUID] = [:]
+
+    func isPending(_ key: Key) -> Bool { pending[key] != nil }
+
+    /// Starts a request for `key`, superseding any earlier one.
+    mutating func begin(_ key: Key) -> UUID {
+        let request = UUID()
+        pending[key] = request
+        return request
+    }
+
+    /// True when `request` is still the newest for `key`; it is then no longer pending.
+    mutating func finish(_ key: Key, _ request: UUID) -> Bool {
+        guard pending[key] == request else { return false }
+        pending[key] = nil
+        return true
+    }
+
+    /// Drops the pending request for `key`, so its result is ignored when it finishes.
+    mutating func cancel(_ key: Key) { pending[key] = nil }
+}

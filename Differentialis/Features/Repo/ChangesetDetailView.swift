@@ -23,8 +23,11 @@ struct ChangesetDetailView: View {
             GitChangesetView(repo: changeset.repo,
                              files: changeset.resolved.files,
                              a: changeset.resolved.a, aLabel: changeset.resolved.aLabel,
-                             b: changeset.resolved.b, bLabel: changeset.resolved.bLabel,
-                             revision: changeset.revision)
+                             b: changeset.resolved.b, bLabel: changeset.resolved.bLabel)
+            .environment(\.changesetRevision, changeset.revision)
+            .environment(\.changesetRefresh, { [model, id = changeset.id] in
+                Task { await model.refreshChangeset(id) }
+            })
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -32,7 +35,7 @@ struct ChangesetDetailView: View {
                 Button { Task { await model.refreshChangeset(id) } } label: {
                     Image(systemName: "arrow.clockwise")
                 }
-                .help("Refresh file list")
+                .help("Refresh file list (⌘R)")
                 .disabled(model.isRefreshingChangeset(id))
             }
         }

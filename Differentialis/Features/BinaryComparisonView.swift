@@ -21,9 +21,10 @@ struct BinaryComparisonView: View {
 
     @State private var result: Result?
     @State private var loadRequest: UUID?
+    @Environment(\.changesetRevision) private var changesetRevision
 
     private var taskKey: String {
-        "\(a.displayName)|\(a.subtitle)|\(b.displayName)|\(b.subtitle)"
+        "\(a.displayName)|\(a.subtitle)|\(b.displayName)|\(b.subtitle)|\(changesetRevision)"
     }
 
     var body: some View {

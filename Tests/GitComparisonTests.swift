@@ -425,6 +425,26 @@ struct GitComparisonTests {
         #expect(GitChangedFile.selection(keeping: nil, path: nil, in: [added, other]) == added.id)
         #expect(GitChangedFile.selection(keeping: modified.id, path: modified.path, in: []) == nil)
     }
+
+    @Test("only the newest changeset refresh lands, and a close drops it")
+    func latestRequestsSupersede() {
+        var requests = LatestRequests<String>()
+        let first = requests.begin("changeset")
+        let second = requests.begin("changeset")
+        #expect(requests.isPending("changeset"))
+        #expect(!requests.finish("changeset", first))
+        #expect(requests.isPending("changeset"))
+        #expect(requests.finish("changeset", second))
+        #expect(!requests.isPending("changeset"))
+        #expect(!requests.finish("changeset", second))
+
+        let closed = requests.begin("changeset")
+        let other = requests.begin("other")
+        requests.cancel("changeset")
+        #expect(!requests.isPending("changeset"))
+        #expect(!requests.finish("changeset", closed))
+        #expect(requests.finish("other", other))
+    }
 }
 
 private final class TemporaryGitRepository {

@@ -24,6 +24,8 @@ enum ImageMode: Int, CaseIterable, Hashable {
 struct ImageComparisonView: View {
     let a: ComparisonSource
     let b: ComparisonSource
+    @Environment(\.changesetRefresh) private var changesetRefresh
+    @Environment(\.changesetRevision) private var changesetRevision
 
     @State private var loadedAImage: NSImage?
     @State private var loadedBImage: NSImage?
@@ -53,7 +55,10 @@ struct ImageComparisonView: View {
         .focusedSceneValue(\.diffCommands, DiffCommandActions(
             setImageMode: { mode = ImageMode(rawValue: $0) ?? mode },
             swapAB: { swapped.toggle() },
-            refresh: { Task { await load() } }))
+            refresh: {
+                // Inside an open changeset, its refresh also reloads this file (see taskKey).
+                if let changesetRefresh { changesetRefresh() } else { Task { await load() } }
+            }))
         .focusable()
         .focusEffectDisabled()
         .onKeyPress(.space) {
@@ -79,7 +84,7 @@ struct ImageComparisonView: View {
         }
     }
 
-    private var taskKey: String { "\(a.subtitle)|\(b.subtitle)|\(a.displayName)|\(b.displayName)" }
+    private var taskKey: String { "\(a.subtitle)|\(b.subtitle)|\(a.displayName)|\(b.displayName)|\(changesetRevision)" }
     private var differenceTaskKey: String {
         "\(mode.rawValue)|\(imageRevision?.uuidString ?? "loading")"
     }
