@@ -10,6 +10,13 @@ When cutting a release, add a section here and use it as the release notes:
 
 ## [Unreleased]
 
+### Added
+- **Conflict navigation in 3-way merges.** **Next Change** / **Previous Change** (`⌘]` / `⌘[`) now
+  work in merge Review: they step through unresolved conflicts, wrapping at either end, and through
+  every changed region once all conflicts are resolved. The header's conflict count is now a button
+  that jumps to the first unresolved conflict
+  ([#23](https://github.com/yennster/differentialis/issues/23)).
+
 ## [0.4.0] — 2026-10-28
 
 ### Added
