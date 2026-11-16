@@ -45,7 +45,7 @@ new version in place.
   - **Difference** (false-color — only the changed pixels glow)
   - …with synced zoom/pan, explicit Fit/zoom controls, an accessible split divider, and a pixel-dimension readout.
 - **Folder diff** — recursive scan classifying every file as **Added / Removed / Modified / Identical**, with changes-only, name, and status filters plus click-through to the right diff for each file.
-- **3-way merge** — base / left / right with an editable result, per-hunk **take left / right / both / base**, content and line-ending conflict resolution, and save-merged output.
+- **3-way merge** — base / left / right with an editable result, per-hunk **take left / right / both / base**, content and line-ending conflict resolution, `⌘]` / `⌘[` to step between unresolved conflicts, and save-merged output.
 - **Git integration** — open any repository to browse its **commit history** or flip to a **changed-files** view with correct reference/index/working-tree snapshots, grouped by folder and filterable by name, extension, or status. A persistent **Projects** sidebar keeps your opened repositories one click away. Uses the system `git`, no libgit2.
 - **Custom Comparison** — a Liquid Glass popover to compare **any** _Reference_ or _Commit_ (pick from history or **paste a commit hash**) against the **Working Copy**, another _Reference_, or _Commit_ — with swap, and **Save** to revisit named comparisons later.
 - **Appearance & themes** — Light, Dark, or Auto (follows the system), with a theme per appearance: Differentialis, Mariana, Monokai, One Dark, Solarized, and GitHub. Build your own in the theme editor, import JSON or `.tmTheme` color schemes, and pick the code font family and size (`⌘+` / `⌘−` / `⌘0`, or pinch). All in **Settings** (`⌘,`).
