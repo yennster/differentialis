@@ -379,6 +379,81 @@ struct GitComparisonTests {
         #expect(try comparison.b.loadText() == "working\n")
     }
 
+    @Test("re-resolving a Working Copy changeset picks up edits, new files, and reverts")
+    func workingCopyChangesetRefresh() throws {
+        let fixture = try TemporaryGitRepository()
+        try fixture.write("a\n", to: "a.txt")
+        try fixture.write("b\n", to: "b.txt")
+        try fixture.commitAll("base")
+        try fixture.write("a changed\n", to: "a.txt")
+
+        let opened = try fixture.repository.customChangeset(
+            a: .reference("HEAD"), b: .workingCopy(.all))
+        #expect(opened.files.map(\.path) == ["a.txt"])
+
+        try fixture.write("a\n", to: "a.txt")
+        try fixture.write("b changed\n", to: "b.txt")
+        try fixture.write("new\n", to: "new.txt")
+        let refreshed = try fixture.repository.customChangeset(
+            a: .reference("HEAD"), b: .workingCopy(.all))
+        #expect(Set(refreshed.files.map(\.path)) == ["b.txt", "new.txt"])
+
+        // Staging the new file can change its row's status, and with it the row's ID. The
+        // selection follows the path rather than falling back to the first row.
+        let selected = try #require(refreshed.files.first { $0.path == "new.txt" })
+        try fixture.git(["add", "--", "new.txt"])
+        let staged = try fixture.repository.customChangeset(
+            a: .reference("HEAD"), b: .workingCopy(.all))
+        let stagedRow = try #require(staged.files.first { $0.path == "new.txt" })
+        #expect(stagedRow.id != selected.id)
+        #expect(GitChangedFile.selection(keeping: selected.id, path: selected.path, in: staged.files)
+                == stagedRow.id)
+    }
+
+    @Test("a refreshed list keeps the selected row, else its path, else the first row")
+    func changesetSelectionAcrossRefresh() {
+        let modified = GitChangedFile(path: "src/a.swift", status: .modified)
+        let untracked = GitChangedFile(path: "src/new.swift", status: .untracked)
+        let added = GitChangedFile(path: "src/new.swift", status: .added)
+        let other = GitChangedFile(path: "README.md", status: .modified)
+
+        #expect(GitChangedFile.selection(keeping: modified.id, path: modified.path,
+                                         in: [other, modified]) == modified.id)
+        #expect(GitChangedFile.selection(keeping: untracked.id, path: untracked.path,
+                                         in: [other, added]) == added.id)
+        #expect(GitChangedFile.selection(keeping: modified.id, path: modified.path,
+                                         in: [other, added]) == other.id)
+        #expect(GitChangedFile.selection(keeping: nil, path: nil, in: [added, other]) == added.id)
+        #expect(GitChangedFile.selection(keeping: modified.id, path: modified.path, in: []) == nil)
+    }
+
+    @Test("only the newest changeset refresh lands, and a close drops it")
+    func latestRequestsSupersede() {
+        // `finish` is mutating, which `#expect` can't call inside its expansion, so each result
+        // is taken first.
+        var requests = LatestRequests<String>()
+        let first = requests.begin("changeset")
+        let second = requests.begin("changeset")
+        #expect(requests.isPending("changeset"))
+        let firstLanded = requests.finish("changeset", first)
+        #expect(!firstLanded)
+        #expect(requests.isPending("changeset"))
+        let secondLanded = requests.finish("changeset", second)
+        #expect(secondLanded)
+        #expect(!requests.isPending("changeset"))
+        let secondLandedTwice = requests.finish("changeset", second)
+        #expect(!secondLandedTwice)
+
+        let closed = requests.begin("changeset")
+        let other = requests.begin("other")
+        requests.cancel("changeset")
+        #expect(!requests.isPending("changeset"))
+        let closedLanded = requests.finish("changeset", closed)
+        #expect(!closedLanded)
+        let otherLanded = requests.finish("other", other)
+        #expect(otherLanded)
+    }
+
     @Test("eol=crlf snapshots read as checked out, so HEAD vs Working Copy has no line-ending noise")
     func checkoutLineEndings() throws {
         let fixture = try TemporaryGitRepository()

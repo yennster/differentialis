@@ -27,6 +27,12 @@ When cutting a release, add a section here and use it as the release notes:
   30 seconds, the stored blob is shown as before, and LFS files over 256 MB are compared as their
   pointer rather than downloaded. Homebrew and MacPorts locations are searched for filter
   programs such as `git-lfs`, so LFS repositories also work when the app is opened from Finder.
+- A **Custom Comparison** or **saved comparison** can now be refreshed: the new **Refresh** toolbar
+  button, or **View ▸ Refresh** (`⌘R`), re-reads its file list, so a comparison against the
+  **Working Copy** picks up files you edit, stage, create, or revert after opening it, and reloads
+  the open file's diff. The selected file stays selected when it is still listed, even if its
+  status changed (an untracked file you stage, for example)
+  ([#16](https://github.com/yennster/differentialis/issues/16)).
 
 ## [0.4.0] — 2026-10-28
 

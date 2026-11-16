@@ -11,7 +11,11 @@ struct GitChangesetView: View {
     let b: GitSide
     let bLabel: String
 
+    @Environment(\.changesetRefresh) private var changesetRefresh
     @State private var selection: GitChangedFile.ID?
+    /// The selected row's path. A refresh can change a row's status and so its ID (an untracked
+    /// file becomes added once staged); the path keeps the same file selected and shown.
+    @State private var selectedPath: String?
     @State private var listCollapsed = false
     @State private var filter = GitFileFilter()
 
@@ -21,6 +25,7 @@ struct GitChangesetView: View {
         if files.isEmpty {
             ContentUnavailableView("No changes", systemImage: "checkmark.circle",
                                    description: Text("These two states are identical."))
+                .focusedSceneValue(\.diffCommands, placeholderCommands)
         } else {
             HSplitView {
                 if listCollapsed {
@@ -54,6 +59,9 @@ struct GitChangesetView: View {
             }
             .onChange(of: filter) { _, _ in keepSelectionVisible() }
             .onChange(of: files) { _, _ in keepSelectionVisible() }
+            .onChange(of: selection) { _, newSelection in
+                if let path = files.first(where: { $0.id == newSelection })?.path { selectedPath = path }
+            }
             .onAppear { keepSelectionVisible() }
         }
     }
@@ -112,18 +120,26 @@ struct GitChangesetView: View {
     // RepositoryView's detail panes).
     private var detail: some View {
         ZStack {
-            if let file = filteredFiles.first(where: { $0.id == selection }) ?? filteredFiles.first {
+            if let id = GitChangedFile.selection(keeping: selection, path: selectedPath, in: filteredFiles),
+               let file = filteredFiles.first(where: { $0.id == id }) {
                 ComparisonDetailView(comparison: repo.makeComparison(file: file, a: a, aLabel: aLabel, b: b, bLabel: bLabel))
                     .id(file.id)
             } else {
                 ContentUnavailableView("Select a file", systemImage: "sidebar.left")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .focusedSceneValue(\.diffCommands, placeholderCommands)
             }
         }
     }
 
+    /// With no file diff on screen (nothing changed, or the filter hides every file), no view
+    /// publishes Refresh; this keeps ⌘R refreshing an open changeset's list.
+    private var placeholderCommands: DiffCommandActions? {
+        changesetRefresh.map { refresh in DiffCommandActions(refresh: { refresh() }) }
+    }
+
     private func keepSelectionVisible() {
-        guard !filteredFiles.contains(where: { $0.id == selection }) else { return }
-        selection = filteredFiles.first?.id
+        let kept = GitChangedFile.selection(keeping: selection, path: selectedPath, in: filteredFiles)
+        if kept != selection { selection = kept }
     }
 }

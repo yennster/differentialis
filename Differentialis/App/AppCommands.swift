@@ -14,6 +14,30 @@ struct DiffCommandActions {
     var copyChangeToB: (() -> Void)? = nil
 }
 
+/// Refreshes one open changeset's file list. Equatable (by changeset and model), so passing it
+/// down the environment doesn't invalidate the open diff on every changeset body pass.
+struct ChangesetRefreshAction: Equatable {
+    let changesetID: UUID
+    let model: AppModel
+
+    @MainActor func callAsFunction() {
+        Task { await model.refreshChangeset(changesetID) }
+    }
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.changesetID == rhs.changesetID && lhs.model === rhs.model
+    }
+}
+
+extension EnvironmentValues {
+    /// Set by an open changeset (`ChangesetDetailView`). Views inside it route Refresh (⌘R) here,
+    /// so ⌘R re-reads the file list too, not just the open file.
+    @Entry var changesetRefresh: ChangesetRefreshAction? = nil
+    /// Counts an open changeset's refreshes. Comparison views fold it into their load key, so each
+    /// refresh also reloads the open file (as its own ⌘R would).
+    @Entry var changesetRevision = 0
+}
+
 struct DiffCommandsKey: FocusedValueKey {
     typealias Value = DiffCommandActions
 }

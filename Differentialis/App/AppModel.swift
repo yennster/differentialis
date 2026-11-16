@@ -13,6 +13,9 @@ struct OpenChangeset: Identifiable {
     var a: CustomSide
     var b: CustomSide
     var resolved: ResolvedChangeset
+    /// Counts finished refreshes, so the open file's diff reloads along with the list
+    /// (see `EnvironmentValues.changesetRevision`).
+    var revision = 0
 
     /// Matches RecentProject.path (both standardize the working-tree root) for sidebar nesting.
     var repoPath: String { repo.url.standardizedFileURL.path }
@@ -204,6 +207,32 @@ final class AppModel {
     func comparison(_ id: UUID) -> Comparison? { comparisons.first { $0.id == id } }
     func changeset(_ id: UUID) -> OpenChangeset? { changesets.first { $0.id == id } }
 
+    private var changesetRefreshes = LatestRequests<UUID>()
+
+    func isRefreshingChangeset(_ id: UUID) -> Bool { changesetRefreshes.isPending(id) }
+
+    /// Re-resolves an open changeset's file list from its defining sides, so a Working Copy side
+    /// picks up files edited, staged, created, or reverted since it was opened. Git runs off the
+    /// main actor. On failure the current list stays and the error is shown; the open file still
+    /// reloads, since a failed list refresh says nothing about that file's contents.
+    func refreshChangeset(_ id: UUID) async {
+        guard let current = changeset(id) else { return }
+        let request = changesetRefreshes.begin(id)
+        let repository = current.repo, a = current.a, b = current.b
+        let outcome = await offMain { () -> (ResolvedChangeset?, String?) in
+            do { return (try repository.customChangeset(a: a, b: b), nil) }
+            catch { return (nil, error.localizedDescription) }
+        }
+        guard changesetRefreshes.finish(id, request),
+              let index = changesets.firstIndex(where: { $0.id == id }) else { return }
+        if let resolved = outcome.0 {
+            changesets[index].resolved = resolved
+        } else {
+            errorMessage = outcome.1
+        }
+        changesets[index].revision += 1
+    }
+
     var selectedComparison: Comparison? {
         if case .comparison(let id) = route { return comparison(id) }
         return nil
@@ -236,6 +265,7 @@ final class AppModel {
 
     func closeChangeset(_ id: UUID) {
         changesets.removeAll { $0.id == id }
+        changesetRefreshes.cancel(id)
         if route == .changeset(id) { route = .welcome }
         persistOpenChangesets()
     }
