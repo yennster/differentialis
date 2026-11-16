@@ -255,20 +255,33 @@ struct GitRepository {
     /// disk, so without this a CRLF checkout shows every line as changed and an LFS file compares
     /// its pointer text against the real file.
     ///
-    /// The stored blob is read first and is the result whenever filtering is skipped or fails:
+    /// The stored blob is the result whenever filtering is skipped or fails:
     /// - an LFS pointer declaring more than `GitLFSPointer.smudgeLimit` stays a pointer, so a
     ///   multi-gigabyte object is never downloaded and held in memory for a comparison;
     /// - a filter that cannot run (`git-lfs` not installed, no network to fetch the object) makes
     ///   git fail for a `required` filter, and a filter still running after
     ///   `filteredReadTimeout` is stopped, so an offline LFS fetch can't stall the comparison.
-    /// A missing object fails the raw read, so its error is the one reported.
+    /// A timed-out filter is stopped by terminating git; a filter process git started may run on
+    /// until it notices the closed pipe.
     func checkoutData(object: String, timeout: TimeInterval = Self.filteredReadTimeout) throws -> Data {
-        let stored = try rawBlobData(object: object)
-        if let pointer = GitLFSPointer(data: stored), pointer.size > GitLFSPointer.smudgeLimit {
-            return stored
+        // Only a blob small enough to be an LFS pointer is read up front; anything larger is read
+        // raw only if filtering fails, so a large blob never has two copies in memory at once.
+        // A missing object fails here, so its error is the one reported.
+        let sizeText = try run(["cat-file", "-s", "--end-of-options", object])
+        let storedSize = Int64(sizeText.trimmingCharacters(in: .whitespacesAndNewlines)) ?? .max
+        if storedSize <= GitLFSPointer.maximumSize {
+            let stored = try rawBlobData(object: object)
+            if let pointer = GitLFSPointer(data: stored), pointer.size > GitLFSPointer.smudgeLimit {
+                return stored
+            }
+            return (try? runData(["cat-file", "--filters", "--end-of-options", object],
+                                 timeout: timeout)) ?? stored
         }
-        return (try? runData(["cat-file", "--filters", "--end-of-options", object],
-                             timeout: timeout)) ?? stored
+        if let filtered = try? runData(["cat-file", "--filters", "--end-of-options", object],
+                                       timeout: timeout) {
+            return filtered
+        }
+        return try rawBlobData(object: object)
     }
 
     /// How long a filtered read may run before falling back to the stored blob.
@@ -471,7 +484,7 @@ struct GitRepository {
         queue.async { errSink.data = stderrHandle.readDataToEndOfFile() }
         let outData = stdout.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
-        if running.timedOut {
+        if running.timedOut, process.terminationReason == .uncaughtSignal {
             // A filter git started (git-lfs, a smudge command) inherits stderr and can outlive the
             // terminated git, so don't wait on that pipe; its background read ends with the child.
             throw GitError.commandFailed("git timed out after \(Int(timeout ?? 0)) seconds")
