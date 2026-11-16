@@ -429,22 +429,29 @@ struct GitComparisonTests {
 
     @Test("only the newest changeset refresh lands, and a close drops it")
     func latestRequestsSupersede() {
+        // `finish` is mutating, which `#expect` can't call inside its expansion, so each result
+        // is taken first.
         var requests = LatestRequests<String>()
         let first = requests.begin("changeset")
         let second = requests.begin("changeset")
         #expect(requests.isPending("changeset"))
-        #expect(!requests.finish("changeset", first))
+        let firstLanded = requests.finish("changeset", first)
+        #expect(!firstLanded)
         #expect(requests.isPending("changeset"))
-        #expect(requests.finish("changeset", second))
+        let secondLanded = requests.finish("changeset", second)
+        #expect(secondLanded)
         #expect(!requests.isPending("changeset"))
-        #expect(!requests.finish("changeset", second))
+        let secondLandedTwice = requests.finish("changeset", second)
+        #expect(!secondLandedTwice)
 
         let closed = requests.begin("changeset")
         let other = requests.begin("other")
         requests.cancel("changeset")
         #expect(!requests.isPending("changeset"))
-        #expect(!requests.finish("changeset", closed))
-        #expect(requests.finish("other", other))
+        let closedLanded = requests.finish("changeset", closed)
+        #expect(!closedLanded)
+        let otherLanded = requests.finish("other", other)
+        #expect(otherLanded)
     }
 }
 
