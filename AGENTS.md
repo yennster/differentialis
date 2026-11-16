@@ -85,6 +85,7 @@ includes `Tests/` automatically through XcodeGen.
 | --- | --- |
 | `Tests/DiffTests.swift` | Myers reconstruction/bounded fallback, character and line diffs, whitespace/format diagnostics, git parsing, diff3 conflicts and line styles |
 | `Tests/MergeSessionTests.swift` | Merge session state: choices, manual Result edits, unsaved-work tracking, reload, ownership by `Comparison` |
+| `Tests/MergeNavigationTests.swift` | Merge Next/Previous Change: conflict-first stops, wraparound, fallback to changes, continuing after a resolve |
 | `Tests/PastedTextTests.swift` | Two-way hunk copying, line correspondence, terminator preservation, UTF-16 ranges, editor decorations |
 | `Tests/GitComparisonTests.swift` | Real disposable git repos: index/worktree snapshots, staged reversions, conflicts, unborn HEAD, SHA-256 empty trees, option-like/unknown/file-named refs |
 | `Tests/FolderAndFilterTests.swift` | Package traversal, scan errors, stable identities, composed git filters, file properties |
@@ -237,7 +238,7 @@ git or diff work in `Task { ... }` does **not** move it off the main actor.
 | Text diff | `Features/Text/TextComparisonView.swift`: async load, whitespace options, split/unified layout, gaps, navigation, format diagnostics; `DiffRowView.swift` renders highlighted rows |
 | Pasted text | `PastedTextComparisonView.swift`: live analysis with typing debounce, editor/diff presentations, hunk actions; `PastedTextAnalysis.swift` shapes rows into UTF-16 decorations and scroll mappings |
 | Native editors | `DiffTextEditor.swift`: TextKit 1 `NSTextView`, line-number ruler, SwiftUI representable, `PastedTextEditorController` for edits/scroll synchronization/shared undo |
-| Three-way merge | `MergeView.swift`: Review and editable Result (`PlainCodeEditor.swift`), hunk choices, format resolution, save warnings and atomic UTF-8 save |
+| Three-way merge | `MergeView.swift`: Review and editable Result (`PlainCodeEditor.swift`), hunk choices, format resolution, conflict navigation (`Diff/MergeNavigation.swift`), save warnings and atomic UTF-8 save |
 | Images | `Features/Image/ImageComparisonView.swift`: Two-Up, One-Up/blink, Split, Difference; `ImageSupport.swift`: shared zoom/pan gestures, checkerboard, Core Image difference renderer |
 | Folders | `Features/Folder/FolderScanner.swift`: inventory and byte comparison; `FolderComparisonView.swift`: filtering, issues, selection, embedded file comparison |
 | Git | `Features/Repo/RepositoryView.swift`: history/working changes; `GitChangesetView.swift` and `ChangesetDetailView.swift`: file lists/detail; `CustomComparisonPopover.swift`: endpoint selection; `GitFileFilterBar.swift`: shared path/type/status filtering |
