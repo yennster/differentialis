@@ -11,6 +11,7 @@ struct GitChangesetView: View {
     let b: GitSide
     let bLabel: String
 
+    @Environment(\.changesetRefresh) private var changesetRefresh
     @State private var selection: GitChangedFile.ID?
     /// The selected row's path. A refresh can change a row's status and so its ID (an untracked
     /// file becomes added once staged); the path keeps the same file selected and shown.
@@ -24,6 +25,7 @@ struct GitChangesetView: View {
         if files.isEmpty {
             ContentUnavailableView("No changes", systemImage: "checkmark.circle",
                                    description: Text("These two states are identical."))
+                .focusedSceneValue(\.diffCommands, placeholderCommands)
         } else {
             HSplitView {
                 if listCollapsed {
@@ -125,8 +127,15 @@ struct GitChangesetView: View {
             } else {
                 ContentUnavailableView("Select a file", systemImage: "sidebar.left")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .focusedSceneValue(\.diffCommands, placeholderCommands)
             }
         }
+    }
+
+    /// With no file diff on screen (nothing changed, or the filter hides every file), no view
+    /// publishes Refresh; this keeps ⌘R refreshing an open changeset's list.
+    private var placeholderCommands: DiffCommandActions? {
+        changesetRefresh.map { refresh in DiffCommandActions(refresh: { refresh() }) }
     }
 
     private func keepSelectionVisible() {

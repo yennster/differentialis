@@ -25,9 +25,7 @@ struct ChangesetDetailView: View {
                              a: changeset.resolved.a, aLabel: changeset.resolved.aLabel,
                              b: changeset.resolved.b, bLabel: changeset.resolved.bLabel)
             .environment(\.changesetRevision, changeset.revision)
-            .environment(\.changesetRefresh, { [model, id = changeset.id] in
-                Task { await model.refreshChangeset(id) }
-            })
+            .environment(\.changesetRefresh, ChangesetRefreshAction(changesetID: changeset.id, model: model))
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {

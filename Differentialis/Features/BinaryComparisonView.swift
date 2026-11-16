@@ -21,6 +21,7 @@ struct BinaryComparisonView: View {
 
     @State private var result: Result?
     @State private var loadRequest: UUID?
+    @Environment(\.changesetRefresh) private var changesetRefresh
     @Environment(\.changesetRevision) private var changesetRevision
 
     private var taskKey: String {
@@ -42,6 +43,10 @@ struct BinaryComparisonView: View {
             content
         }
         .task(id: taskKey) { await load() }
+        .focusedSceneValue(\.diffCommands, DiffCommandActions(refresh: {
+            // Inside an open changeset, its refresh also reloads this file (see taskKey).
+            if let changesetRefresh { changesetRefresh() } else { Task { await load() } }
+        }))
     }
 
     @ViewBuilder

@@ -405,6 +405,7 @@ struct GitComparisonTests {
         let staged = try fixture.repository.customChangeset(
             a: .reference("HEAD"), b: .workingCopy(.all))
         let stagedRow = try #require(staged.files.first { $0.path == "new.txt" })
+        #expect(stagedRow.id != selected.id)
         #expect(GitChangedFile.selection(keeping: selected.id, path: selected.path, in: staged.files)
                 == stagedRow.id)
     }
