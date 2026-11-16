@@ -58,6 +58,17 @@ struct GitChangedFile: Identifiable, Hashable {
     var id: String { "\(status.letter)\u{1f}\(oldPath ?? "")\u{1f}\(path)" }
 }
 
+extension GitChangedFile {
+    /// The row to select after a file list is reloaded: the same row when it is still listed;
+    /// otherwise the row for the same path, since a refresh can change a file's status (an
+    /// untracked file becomes added once staged) and with it the row's ID; otherwise the first row.
+    static func selection(keeping selection: ID?, path: String?, in files: [GitChangedFile]) -> ID? {
+        if let selection, files.contains(where: { $0.id == selection }) { return selection }
+        if let path, let samePath = files.first(where: { $0.path == path }) { return samePath.id }
+        return files.first?.id
+    }
+}
+
 struct GitFileComparison: Hashable {
     var a: GitSide?
     var aPath: String

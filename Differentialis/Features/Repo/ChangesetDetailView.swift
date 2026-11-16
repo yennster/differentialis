@@ -2,6 +2,7 @@ import SwiftUI
 
 /// A standalone open changeset (custom comparison result or saved comparison).
 struct ChangesetDetailView: View {
+    @Environment(AppModel.self) private var model
     let changeset: OpenChangeset
 
     var body: some View {
@@ -22,7 +23,18 @@ struct ChangesetDetailView: View {
             GitChangesetView(repo: changeset.repo,
                              files: changeset.resolved.files,
                              a: changeset.resolved.a, aLabel: changeset.resolved.aLabel,
-                             b: changeset.resolved.b, bLabel: changeset.resolved.bLabel)
+                             b: changeset.resolved.b, bLabel: changeset.resolved.bLabel,
+                             revision: changeset.revision)
+        }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                let id = changeset.id
+                Button { Task { await model.refreshChangeset(id) } } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .help("Refresh file list")
+                .disabled(model.isRefreshingChangeset(id))
+            }
         }
     }
 }

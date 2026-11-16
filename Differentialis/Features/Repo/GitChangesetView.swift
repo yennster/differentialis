@@ -10,6 +10,9 @@ struct GitChangesetView: View {
     let aLabel: String
     let b: GitSide
     let bLabel: String
+    /// Bumped each time the changeset is refreshed, so the selected file's diff reloads from disk
+    /// and git even when the refreshed list still contains the same row.
+    var revision = 0
 
     @State private var selection: GitChangedFile.ID?
     @State private var listCollapsed = false
@@ -53,7 +56,7 @@ struct GitChangesetView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .onChange(of: filter) { _, _ in keepSelectionVisible() }
-            .onChange(of: files) { _, _ in keepSelectionVisible() }
+            .onChange(of: files) { previous, _ in keepSelectionVisible(previousFiles: previous) }
             .onAppear { keepSelectionVisible() }
         }
     }
@@ -114,7 +117,7 @@ struct GitChangesetView: View {
         ZStack {
             if let file = filteredFiles.first(where: { $0.id == selection }) ?? filteredFiles.first {
                 ComparisonDetailView(comparison: repo.makeComparison(file: file, a: a, aLabel: aLabel, b: b, bLabel: bLabel))
-                    .id(file.id)
+                    .id("\(file.id)\u{1f}\(revision)")
             } else {
                 ContentUnavailableView("Select a file", systemImage: "sidebar.left")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -122,8 +125,10 @@ struct GitChangesetView: View {
         }
     }
 
-    private func keepSelectionVisible() {
-        guard !filteredFiles.contains(where: { $0.id == selection }) else { return }
-        selection = filteredFiles.first?.id
+    /// `previousFiles` is the list before a refresh, used to find the selected row's path.
+    private func keepSelectionVisible(previousFiles: [GitChangedFile]? = nil) {
+        let selectedPath = (previousFiles ?? files).first { $0.id == selection }?.path
+        let kept = GitChangedFile.selection(keeping: selection, path: selectedPath, in: filteredFiles)
+        if kept != selection { selection = kept }
     }
 }
