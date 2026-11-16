@@ -230,16 +230,47 @@ struct GitRepository {
 
     // MARK: - Blobs
 
+    /// Reads a committed (or index-stage, for `ref` like `:2`) blob as a checkout would write it.
+    /// See `checkoutData(object:)`.
     func blobData(ref: String, path: String) throws -> Data {
-        try runData(["show", "--end-of-options", "\(ref):\(path)"])
+        try checkoutData(object: "\(ref):\(path)")
     }
 
     /// Reads the stage-0 blob for a path directly from the index, independent of both HEAD and the
     /// working tree. Unmerged paths intentionally fail because they have multiple index stages and
     /// therefore no single index snapshot to display.
     func indexData(path: String) throws -> Data {
-        try runData(["show", ":\(path)"])
+        try checkoutData(object: ":\(path)")
     }
+
+    /// The exact bytes git stores for `object` (`<rev>:<path>` or `:<stage>:<path>`), with no
+    /// `.gitattributes` conversion. An LFS file reads as its pointer text here.
+    func rawBlobData(object: String) throws -> Data {
+        try runData(["show", "--end-of-options", object])
+    }
+
+    /// Reads a blob the way `git checkout` would write it to the working tree: `.gitattributes`
+    /// conversions (`eol`/`text`/`core.autocrlf`, `ident`, `working-tree-encoding`) and smudge
+    /// filters such as Git LFS are applied. The working-copy side is read straight from disk, so
+    /// without this a CRLF checkout shows every line as changed and an LFS file compares its pointer
+    /// text against the real file.
+    ///
+    /// A filter that cannot run (most often `git-lfs` missing from a GUI app's PATH, or no network
+    /// to fetch the LFS object) makes git fail for a `required` filter. That falls back to the raw
+    /// blob, so the comparison still opens and shows what git stores. A missing object fails the
+    /// raw read too, so its error is the one reported.
+    func checkoutData(object: String) throws -> Data {
+        if let filtered = try? runData(["cat-file", "--filters", "--end-of-options", object],
+                                       extraSearchPaths: Self.filterSearchPaths) {
+            return filtered
+        }
+        return try rawBlobData(object: object)
+    }
+
+    /// Where package managers put filter programs such as `git-lfs`. An app launched from Finder or
+    /// the Dock inherits launchd's minimal PATH, which has none of these. They are appended, so a
+    /// PATH the user already set still wins.
+    static let filterSearchPaths = ["/opt/homebrew/bin", "/usr/local/bin", "/opt/local/bin"]
 
     // MARK: - Parsing
 
@@ -388,12 +419,15 @@ struct GitRepository {
         return String(decoding: data, as: UTF8.self)
     }
 
-    func runData(_ args: [String]) throws -> Data {
+    func runData(_ args: [String], extraSearchPaths: [String] = []) throws -> Data {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: Self.gitPath)
         process.arguments = ["-C", url.path] + args
 
         var env = ProcessInfo.processInfo.environment
+        if !extraSearchPaths.isEmpty {
+            env["PATH"] = Self.appendingSearchPaths(extraSearchPaths, to: env["PATH"])
+        }
         env["GIT_TERMINAL_PROMPT"] = "0"   // never block waiting for credentials on stdin
         env["GIT_OPTIONAL_LOCKS"] = "0"    // read-only ops shouldn't contend for the index lock
         env["LC_ALL"] = "C"                // stable, non-localized output for parsing
@@ -427,6 +461,18 @@ struct GitRepository {
             throw GitError.commandFailed(message.trimmingCharacters(in: .whitespacesAndNewlines))
         }
         return outData
+    }
+}
+
+extension GitRepository {
+    /// Appends each directory not already on `path` (a colon-separated PATH value).
+    static func appendingSearchPaths(_ directories: [String], to path: String?) -> String {
+        var entries = (path ?? "").split(separator: ":", omittingEmptySubsequences: true).map(String.init)
+        if entries.isEmpty { entries = ["/usr/bin", "/bin", "/usr/sbin", "/sbin"] }
+        for directory in directories where !entries.contains(directory) {
+            entries.append(directory)
+        }
+        return entries.joined(separator: ":")
     }
 }
 

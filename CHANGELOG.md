@@ -10,6 +10,15 @@ When cutting a release, add a section here and use it as the release notes:
 
 ## [Unreleased]
 
+### Fixed
+- Git snapshots (commits, the index, and conflict stages) now read the way `git checkout` writes
+  them, applying `.gitattributes` conversions and smudge filters
+  ([#15](https://github.com/yennster/differentialis/issues/15)). With `core.autocrlf` or
+  `eol=crlf`, comparing HEAD to the working copy no longer reports a line-ending difference on
+  every changed file, and Git LFS files compare as the real file instead of the pointer text. If a
+  filter can't run (for example `git-lfs` isn't installed), the stored blob is shown as before.
+  Homebrew and MacPorts locations are searched for filter programs such as `git-lfs`.
+
 ## [0.4.0] — 2026-10-28
 
 ### Added
