@@ -230,16 +230,68 @@ struct GitRepository {
 
     // MARK: - Blobs
 
+    /// Reads a committed (or index-stage, for `ref` like `:2`) blob as a checkout would write it.
+    /// See `checkoutData(object:)`.
     func blobData(ref: String, path: String) throws -> Data {
-        try runData(["show", "--end-of-options", "\(ref):\(path)"])
+        try checkoutData(object: "\(ref):\(path)")
     }
 
     /// Reads the stage-0 blob for a path directly from the index, independent of both HEAD and the
     /// working tree. Unmerged paths intentionally fail because they have multiple index stages and
     /// therefore no single index snapshot to display.
     func indexData(path: String) throws -> Data {
-        try runData(["show", ":\(path)"])
+        try checkoutData(object: ":\(path)")
     }
+
+    /// The exact bytes git stores for `object` (`<rev>:<path>` or `:<stage>:<path>`), with no
+    /// `.gitattributes` conversion. An LFS file reads as its pointer text here.
+    func rawBlobData(object: String) throws -> Data {
+        try runData(["show", "--end-of-options", object])
+    }
+
+    /// Reads a blob the way `git checkout` would write it to the working tree, using the working
+    /// tree's current `.gitattributes`: eol/`text`/`core.autocrlf`, `ident`, `working-tree-encoding`,
+    /// and smudge filters such as Git LFS are applied. The working-copy side is read straight from
+    /// disk, so without this a CRLF checkout shows every line as changed and an LFS file compares
+    /// its pointer text against the real file.
+    ///
+    /// The stored blob is the result whenever filtering is skipped or fails:
+    /// - an LFS pointer declaring more than `GitLFSPointer.smudgeLimit` stays a pointer, so a
+    ///   multi-gigabyte object is never downloaded and held in memory for a comparison;
+    /// - a filter that cannot run (`git-lfs` not installed, no network to fetch the object) makes
+    ///   git fail for a `required` filter, and a filter still running after
+    ///   `filteredReadTimeout` is stopped, so an offline LFS fetch can't stall the comparison.
+    /// A timed-out filter is stopped by terminating git; a filter process git started may run on
+    /// until it notices the closed pipe.
+    func checkoutData(object: String, timeout: TimeInterval = Self.filteredReadTimeout) throws -> Data {
+        // Only a blob small enough to be an LFS pointer is read up front; anything larger is read
+        // raw only if filtering fails, so a large blob never has two copies in memory at once.
+        // A missing object fails here, so its error is the one reported.
+        let sizeText = try run(["cat-file", "-s", "--end-of-options", object])
+        let storedSize = Int64(sizeText.trimmingCharacters(in: .whitespacesAndNewlines)) ?? .max
+        if storedSize <= GitLFSPointer.maximumSize {
+            let stored = try rawBlobData(object: object)
+            if let pointer = GitLFSPointer(data: stored), pointer.size > GitLFSPointer.smudgeLimit {
+                return stored
+            }
+            return (try? runData(["cat-file", "--filters", "--end-of-options", object],
+                                 timeout: timeout)) ?? stored
+        }
+        if let filtered = try? runData(["cat-file", "--filters", "--end-of-options", object],
+                                       timeout: timeout) {
+            return filtered
+        }
+        return try rawBlobData(object: object)
+    }
+
+    /// How long a filtered read may run before falling back to the stored blob.
+    static let filteredReadTimeout: TimeInterval = 30
+
+    /// Where package managers put filter programs such as `git-lfs`. An app launched from Finder or
+    /// the Dock inherits launchd's minimal PATH, which has none of these, so a repository whose
+    /// clean or smudge filter is `git-lfs` would fail `git status`/`git diff` as well as reads.
+    /// They are appended, so a PATH the user already set still wins.
+    static let filterSearchPaths = ["/opt/homebrew/bin", "/usr/local/bin", "/opt/local/bin"]
 
     // MARK: - Parsing
 
@@ -388,12 +440,15 @@ struct GitRepository {
         return String(decoding: data, as: UTF8.self)
     }
 
-    func runData(_ args: [String]) throws -> Data {
+    /// Runs git and returns its stdout. With a `timeout`, git is terminated if it is still running
+    /// after that many seconds, which surfaces as a `commandFailed` error.
+    func runData(_ args: [String], timeout: TimeInterval? = nil) throws -> Data {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: Self.gitPath)
         process.arguments = ["-C", url.path] + args
 
         var env = ProcessInfo.processInfo.environment
+        env["PATH"] = Self.appendingSearchPaths(Self.filterSearchPaths, to: env["PATH"])
         env["GIT_TERMINAL_PROMPT"] = "0"   // never block waiting for credentials on stdin
         env["GIT_OPTIONAL_LOCKS"] = "0"    // read-only ops shouldn't contend for the index lock
         env["LC_ALL"] = "C"                // stable, non-localized output for parsing
@@ -411,6 +466,15 @@ struct GitRepository {
             throw GitError.commandFailed("Failed to launch git: \(error.localizedDescription)")
         }
 
+        let running = ProcessBox(process)
+        var watchdog: DispatchWorkItem?
+        if let timeout {
+            let item = DispatchWorkItem { running.terminateIfRunning() }
+            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout, execute: item)
+            watchdog = item
+        }
+        defer { watchdog?.cancel() }
+
         // Drain both pipes without deadlocking: a large diff can fill the stdout pipe buffer and
         // block git before it ever writes stderr, while the old code sat reading stderr first.
         // Read stderr concurrently and stdout on this thread, then join.
@@ -419,14 +483,50 @@ struct GitRepository {
         let queue = DispatchQueue(label: "app.differentialis.git.stderr")
         queue.async { errSink.data = stderrHandle.readDataToEndOfFile() }
         let outData = stdout.fileHandleForReading.readDataToEndOfFile()
-        queue.sync {}   // ensure the stderr read has finished before we touch errSink
-
         process.waitUntilExit()
+        if running.timedOut, process.terminationReason == .uncaughtSignal {
+            // A filter git started (git-lfs, a smudge command) inherits stderr and can outlive the
+            // terminated git, so don't wait on that pipe; its background read ends with the child.
+            throw GitError.commandFailed("git timed out after \(Int(timeout ?? 0)) seconds")
+        }
+        queue.sync {}   // ensure the stderr read has finished before we touch errSink
         if process.terminationStatus != 0 {
             let message = String(data: errSink.data, encoding: .utf8) ?? "git exited with \(process.terminationStatus)"
             throw GitError.commandFailed(message.trimmingCharacters(in: .whitespacesAndNewlines))
         }
         return outData
+    }
+}
+
+extension GitRepository {
+    /// Appends each directory not already on `path` (a colon-separated PATH value).
+    static func appendingSearchPaths(_ directories: [String], to path: String?) -> String {
+        var entries = (path ?? "").split(separator: ":", omittingEmptySubsequences: true).map(String.init)
+        if entries.isEmpty { entries = ["/usr/bin", "/bin", "/usr/sbin", "/sbin"] }
+        for directory in directories where !entries.contains(directory) {
+            entries.append(directory)
+        }
+        return entries.joined(separator: ":")
+    }
+}
+
+/// Lets the timeout watchdog stop a git process from another queue. `Process` is thread-safe for
+/// `isRunning` and `terminate()`, but is not marked `Sendable`.
+private final class ProcessBox: @unchecked Sendable {
+    private let process: Process
+    private let lock = NSLock()
+    private var didTimeOut = false
+
+    init(_ process: Process) { self.process = process }
+
+    var timedOut: Bool { lock.withLock { didTimeOut } }
+
+    func terminateIfRunning() {
+        lock.withLock {
+            guard process.isRunning else { return }
+            didTimeOut = true
+            process.terminate()
+        }
     }
 }
 

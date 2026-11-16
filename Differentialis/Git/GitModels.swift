@@ -132,3 +132,32 @@ enum GitError: LocalizedError {
         }
     }
 }
+
+/// A Git LFS pointer file: the small text blob git stores in place of an LFS-tracked file.
+/// Only the declared size is kept; it lets callers learn how big the real file is without
+/// running the smudge filter. https://github.com/git-lfs/git-lfs/blob/main/docs/spec.md
+struct GitLFSPointer: Equatable {
+    /// The spec caps pointer files at 1024 bytes.
+    static let maximumSize: Int64 = 1_024
+    /// Larger LFS objects are compared as their pointer rather than downloaded into memory.
+    static let smudgeLimit: Int64 = 256 * 1_024 * 1_024
+
+    let size: Int64
+
+    init?(data: Data) {
+        guard Int64(data.count) <= Self.maximumSize,
+              let text = String(data: data, encoding: .utf8) else { return nil }
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: true)
+        guard let first = lines.first, first.hasPrefix("version https://git-lfs.github.com/spec/") else {
+            return nil
+        }
+        var size: Int64?
+        var hasOID = false
+        for line in lines.dropFirst() {
+            if line.hasPrefix("oid ") { hasOID = true }
+            if line.hasPrefix("size "), let value = Int64(line.dropFirst(5)), value >= 0 { size = value }
+        }
+        guard hasOID, let size else { return nil }
+        self.size = size
+    }
+}

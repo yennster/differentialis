@@ -75,24 +75,45 @@ enum FilePropertiesBuilder {
         // file. Keep its metadata blank so it cannot be mistaken for an existing empty file.
         if case .empty = source { return }
 
-        // Git can report a committed blob's size without transferring the blob into this process.
-        if case let .gitBlob(repo, ref, path, _) = source,
-           let raw = try? GitRepository(url: repo).run([
-               "cat-file", "-s", "--end-of-options",
-               ComparisonSource.isIndexReference(ref) ? ":\(path)" : "\(ref):\(path)",
-           ]),
-           let size = Int64(raw.trimmingCharacters(in: .whitespacesAndNewlines)) {
-            properties["Size"] = formattedSize(size)
-            // Metadata still needs the bytes, but cap that optional work. The comparison itself
-            // remains available for large images; the properties popover stays memory-safe.
-            if size <= 64 * 1_024 * 1_024,
-               let data = try? source.loadData(),
-               let image = imageProperties(data: data) {
-                add(image: image, to: &properties)
+        // Git can report a stored blob's size without transferring the blob into this process.
+        if case let .gitBlob(repo, ref, path, _) = source {
+            let repository = GitRepository(url: repo)
+            let object = ComparisonSource.isIndexReference(ref) ? ":\(path)" : "\(ref):\(path)"
+            if let raw = try? repository.run(["cat-file", "-s", "--end-of-options", object]),
+               let storedSize = Int64(raw.trimmingCharacters(in: .whitespacesAndNewlines)) {
+                addGitBlobProperties(for: source, repository: repository, object: object,
+                                     storedSize: storedSize, to: &properties)
+                return
             }
-            return
         }
 
+        guard let data = try? source.loadData() else { return }
+        properties["Size"] = formattedSize(Int64(data.count))
+        if let image = imageProperties(data: data) {
+            add(image: image, to: &properties)
+        }
+    }
+
+    /// Above this, the popover reports a size without reading the bytes for image metadata.
+    private static let inMemoryMetadataLimit: Int64 = 64 * 1_024 * 1_024
+
+    /// The comparison shows a blob as checked out (see `GitRepository.checkoutData`), so when the
+    /// bytes are loaded Size describes those, not the stored ones: a CRLF checkout is larger than
+    /// its LF blob. A blob stored above `inMemoryMetadataLimit` is not loaded and reports its stored
+    /// size. An LFS pointer declaring more than that limit reports the declared size, marked as an
+    /// LFS object, without fetching it; the comparison may still show the pointer itself if the
+    /// object is above `GitLFSPointer.smudgeLimit` or can't be fetched.
+    private static func addGitBlobProperties(for source: ComparisonSource, repository: GitRepository,
+                                             object: String, storedSize: Int64,
+                                             to properties: inout [String: String]) {
+        properties["Size"] = formattedSize(storedSize)
+        guard storedSize <= inMemoryMetadataLimit else { return }
+        if storedSize <= GitLFSPointer.maximumSize,
+           let pointer = (try? repository.rawBlobData(object: object)).flatMap(GitLFSPointer.init(data:)),
+           pointer.size > inMemoryMetadataLimit {
+            properties["Size"] = "\(formattedSize(pointer.size)) in Git LFS"
+            return
+        }
         guard let data = try? source.loadData() else { return }
         properties["Size"] = formattedSize(Int64(data.count))
         if let image = imageProperties(data: data) {

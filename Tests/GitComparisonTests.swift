@@ -453,6 +453,149 @@ struct GitComparisonTests {
         let otherLanded = requests.finish("other", other)
         #expect(otherLanded)
     }
+
+    @Test("eol=crlf snapshots read as checked out, so HEAD vs Working Copy has no line-ending noise")
+    func checkoutLineEndings() throws {
+        let fixture = try TemporaryGitRepository()
+        try fixture.write("* text eol=crlf\n", to: ".gitattributes")
+        try fixture.write("one\r\ntwo\r\n", to: "file.txt")
+        try fixture.commitAll("base")
+        try fixture.write("one\r\nTWO\r\n", to: "file.txt")
+
+        // Git stores the normalized LF blob; only the read path applies the CRLF conversion.
+        let stored = try fixture.repository.rawBlobData(object: "HEAD:file.txt")
+        #expect(String(decoding: stored, as: UTF8.self) == "one\ntwo\n")
+
+        let head = ComparisonSource.gitBlob(repo: fixture.directory, ref: "HEAD", path: "file.txt", label: "HEAD")
+        let working = ComparisonSource.workingCopy(repo: fixture.directory, path: "file.txt")
+        let headText = try head.loadText()
+        let workingText = try working.loadText()
+        #expect(headText == "one\r\ntwo\r\n")
+        #expect(textFormatDifferences(headText, workingText).isEmpty)
+
+        let index = ComparisonSource.gitIndex(repo: fixture.directory, path: "file.txt")
+        #expect(try index.loadText() == "one\r\ntwo\r\n")
+        #expect(FilePropertiesBuilder.properties(for: head)["Size"]?.contains("10 bytes") == true)
+    }
+
+    @Test("smudge filters apply to commit, index, and conflict-stage reads")
+    func smudgeFilterApplied() throws {
+        let fixture = try TemporaryGitRepository()
+        try fixture.git(["config", "filter.upper.smudge", "tr a-z A-Z"])
+        try fixture.write("*.up filter=upper\n", to: ".gitattributes")
+        try fixture.write("hello\n", to: "greeting.up")
+        try fixture.commitAll("base")
+        let base = try fixture.git(["rev-parse", "HEAD"]).trimmingCharacters(in: .whitespacesAndNewlines)
+
+        #expect(try fixture.repository.rawBlobData(object: "HEAD:greeting.up") == Data("hello\n".utf8))
+        #expect(try fixture.repository.blobData(ref: "HEAD", path: "greeting.up") == Data("HELLO\n".utf8))
+        #expect(try fixture.repository.blobData(ref: base, path: "greeting.up") == Data("HELLO\n".utf8))
+        #expect(try fixture.repository.indexData(path: "greeting.up") == Data("HELLO\n".utf8))
+
+        try fixture.git(["checkout", "--quiet", "-b", "other"])
+        try fixture.write("theirs\n", to: "greeting.up")
+        try fixture.commitAll("theirs")
+        try fixture.git(["checkout", "--quiet", "-"])
+        try fixture.write("ours\n", to: "greeting.up")
+        try fixture.commitAll("ours")
+        #expect(throws: GitError.self) { try fixture.git(["merge", "--quiet", "other"]) }
+
+        #expect(try fixture.repository.blobData(ref: ":2", path: "greeting.up") == Data("OURS\n".utf8))
+        #expect(try fixture.repository.blobData(ref: ":3", path: "greeting.up") == Data("THEIRS\n".utf8))
+        // An unmerged path still has no single stage-0 snapshot, filtered or not.
+        #expect(throws: GitError.self) { try fixture.repository.indexData(path: "greeting.up") }
+    }
+
+    @Test("a required filter that cannot run falls back to the stored blob")
+    func failingFilterFallsBack() throws {
+        let fixture = try TemporaryGitRepository()
+        try fixture.write("*.bin filter=broken\n", to: ".gitattributes")
+        try fixture.write("stored\n", to: "data.bin")
+        try fixture.commitAll("base")
+        try fixture.git(["config", "filter.broken.smudge", "differentialis-missing-filter-binary"])
+        try fixture.git(["config", "filter.broken.required", "true"])
+
+        #expect(throws: GitError.self) {
+            try fixture.git(["cat-file", "--filters", "HEAD:data.bin"])
+        }
+        #expect(try fixture.repository.blobData(ref: "HEAD", path: "data.bin") == Data("stored\n".utf8))
+        #expect(try fixture.repository.indexData(path: "data.bin") == Data("stored\n".utf8))
+
+        // Falling back never turns a missing object into an empty or wrong read.
+        #expect(throws: GitError.self) { try fixture.repository.blobData(ref: "HEAD", path: "missing.bin") }
+        #expect(throws: GitError.self) { try fixture.repository.indexData(path: "missing.bin") }
+    }
+
+    @Test("a non-required filter that fails passes the stored blob through")
+    func optionalFilterPassesThrough() throws {
+        let fixture = try TemporaryGitRepository()
+        try fixture.write("*.txt filter=flaky\n", to: ".gitattributes")
+        try fixture.write("stored\n", to: "note.txt")
+        try fixture.commitAll("base")
+        try fixture.git(["config", "filter.flaky.smudge", "false"])
+
+        #expect(try fixture.repository.blobData(ref: "HEAD", path: "note.txt") == Data("stored\n".utf8))
+    }
+
+    @Test("a filter that outlives the timeout falls back to the stored blob promptly")
+    func slowFilterTimesOut() throws {
+        let fixture = try TemporaryGitRepository()
+        try fixture.write("*.txt filter=slow\n", to: ".gitattributes")
+        try fixture.write("stored\n", to: "note.txt")
+        try fixture.commitAll("base")
+        try fixture.git(["config", "filter.slow.smudge", "sleep 20; tr a-z A-Z"])
+
+        let start = Date()
+        let data = try fixture.repository.checkoutData(object: "HEAD:note.txt", timeout: 1)
+        #expect(data == Data("stored\n".utf8))
+        #expect(Date().timeIntervalSince(start) < 10)
+    }
+
+    @Test("an LFS pointer above the smudge limit is compared as its pointer")
+    func largeLFSPointerIsNotSmudged() throws {
+        let fixture = try TemporaryGitRepository()
+        let pointer = """
+            version https://git-lfs.github.com/spec/v1
+            oid sha256:4d7a214614ab2935c943f9e0ff69d22eadbb8f32b1258daaa5e2ca24d17e2393
+            size \(GitLFSPointer.smudgeLimit + 1)
+
+            """
+        // A stand-in filter name: CI machines may have git-lfs configured globally for `lfs`.
+        try fixture.write("*.mov filter=fakelfs\n", to: ".gitattributes")
+        try fixture.write(pointer, to: "movie.mov")
+        try fixture.commitAll("base")
+        // Had the read smudged, the bytes would come back uppercased.
+        try fixture.git(["config", "filter.fakelfs.smudge", "tr a-z A-Z"])
+
+        let head = ComparisonSource.gitBlob(repo: fixture.directory, ref: "HEAD", path: "movie.mov", label: "HEAD")
+        #expect(try head.loadData() == Data(pointer.utf8))
+        let size = FilePropertiesBuilder.properties(for: head)["Size"]
+        #expect(size?.hasSuffix("in Git LFS") == true)
+        #expect(size?.contains((GitLFSPointer.smudgeLimit + 1).formatted()) == true)
+    }
+
+    @Test("LFS pointers parse their declared size and reject other text")
+    func lfsPointerParsing() {
+        let pointer = """
+            version https://git-lfs.github.com/spec/v1
+            oid sha256:4d7a214614ab2935c943f9e0ff69d22eadbb8f32b1258daaa5e2ca24d17e2393
+            size 12345
+
+            """
+        #expect(GitLFSPointer(data: Data(pointer.utf8))?.size == 12345)
+        #expect(GitLFSPointer(data: Data("hello\n".utf8)) == nil)
+        #expect(GitLFSPointer(data: Data("version https://git-lfs.github.com/spec/v1\nsize 5\n".utf8)) == nil)
+        #expect(GitLFSPointer(data: Data((pointer + String(repeating: "x", count: 2_000)).utf8)) == nil)
+    }
+
+    @Test("filter search paths are appended once and keep the user's PATH first")
+    func filterSearchPaths() {
+        #expect(GitRepository.appendingSearchPaths(["/opt/homebrew/bin", "/usr/local/bin"],
+                                                   to: "/usr/local/bin:/usr/bin")
+                == "/usr/local/bin:/usr/bin:/opt/homebrew/bin")
+        #expect(GitRepository.appendingSearchPaths(["/opt/homebrew/bin"], to: nil)
+                == "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin")
+    }
 }
 
 private final class TemporaryGitRepository {

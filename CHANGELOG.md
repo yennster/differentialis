@@ -18,6 +18,15 @@ When cutting a release, add a section here and use it as the release notes:
   ([#23](https://github.com/yennster/differentialis/issues/23)).
 
 ### Fixed
+- Git snapshots (commits, the index, and conflict stages) now read the way `git checkout` writes
+  them, applying `.gitattributes` conversions and smudge filters
+  ([#15](https://github.com/yennster/differentialis/issues/15)). With `core.autocrlf` or
+  `eol=crlf`, comparing HEAD to the working copy no longer reports a line-ending difference on
+  every changed file, and Git LFS files compare as the real file instead of the pointer text. If a
+  filter can't run (for example `git-lfs` isn't installed or you're offline) or takes longer than
+  30 seconds, the stored blob is shown as before, and LFS files over 256 MB are compared as their
+  pointer rather than downloaded. Homebrew and MacPorts locations are searched for filter
+  programs such as `git-lfs`, so LFS repositories also work when the app is opened from Finder.
 - A **Custom Comparison** or **saved comparison** can now be refreshed: the new **Refresh** toolbar
   button, or **View ▸ Refresh** (`⌘R`), re-reads its file list, so a comparison against the
   **Working Copy** picks up files you edit, stage, create, or revert after opening it, and reloads
