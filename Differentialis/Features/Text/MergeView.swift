@@ -72,6 +72,8 @@ struct MergeView: View {
                     ForEach(session.hunks) { hunk in
                         HunkBlock(hunk: hunk, isCurrent: hunk.id == currentStopID) { source in
                             session.resolve(hunk: hunk.id, as: source)
+                            // Navigation carries on from the hunk the user just worked on.
+                            currentStopID = hunk.id
                         }
                         .id(hunk.id)
                     }
@@ -86,7 +88,9 @@ struct MergeView: View {
             // The conflict chip can switch from Result to Review, which mounts this list after the
             // request was made, so a pending target is honoured on appear as well.
             .onAppear {
-                if currentStopID != nil { scrollRequest &+= 1 }
+                // Deferred a turn so the lazy list has laid out before scrollTo runs.
+                guard currentStopID != nil else { return }
+                Task { @MainActor in scrollRequest &+= 1 }
             }
         }
     }

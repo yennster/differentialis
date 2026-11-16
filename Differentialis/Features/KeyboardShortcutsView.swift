@@ -19,8 +19,8 @@ struct KeyboardShortcutsView: View {
             Shortcut(label: "Settings", keys: ["⌘", ","]),
         ]),
         Group(title: "Text Diff", items: [
-            Shortcut(label: "Next change", keys: ["⌘", "]"]),
-            Shortcut(label: "Previous change", keys: ["⌘", "["]),
+            Shortcut(label: "Next change (merge: next conflict)", keys: ["⌘", "]"]),
+            Shortcut(label: "Previous change (merge: previous conflict)", keys: ["⌘", "["]),
             Shortcut(label: "Toggle Split / Unified", keys: ["⌘", "U"]),
             Shortcut(label: "Increase font size", keys: ["⌘", "+"]),
             Shortcut(label: "Decrease font size", keys: ["⌘", "−"]),

@@ -86,7 +86,7 @@ struct MergeNavigationTests {
 
     @Test("stops list the line-ending choice first, then hunks by their real state")
     @MainActor
-    func stopsFromSession() async {
+    func stopsFromSession() async throws {
         let session = MergeSession(base: .text(content: "a\nshared\nz", name: "base"),
                                    left: .text(content: "a1\nshared\nz", name: "left"),
                                    right: .text(content: "a2\nshared\nz2", name: "right"))
@@ -102,17 +102,15 @@ struct MergeNavigationTests {
         let plain = MergeNavigation.stops(hunks: session.hunks, lineStyleConflict: false,
                                           lineStyleID: lineStyleID)
         let conflictHunk = session.hunks.first { $0.isConflict }
-        #expect(conflictHunk != nil)
         #expect(MergeNavigation.firstUnresolvedConflict(in: plain) == conflictHunk?.id)
         #expect(plain.contains { $0.changed && !$0.unresolvedConflict })  // the right-only edit to z
         #expect(plain.contains { !$0.changed })                             // the shared context
 
-        if let id = conflictHunk?.id {
-            session.resolve(hunk: id, as: .takeLeft)
-            let after = MergeNavigation.stops(hunks: session.hunks, lineStyleConflict: false,
-                                              lineStyleID: lineStyleID)
-            #expect(MergeNavigation.firstUnresolvedConflict(in: after) == nil)
-            #expect(after.first { $0.id == id }?.changed == true)
-        }
+        let id = try #require(conflictHunk?.id)
+        session.resolve(hunk: id, as: .takeLeft)
+        let after = MergeNavigation.stops(hunks: session.hunks, lineStyleConflict: false,
+                                          lineStyleID: lineStyleID)
+        #expect(MergeNavigation.firstUnresolvedConflict(in: after) == nil)
+        #expect(after.first { $0.id == id }?.changed == true)
     }
 }
