@@ -87,7 +87,7 @@ includes `Tests/` automatically through XcodeGen.
 | `Tests/MergeSessionTests.swift` | Merge session state: choices, manual Result edits, unsaved-work tracking, reload, ownership by `Comparison` |
 | `Tests/MergeNavigationTests.swift` | Merge Next/Previous Change: conflict-first stops, wraparound, fallback to changes, continuing after a resolve |
 | `Tests/PastedTextTests.swift` | Two-way hunk copying, line correspondence, terminator preservation, UTF-16 ranges, editor decorations |
-| `Tests/GitComparisonTests.swift` | Real disposable git repos: index/worktree snapshots, staged reversions, conflicts, unborn HEAD, SHA-256 empty trees, option-like/unknown/file-named refs |
+| `Tests/GitComparisonTests.swift` | Real disposable git repos: index/worktree snapshots, staged reversions, conflicts, unborn HEAD, SHA-256 empty trees, option-like/unknown/file-named refs, `.gitattributes` eol/smudge filters on snapshot reads and raw-blob fallback, LFS pointer parsing |
 | `Tests/FolderAndFilterTests.swift` | Package traversal, scan errors, stable identities, composed git filters, file properties |
 | `Tests/ThemeImportTests.swift` | `.tmTheme` import, hex colors, observable settings clamping |
 | `Tests/CommandLineWaitTests.swift` | `--wait` request parsing and location checks, launcher acknowledgement/status, request-to-comparison routing, merge save result |
@@ -291,6 +291,15 @@ at the working-tree root: `makeComparison` is called from view bodies and uses
   an unstaged-only row uses index → worktree. If both layers changed, index →
   worktree preserves staged bytes even when the worktree has reverted to HEAD.
   Per-file `GitFileComparison` overrides changeset-wide endpoints.
+- **Snapshots read as checked out.** `blobData`/`indexData` go through
+  `checkoutData` (`git cat-file --filters`), so the working tree's current
+  `.gitattributes` eol/`autocrlf`, `ident`, `working-tree-encoding`, and smudge
+  filters such as Git LFS apply, matching the working copy read from disk. Note that
+  this runs the repository's configured filter commands. The stored blob
+  (`rawBlobData`) is shown instead when a filter fails or runs past 30 seconds, and for
+  LFS pointers declaring more than 256 MB; a missing object still errors. Every git
+  call appends Homebrew and MacPorts bin directories to `PATH` so `git-lfs` is found
+  from a Finder-launched app.
 - Unmerged porcelain state is authoritative. Coalesce duplicate conflict entries,
   compare stage 2 (Ours) with stage 3 (Theirs), and represent missing stages as
   absent sources. Do not try to read stage 0 for an unresolved conflict.
