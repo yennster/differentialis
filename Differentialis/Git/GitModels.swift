@@ -128,6 +128,8 @@ enum GitError: LocalizedError {
 struct GitLFSPointer: Equatable {
     /// The spec caps pointer files at 1024 bytes.
     static let maximumSize: Int64 = 1_024
+    /// Larger LFS objects are compared as their pointer rather than downloaded into memory.
+    static let smudgeLimit: Int64 = 256 * 1_024 * 1_024
 
     let size: Int64
 

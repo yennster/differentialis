@@ -451,6 +451,54 @@ struct GitComparisonTests {
         #expect(throws: GitError.self) { try fixture.repository.indexData(path: "missing.bin") }
     }
 
+    @Test("a non-required filter that fails passes the stored blob through")
+    func optionalFilterPassesThrough() throws {
+        let fixture = try TemporaryGitRepository()
+        try fixture.write("*.txt filter=flaky\n", to: ".gitattributes")
+        try fixture.write("stored\n", to: "note.txt")
+        try fixture.commitAll("base")
+        try fixture.git(["config", "filter.flaky.smudge", "false"])
+
+        #expect(try fixture.repository.blobData(ref: "HEAD", path: "note.txt") == Data("stored\n".utf8))
+    }
+
+    @Test("a filter that outlives the timeout falls back to the stored blob promptly")
+    func slowFilterTimesOut() throws {
+        let fixture = try TemporaryGitRepository()
+        try fixture.write("*.txt filter=slow\n", to: ".gitattributes")
+        try fixture.write("stored\n", to: "note.txt")
+        try fixture.commitAll("base")
+        try fixture.git(["config", "filter.slow.smudge", "sleep 20; tr a-z A-Z"])
+
+        let start = Date()
+        let data = try fixture.repository.checkoutData(object: "HEAD:note.txt", timeout: 1)
+        #expect(data == Data("stored\n".utf8))
+        #expect(Date().timeIntervalSince(start) < 10)
+    }
+
+    @Test("an LFS pointer above the smudge limit is compared as its pointer")
+    func largeLFSPointerIsNotSmudged() throws {
+        let fixture = try TemporaryGitRepository()
+        let pointer = """
+            version https://git-lfs.github.com/spec/v1
+            oid sha256:4d7a214614ab2935c943f9e0ff69d22eadbb8f32b1258daaa5e2ca24d17e2393
+            size \(GitLFSPointer.smudgeLimit + 1)
+
+            """
+        // A stand-in filter name: CI machines may have git-lfs configured globally for `lfs`.
+        try fixture.write("*.mov filter=fakelfs\n", to: ".gitattributes")
+        try fixture.write(pointer, to: "movie.mov")
+        try fixture.commitAll("base")
+        // Had the read smudged, the bytes would come back uppercased.
+        try fixture.git(["config", "filter.fakelfs.smudge", "tr a-z A-Z"])
+
+        let head = ComparisonSource.gitBlob(repo: fixture.directory, ref: "HEAD", path: "movie.mov", label: "HEAD")
+        #expect(try head.loadData() == Data(pointer.utf8))
+        let size = FilePropertiesBuilder.properties(for: head)["Size"]
+        #expect(size?.hasSuffix("in Git LFS") == true)
+        #expect(size?.contains((GitLFSPointer.smudgeLimit + 1).formatted()) == true)
+    }
+
     @Test("LFS pointers parse their declared size and reject other text")
     func lfsPointerParsing() {
         let pointer = """

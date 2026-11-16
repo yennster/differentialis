@@ -97,10 +97,12 @@ enum FilePropertiesBuilder {
     /// Above this, the popover reports a size without reading the bytes for image metadata.
     private static let inMemoryMetadataLimit: Int64 = 64 * 1_024 * 1_024
 
-    /// The comparison shows a blob as checked out (see `GitRepository.checkoutData`), so Size
-    /// describes those bytes, not the stored ones: a CRLF checkout is larger than its LF blob, and
-    /// an LFS file is the real file rather than its ~130-byte pointer. The stored size and an LFS
-    /// pointer's declared size are read first so a large file is never loaded only for metadata.
+    /// The comparison shows a blob as checked out (see `GitRepository.checkoutData`), so when the
+    /// bytes are loaded Size describes those, not the stored ones: a CRLF checkout is larger than
+    /// its LF blob. A blob stored above `inMemoryMetadataLimit` is not loaded and reports its stored
+    /// size. An LFS pointer declaring more than that limit reports the declared size, marked as an
+    /// LFS object, without fetching it; the comparison may still show the pointer itself if the
+    /// object is above `GitLFSPointer.smudgeLimit` or can't be fetched.
     private static func addGitBlobProperties(for source: ComparisonSource, repository: GitRepository,
                                              object: String, storedSize: Int64,
                                              to properties: inout [String: String]) {
@@ -109,7 +111,7 @@ enum FilePropertiesBuilder {
         if storedSize <= GitLFSPointer.maximumSize,
            let pointer = (try? repository.rawBlobData(object: object)).flatMap(GitLFSPointer.init(data:)),
            pointer.size > inMemoryMetadataLimit {
-            properties["Size"] = formattedSize(pointer.size)
+            properties["Size"] = "\(formattedSize(pointer.size)) in Git LFS"
             return
         }
         guard let data = try? source.loadData() else { return }

@@ -291,11 +291,14 @@ at the working-tree root: `makeComparison` is called from view bodies and uses
   worktree preserves staged bytes even when the worktree has reverted to HEAD.
   Per-file `GitFileComparison` overrides changeset-wide endpoints.
 - **Snapshots read as checked out.** `blobData`/`indexData` go through
-  `checkoutData` (`git cat-file --filters`), so `.gitattributes` eol/`autocrlf`,
-  `ident`, `working-tree-encoding`, and smudge filters such as Git LFS apply, matching
-  the working copy read from disk. If a filter fails, the raw blob is shown instead
-  (`rawBlobData`); a missing object still errors. Filtered reads append Homebrew and
-  MacPorts bin directories to `PATH` so `git-lfs` is found from a Finder-launched app.
+  `checkoutData` (`git cat-file --filters`), so the working tree's current
+  `.gitattributes` eol/`autocrlf`, `ident`, `working-tree-encoding`, and smudge
+  filters such as Git LFS apply, matching the working copy read from disk. Note that
+  this runs the repository's configured filter commands. The stored blob
+  (`rawBlobData`) is shown instead when a filter fails or runs past 30 seconds, and for
+  LFS pointers declaring more than 256 MB; a missing object still errors. Every git
+  call appends Homebrew and MacPorts bin directories to `PATH` so `git-lfs` is found
+  from a Finder-launched app.
 - Unmerged porcelain state is authoritative. Coalesce duplicate conflict entries,
   compare stage 2 (Ours) with stage 3 (Theirs), and represent missing stages as
   absent sources. Do not try to read stage 0 for an unresolved conflict.
