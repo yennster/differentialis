@@ -89,6 +89,8 @@ includes `Tests/` automatically through XcodeGen.
 | `Tests/PastedTextTests.swift` | Two-way hunk copying, line correspondence, terminator preservation, UTF-16 ranges, editor decorations |
 | `Tests/GitComparisonTests.swift` | Real disposable git repos: index/worktree snapshots, staged reversions, conflicts, unborn HEAD, SHA-256 empty trees, option-like/unknown/file-named refs, `.gitattributes` eol/smudge filters on snapshot reads and raw-blob fallback, LFS pointer parsing, re-resolving a Working Copy changeset, refresh selection and stale-request rules |
 | `Tests/FolderAndFilterTests.swift` | Package traversal, scan errors, stable identities, composed git filters, file properties |
+| `Tests/ImageDiffTests.swift` | Difference renderer: pixel-space, top-left-aligned canvas, hatched size mismatch, mixed DPI |
+| `Tests/ImageAlignmentTests.swift` | Split/One-Up shared canvas: fit scale, top-down uncovered rects, rendered alignment and hatch |
 | `Tests/ThemeImportTests.swift` | `.tmTheme` import, hex colors, observable settings clamping |
 | `Tests/CommandLineWaitTests.swift` | `--wait` request parsing and location checks, launcher acknowledgement/status, request-to-comparison routing, merge save result |
 | `Tests/CommandLineToolStatusTests.swift` | Launcher version marker parsing; installed-copy status (absent, current, outdated, pre-marker, foreign) |

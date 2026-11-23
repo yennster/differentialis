@@ -191,8 +191,10 @@ struct AlignedImageLayer: View {
                 .resizable()
                 .interpolation(.high)
                 .frame(width: pixels.width * scale, height: pixels.height * scale)
-            SizeMismatchHatch(rects: layout.uncoveredRects(for: pixels),
-                              stripeWidth: layout.hatchStripeWidth, scale: scale)
+            let uncovered = layout.uncoveredRects(for: pixels)
+            if !uncovered.isEmpty {
+                SizeMismatchHatch(rects: uncovered, stripeWidth: layout.hatchStripeWidth, scale: scale)
+            }
         }
         .frame(width: layout.canvas.width * scale, height: layout.canvas.height * scale,
                alignment: .topLeading)
@@ -243,8 +245,9 @@ private struct SizeMismatchHatch: View {
                 var stripes = Path()
                 var x = rect.minX - rect.height
                 while x < rect.maxX + step {
-                    stripes.move(to: CGPoint(x: x, y: rect.maxY))
-                    stripes.addLine(to: CGPoint(x: x + rect.height, y: rect.minY))
+                    // Top-left to bottom-right, the same slant as the Core Image hatch.
+                    stripes.move(to: CGPoint(x: x, y: rect.minY))
+                    stripes.addLine(to: CGPoint(x: x + rect.height, y: rect.maxY))
                     x += step
                 }
                 clipped.stroke(stripes, with: .color(ImageDiffRenderer.hatchLight), lineWidth: stripe)
@@ -351,16 +354,19 @@ enum ImageDiffRenderer {
     /// the canvas so it stays visible when a large image is fit to the window.
     private static func sizeMismatchHatch(scale: CGFloat) -> CIImage? {
         let stripes = CIFilter.stripesGenerator()
-        stripes.color0 = CIColor(red: 0.42, green: 0.30, blue: 0.55, alpha: 1)
-        stripes.color1 = CIColor(red: 0.20, green: 0.15, blue: 0.27, alpha: 1)
+        stripes.color0 = CIColor(red: hatchLightRGB.r, green: hatchLightRGB.g, blue: hatchLightRGB.b, alpha: 1)
+        stripes.color1 = CIColor(red: hatchDarkRGB.r, green: hatchDarkRGB.g, blue: hatchDarkRGB.b, alpha: 1)
         stripes.width = Float(hatchStripeWidth(forLongestSide: scale))
         stripes.sharpness = 1
         return stripes.outputImage?.transformed(by: CGAffineTransform(rotationAngle: .pi / 4))
     }
 
-    /// Hatch colors shared with the SwiftUI hatch in Split and One-Up.
-    static let hatchLight = Color(.sRGB, red: 0.42, green: 0.30, blue: 0.55)
-    static let hatchDark = Color(.sRGB, red: 0.20, green: 0.15, blue: 0.27)
+    /// Hatch colors (sRGB), used by the Core Image hatch here and the SwiftUI hatch in Split and
+    /// One-Up so the two can't drift apart.
+    private static let hatchLightRGB: (r: CGFloat, g: CGFloat, b: CGFloat) = (0.42, 0.30, 0.55)
+    private static let hatchDarkRGB: (r: CGFloat, g: CGFloat, b: CGFloat) = (0.20, 0.15, 0.27)
+    static let hatchLight = Color(.sRGB, red: hatchLightRGB.r, green: hatchLightRGB.g, blue: hatchLightRGB.b)
+    static let hatchDark = Color(.sRGB, red: hatchDarkRGB.r, green: hatchDarkRGB.g, blue: hatchDarkRGB.b)
 
     /// Stripe width in canvas pixels: scales with the canvas so it stays visible when a large
     /// image is fit to the window.
