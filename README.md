@@ -35,7 +35,7 @@ new version in place.
 
 ## Features
 
-- **Text diff** — a from-scratch Myers diff engine with **character-level** intra-line highlights, **side-by-side and unified** layouts, exact matching or ignoring whitespace, case, or blank lines, line-ending/final-newline diagnostics, change bars, collapsible unchanged regions, next/previous-change navigation, and live insertion/deletion stats.
+- **Text diff** — a from-scratch Myers diff engine with **character-level** intra-line highlights, **side-by-side and unified** layouts, exact matching or ignoring whitespace, case, or blank lines, line-ending/final-newline diagnostics, change bars, collapsible unchanged regions, next/previous-change navigation, **Find** (`⌘F`) and **Go to Line** (`⌘L`), and live insertion/deletion stats.
 - **Paste Text** — compare snippets without saving files: paste or type into two side-by-side editors (`⌘T`) and the diff updates live as you edit, with synced scrolling and line numbers. Copy any change from one side to the other (`⌥⌘→` / `⌥⌘←`), with full undo, or flip to the split/unified Diff view.
 
 - **Image diff** — four comparison modes with `⌘1`–`⌘4`:
@@ -91,6 +91,8 @@ Every command is in the menu bar, and **Help ▸ Keyboard Shortcuts** (`⌘/`) s
 | New Pasted Text comparison | `⌘T` |
 | Open Repository | `⌘O` |
 | Next / previous change | `⌘]` / `⌘[` |
+| Find in diff or merge / next / previous match | `⌘F` / `⌘G` / `⇧⌘G` |
+| Go to line | `⌘L` |
 | Toggle Split / Unified | `⌘U` |
 | Pasted text: copy change to B / A | `⌥⌘→` / `⌥⌘←` |
 | Image: Two-Up / One-Up / Split / Difference | `⌘1` / `⌘2` / `⌘3` / `⌘4` |
