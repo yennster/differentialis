@@ -30,8 +30,9 @@ struct PastedTextAnalysis {
 
     var isIdentical: Bool { stats.isIdentical }
 
-    static func make(a: String, b: String, whitespace: WhitespacePolicy) -> PastedTextAnalysis {
-        let rows = LineDiff.rows(a, b, whitespace: whitespace)
+    static func make(a: String, b: String,
+                     options: LineMatchOptions = .exact) -> PastedTextAnalysis {
+        let rows = LineDiff.rows(a, b, options: options)
         let hunks = TwoWayMerge.hunks(in: rows)
         let links = TwoWayMerge.lineLinks(in: rows)
         let aSpans = TwoWayMerge.lineSpans(in: a)

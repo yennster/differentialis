@@ -25,6 +25,47 @@ enum WhitespacePolicy: String, CaseIterable, Hashable {
     }
 }
 
+/// How lines are matched against each other: which differences count as changes. Ignored
+/// differences change only the comparison keys and row classification; every line is still shown
+/// with its original text, so nothing is hidden silently.
+struct LineMatchOptions: Hashable, Sendable {
+    var whitespace: WhitespacePolicy = .significant
+    /// Lines that differ only in letter case match.
+    var ignoreCase = false
+    /// Lines that are empty or whitespace-only never count as insertions or deletions. They still
+    /// appear, as ignored rows, so the line numbers on each side stay continuous.
+    var ignoreBlankLines = false
+
+    static let exact = LineMatchOptions()
+
+    var isExact: Bool { self == .exact }
+
+    /// The active relaxations as a lowercase phrase, e.g. "ignoring case and blank lines".
+    var ignoredSummary: String? {
+        var parts: [String] = []
+        switch whitespace {
+        case .significant: break
+        case .trimEdges: parts.append("edge whitespace")
+        case .ignoreAll: parts.append("all whitespace")
+        }
+        if ignoreCase { parts.append("case") }
+        if ignoreBlankLines { parts.append("blank lines") }
+        guard !parts.isEmpty else { return nil }
+        let list = parts.count == 1 ? parts[0]
+            : parts.dropLast().joined(separator: ", ") + " and " + parts[parts.count - 1]
+        return "ignoring " + list
+    }
+
+    func comparisonKey(for line: String) -> String {
+        let key = whitespace.comparisonKey(for: line)
+        return ignoreCase ? key.lowercased() : key
+    }
+
+    static func isBlank(_ line: String) -> Bool {
+        line.allSatisfy(\.isWhitespace)
+    }
+}
+
 enum LineDiff {
     /// Number of unchanged context lines kept around each change before collapsing.
     static let context = 3
@@ -45,17 +86,44 @@ enum LineDiff {
     /// Build aligned side-by-side rows from two texts.
     static func rows(_ aText: String, _ bText: String,
                      whitespace: WhitespacePolicy = .significant) -> [DiffRow] {
+        rows(aText, bText, options: LineMatchOptions(whitespace: whitespace))
+    }
+
+    /// Build aligned side-by-side rows from two texts, matching lines as `options` describes.
+    static func rows(_ aText: String, _ bText: String, options: LineMatchOptions) -> [DiffRow] {
         let a = split(aText)
         let b = split(bText)
-        let aKeys = a.map(whitespace.comparisonKey)
-        let bKeys = b.map(whitespace.comparisonKey)
+        let aKeys = a.map(options.comparisonKey)
+        let bKeys = b.map(options.comparisonKey)
         let edits = myersDiff(aKeys, bKeys)
 
         var rows: [DiffRow] = []
         var pendingDeletes: [(Int, String)] = []
         var pendingInserts: [(Int, String)] = []
 
-        func flushPending() {
+        // With case ignored, compare characters case-insensitively too, so an edit that also
+        // changes case only highlights the real change. Lowercasing can change the character
+        // count (rarely), which would misalign the ranges; fall back to the exact diff then.
+        func characterDiff(_ left: String, _ right: String) -> CharDiffResult {
+            guard options.ignoreCase else { return charDiff(left, right) }
+            let lowerLeft = left.lowercased(), lowerRight = right.lowercased()
+            guard lowerLeft.count == left.count, lowerRight.count == right.count else {
+                return charDiff(left, right)
+            }
+            return charDiff(lowerLeft, lowerRight)
+        }
+
+        func ignoredRow(left: (Int, String)) -> DiffRow {
+            DiffRow(kind: .equal, leftNumber: left.0 + 1, rightNumber: nil,
+                    leftText: left.1, rightText: nil, isIgnored: true)
+        }
+
+        func ignoredRow(right: (Int, String)) -> DiffRow {
+            DiffRow(kind: .equal, leftNumber: nil, rightNumber: right.0 + 1,
+                    leftText: nil, rightText: right.1, isIgnored: true)
+        }
+
+        func appendChangeRows() {
             let count = max(pendingDeletes.count, pendingInserts.count)
             for i in 0..<count {
                 let del = i < pendingDeletes.count ? pendingDeletes[i] : nil
@@ -63,7 +131,7 @@ enum LineDiff {
                 switch (del, ins) {
                 case let (d?, n?):
                     // One char diff yields both the similarity gate and the highlight ranges.
-                    let cd = charDiff(d.1, n.1)
+                    let cd = characterDiff(d.1, n.1)
                     // A case-only edit has a zero case-sensitive LCS score but is still an obvious
                     // line modification rather than an unrelated delete/insert pair.
                     let similar = cd.similarity > 0.25 || d.1.caseInsensitiveCompare(n.1) == .orderedSame
@@ -100,6 +168,47 @@ enum LineDiff {
             pendingInserts.removeAll(keepingCapacity: true)
         }
 
+        func flushPending() {
+            guard options.ignoreBlankLines else {
+                appendChangeRows()
+                return
+            }
+            // Blank lines leave the change run and become ignored rows. The remaining lines pair
+            // up as usual; each ignored row is then placed before the first change row that comes
+            // after it on its side, so line numbers stay in order in both columns.
+            let blankDeletes = pendingDeletes.filter { LineMatchOptions.isBlank($0.1) }
+            let blankInserts = pendingInserts.filter { LineMatchOptions.isBlank($0.1) }
+            guard !blankDeletes.isEmpty || !blankInserts.isEmpty else {
+                appendChangeRows()
+                return
+            }
+            pendingDeletes.removeAll { LineMatchOptions.isBlank($0.1) }
+            pendingInserts.removeAll { LineMatchOptions.isBlank($0.1) }
+            let start = rows.count
+            appendChangeRows()
+            let changeRows = Array(rows[start...])
+            rows.removeSubrange(start...)
+
+            var nextDelete = 0, nextInsert = 0
+            func emitBlanks(beforeLeft left: Int?, beforeRight right: Int?) {
+                while nextDelete < blankDeletes.count,
+                      left.map({ blankDeletes[nextDelete].0 < $0 - 1 }) ?? false {
+                    rows.append(ignoredRow(left: blankDeletes[nextDelete]))
+                    nextDelete += 1
+                }
+                while nextInsert < blankInserts.count,
+                      right.map({ blankInserts[nextInsert].0 < $0 - 1 }) ?? false {
+                    rows.append(ignoredRow(right: blankInserts[nextInsert]))
+                    nextInsert += 1
+                }
+            }
+            for row in changeRows {
+                emitBlanks(beforeLeft: row.leftNumber, beforeRight: row.rightNumber)
+                rows.append(row)
+            }
+            emitBlanks(beforeLeft: .max, beforeRight: .max)
+        }
+
         for edit in edits {
             switch edit {
             case let .equal(i, j):
@@ -133,7 +242,12 @@ enum LineDiff {
     /// Build a full diff document with collapsible gaps and statistics.
     static func document(_ aText: String, _ bText: String,
                          whitespace: WhitespacePolicy = .significant) -> DiffDocument {
-        let rows = rows(aText, bText, whitespace: whitespace)
+        document(aText, bText, options: LineMatchOptions(whitespace: whitespace))
+    }
+
+    /// Build a full diff document, matching lines as `options` describes.
+    static func document(_ aText: String, _ bText: String, options: LineMatchOptions) -> DiffDocument {
+        let rows = rows(aText, bText, options: options)
         let stats = stats(for: rows)
 
         // Group into sections, collapsing long equal runs.
