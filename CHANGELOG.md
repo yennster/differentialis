@@ -23,6 +23,10 @@ When cutting a release, add a section here and use it as the release notes:
   older than the app's launcher is offered **Update Command Line Tool…**; and a
   `/usr/local/bin/differentialis` that isn't Differentialis's is never offered for removal, and
   installing over it asks first. Copies installed before this release are offered the update once.
+- **No more duplicate `origin` ref in Custom Comparison.** The reference menu no longer lists a
+  remote's HEAD pointer as an extra entry named after the remote (for example `origin`, a duplicate
+  of `origin/main`). Branches whose name ends in `/HEAD`, such as `feature/HEAD`, are no longer
+  hidden from it ([#20](https://github.com/yennster/differentialis/issues/20)).
 - Git snapshots (commits, the index, and conflict stages) now read the way `git checkout` writes
   them, applying `.gitattributes` conversions and smudge filters
   ([#15](https://github.com/yennster/differentialis/issues/15)). With `core.autocrlf` or
