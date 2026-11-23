@@ -206,18 +206,21 @@ struct GitRepository {
     func refs() throws -> [GitRef] {
         var result: [GitRef] = [GitRef(name: "HEAD", fullName: "HEAD", kind: .head)]
         let out = try run(["for-each-ref",
-                           "--format=%(refname)\u{1f}%(refname:short)",
+                           "--format=%(refname)\u{1f}%(refname:short)\u{1f}%(symref)",
                            "refs/heads", "refs/remotes", "refs/tags"])
         for line in out.split(separator: "\n") {
             let fields = line.components(separatedBy: "\u{1f}")
-            guard fields.count == 2 else { continue }
+            guard fields.count == 3 else { continue }
             let full = fields[0]
             let short = fields[1]
             let kind: GitRefKind
             if full.hasPrefix("refs/heads/") { kind = .branch }
             else if full.hasPrefix("refs/remotes/") { kind = .remoteBranch }
             else { kind = .tag }
-            if short.hasSuffix("/HEAD") { continue }
+            // Skip remote HEAD symrefs (`refs/remotes/<remote>/HEAD`). Test the symref
+            // target, not a name: git shortens that ref to just `<remote>`, and a full-name
+            // "/HEAD" suffix would also match real branches such as `origin/feature/HEAD`.
+            if kind == .remoteBranch && !fields[2].isEmpty { continue }
             result.append(GitRef(name: short, fullName: full, kind: kind))
         }
         return result
