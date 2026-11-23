@@ -279,8 +279,9 @@ struct TextComparisonView: View {
         let a = a, b = b
         let whitespacePolicy = whitespacePolicy
         let key = taskKey
-        // Either side's name picks the language (one side may be absent or renamed).
-        let language = a.syntaxLanguage ?? b.syntaxLanguage
+        // Each side uses its own file name; a side without one (absent, pasted) borrows the other's.
+        let leftLanguage = a.syntaxLanguage ?? b.syntaxLanguage
+        let rightLanguage = b.syntaxLanguage ?? a.syntaxLanguage
         // Reading the bytes (possibly a git blob) and the Myers + character-level diff are heavy
         // for large files — run them off the main actor so the UI never freezes mid-diff.
         // Tokenizing is linear but still real work on big files, so it rides along off-main too.
@@ -288,9 +289,10 @@ struct TextComparisonView: View {
             do {
                 let aText = try a.loadText()
                 let bText = try b.loadText()
-                let syntax = language.map {
-                    SyntaxLines(left: SyntaxHighlighter.tokenize(text: aText, language: $0),
-                                right: SyntaxHighlighter.tokenize(text: bText, language: $0))
+                var syntax: SyntaxLines?
+                if let leftLanguage, let rightLanguage {
+                    syntax = SyntaxLines(left: SyntaxHighlighter.tokenize(text: aText, language: leftLanguage),
+                                         right: SyntaxHighlighter.tokenize(text: bText, language: rightLanguage))
                 }
                 return (LineDiff.document(aText, bText, whitespace: whitespacePolicy),
                         textFormatDifferences(aText, bText), syntax, nil)

@@ -189,6 +189,49 @@ struct SyntaxHighlighterTests {
         #expect(spans("echo a#b ${#arr}", .shell)["#b ${#arr}"] == nil)
     }
 
+    @Test func shellHeredocsEndAtTheirTerminator() {
+        let result = lines("""
+        cat <<-'EOF' > out.txt
+        Don't panic
+        \tEOF
+        echo hi # done
+        """, .shell)
+        #expect(result[0]["<<-'EOF'"] == .attribute)
+        #expect(result[1]["Don't panic"] == .string)
+        #expect(result[2]["\tEOF"] == .string)
+        #expect(result[3]["# done"] == .comment)
+        #expect(result[3]["echo hi"] == nil)
+        // A here-string and arithmetic shifts are not here-documents.
+        #expect(lines("x=$(( 1 << 2 ))\nif true", .shell)[1]["if"] == .keyword)
+        #expect(lines("tr a b <<< word\nif true", .shell)[1]["if"] == .keyword)
+        // ANSI-C quoting escapes its quote and stays on its line.
+        let ansi = lines("echo $'it\\'s'\nif true", .shell)
+        #expect(ansi[0]["$'it\\'s'"] == .string)
+        #expect(ansi[1]["if"] == .keyword)
+    }
+
+    @Test func javaScriptRegexLiteralsDontOpenStringsOrComments() {
+        let result = lines("""
+        x = s.replace(/`/g, '').replace(/\\/*$/, "")
+        const y = a / b / c
+        return /[/]x/i.test(z)
+        """, .javaScript)
+        #expect(result[0]["/`/g"] == .string)
+        #expect(result[0]["/\\/*$/"] == .string)
+        #expect(result[1]["const"] == .keyword)
+        #expect(result[1].count == 1)   // division, not a regex
+        #expect(result[2]["/[/]x/i"] == .string)
+        #expect(result[2]["return"] == .keyword)
+    }
+
+    @Test func numbersInRangesAndCppSeparators() {
+        let swift = spans("for i in 1...5 { t.0 }", .swift)
+        #expect(swift["1"] == .number)
+        #expect(swift["5"] == .number)
+        #expect(swift[".5"] == nil)
+        #expect(spans("int n = 1'000'000;", .cFamily)["1'000'000"] == .number)
+    }
+
     @Test func cFamilyPreprocessorAndObjectiveC() {
         let include = spans("#include <stdio.h> // io", .cFamily)
         #expect(include["#include"] == .attribute)
@@ -229,6 +272,10 @@ struct SyntaxHighlighterTests {
         #expect(result[7]["still note -->"] == .comment)
         #expect(result[7].count == 1)
         #expect(spans("#hashtag", .markdown).isEmpty)
+        // ```code``` is inline code, not a fence: the next line is still a heading.
+        let inline = lines("```code``` here\n# Next", .markdown)
+        #expect(inline[0]["```code```"] == .string)
+        #expect(inline[1]["# Next"] == .heading)
     }
 
     // MARK: - Coordinates, limits, and robustness

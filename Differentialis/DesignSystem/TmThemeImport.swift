@@ -115,7 +115,9 @@ enum TmThemeImporter {
                                       fallback: SyntaxPalette) -> SyntaxPalette? {
         func matches(_ entry: String, _ scope: String) -> Bool {
             entry.split(separator: ",").contains { selector in
-                guard let last = selector.split(separator: " ").last else { return false }
+                // `source - comment` excludes comments; only the included part can match.
+                let included = selector.components(separatedBy: " - ").first ?? ""
+                guard let last = included.split(whereSeparator: \.isWhitespace).last else { return false }
                 return last == scope || last.hasPrefix(scope + ".")
             }
         }

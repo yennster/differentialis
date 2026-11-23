@@ -134,6 +134,9 @@ enum SyntaxLineState: Hashable, Sendable {
     case string(rule: Int)
     /// Inside a Markdown fenced code block opened by `fence` (e.g. "```").
     case fencedCode(fence: String)
+    /// Inside a shell here-document, until a line that is exactly `terminator` (after leading
+    /// tabs, for `<<-`).
+    case heredoc(terminator: String, stripTabs: Bool)
 }
 
 /// The data that drives `SyntaxHighlighter` for one language.
@@ -178,6 +181,10 @@ struct SyntaxGrammar: Sendable {
     /// A reserved word directly followed by `:` right after `(`, `,`, or `{` is an argument
     /// label or (JS/TS) object key (`move(in: view)`, `{ default: 1 }`), not a keyword.
     var keywordsCanBeLabels = false
+    /// JavaScript-style `/regex/flags` literals, recognized only where a value can start.
+    var regexLiterals = false
+    /// C++14 digit separators (`1'000'000`).
+    var quoteDigitSeparators = false
     var identifierStart: Set<Character> = ["_"]
     var identifierContinue: Set<Character> = ["_"]
 
@@ -199,9 +206,17 @@ struct SyntaxGrammar: Sendable {
             }
         }
 
+        if case .heredoc(let terminator, let stripTabs) = state {
+            let body = stripTabs ? String(c.drop { $0 == "\t" }) : String(c)
+            if body == terminator { state = .normal }
+            emit(0, n, .string)
+            return tokens
+        }
         if language == .yaml, state == .normal {
             i = yamlKey(c, emit: emit)
         }
+        // A here-document starts on the line after its `<<WORD`, once this line is done.
+        var pendingHeredoc: SyntaxLineState?
 
         while i < n {
             switch state {
@@ -229,8 +244,8 @@ struct SyntaxGrammar: Sendable {
                 emit(start, i, .string)
                 if closed || !rule.multiline { state = .normal }
                 continue
-            case .fencedCode:
-                state = .normal   // Markdown only; never reached for other grammars.
+            case .fencedCode, .heredoc:
+                state = .normal   // Handled before the loop; never reached here.
             case .normal:
                 break
             }
@@ -252,14 +267,26 @@ struct SyntaxGrammar: Sendable {
                 state = .blockComment(depth: 1)
                 continue
             }
+            if regexLiterals, ch == "/", regexCanStart(c, at: i), let end = Self.scanRegex(c, from: i) {
+                emit(i, end, .string)
+                i = end
+                continue
+            }
+            if language == .shell, ch == "<", let (end, heredoc) = Self.heredocStart(c, at: i) {
+                emit(i, end, .attribute)
+                pendingHeredoc = heredoc
+                i = end
+                continue
+            }
             if let index = stringRule(at: i, in: c) {
                 lexString(c, from: i, rule: index, i: &i, state: &state, emit: emit)
                 continue
             }
+            // `.5` is a number, but not the `5` of a `1...5` range or the `0` of `tuple.0`.
             if Self.isDigit(ch) || (ch == "." && i + 1 < n && Self.isDigit(c[i + 1])
-                                    && (i == 0 || !isIdentifierContinue(c[i - 1]))) {
+                                    && (i == 0 || (c[i - 1] != "." && !isIdentifierContinue(c[i - 1])))) {
                 let start = i
-                i = Self.scanNumber(c, from: i)
+                i = Self.scanNumber(c, from: i, quoteSeparators: quoteDigitSeparators)
                 emit(start, i, .number)
                 continue
             }
@@ -312,6 +339,13 @@ struct SyntaxGrammar: Sendable {
             if shellVariables, ch == "$", i + 1 < n {
                 let start = i
                 let next = c[i + 1]
+                // ANSI-C quoting, `$'it\'s'`: single-line, with backslash escapes.
+                if next == "'" {
+                    i += 2
+                    _ = Self.scanString(c, &i, StringRule(open: ["'"], close: ["'"]))
+                    emit(start, i, .string)
+                    continue
+                }
                 if next == "{" {
                     i += 2
                     while i < n && c[i] != "}" { i += 1 }
@@ -333,7 +367,73 @@ struct SyntaxGrammar: Sendable {
             }
             i += 1
         }
+        if let pendingHeredoc, state == .normal { state = pendingHeredoc }
         return tokens
+    }
+
+    /// Whether a `/` at `i` can open a regex rather than divide: at the start of the line, after
+    /// an operator or opening punctuation, or after a keyword such as `return`.
+    private func regexCanStart(_ c: [Character], at i: Int) -> Bool {
+        guard let before = c[..<i].lastIndex(where: { !$0.isWhitespace }) else { return true }
+        let p = c[before]
+        if "(,=:[!&|?{};+-*%<>~^".contains(p) { return true }
+        guard isIdentifierContinue(p) else { return false }
+        var start = before
+        while start > 0 && isIdentifierContinue(c[start - 1]) { start -= 1 }
+        return Self.regexPrecedingWords.contains(String(c[start...before]))
+    }
+
+    private static let regexPrecedingWords: Set<String> = [
+        "return", "typeof", "case", "do", "else", "in", "of", "new", "delete", "void", "throw",
+        "yield", "await",
+    ]
+
+    /// The end of a `/…/flags` regex starting at `i`, or nil when it doesn't close on this line
+    /// (then the `/` is treated as division and no state carries over).
+    private static func scanRegex(_ c: [Character], from i: Int) -> Int? {
+        var j = i + 1
+        var inClass = false
+        while j < c.count {
+            switch c[j] {
+            case "\\":
+                j += 2
+                continue
+            case "[":
+                inClass = true
+            case "]":
+                inClass = false
+            case "/" where !inClass:
+                j += 1
+                while j < c.count && c[j].isLetter { j += 1 }
+                return j
+            default:
+                break
+            }
+            j += 1
+        }
+        return nil
+    }
+
+    /// `<<WORD`, `<<-WORD`, `<<'WORD'`, `<<"WORD"` (not `<<<` or arithmetic `1 << 2`): the end
+    /// of the operator and word, and the state that starts on the next line.
+    private static func heredocStart(_ c: [Character], at i: Int) -> (Int, SyntaxLineState)? {
+        let n = c.count
+        guard matches(c, i, ["<", "<"]), !matches(c, i + 2, ["<"]), i == 0 || c[i - 1] != "<" else { return nil }
+        var j = i + 2
+        let stripTabs = j < n && c[j] == "-"
+        if stripTabs { j += 1 }
+        while j < n && (c[j] == " " || c[j] == "\t") { j += 1 }
+        var quote: Character?
+        if j < n, c[j] == "'" || c[j] == "\"" {
+            quote = c[j]
+            j += 1
+        }
+        let wordStart = j
+        guard j < n, c[j].isLetter || c[j] == "_" else { return nil }
+        while j < n && (c[j].isLetter || isDigit(c[j]) || c[j] == "_") { j += 1 }
+        let word = String(c[wordStart..<j])
+        if let quote, j < n, c[j] == quote { j += 1 }
+        return (j, .heredoc(terminator: word, stripTabs: stripTabs))
     }
 
     private func lexString(_ c: [Character], from start: Int, rule index: Int, i: inout Int,
@@ -445,7 +545,7 @@ struct SyntaxGrammar: Sendable {
 
         var i = 0
         if case .blockComment = state {
-            let close = Array("-->")
+            let close = Self.htmlCommentClose
             while i < n && !Self.matches(c, i, close) { i += 1 }
             if i == n {
                 emit(0, n, .comment)
@@ -460,7 +560,8 @@ struct SyntaxGrammar: Sendable {
             if lead == "`" || lead == "~" {
                 var run = indent
                 while run < n && c[run] == lead { run += 1 }
-                if run - indent >= 3 {
+                // A backtick fence's info string can't contain backticks (```a``` is inline code).
+                if run - indent >= 3, lead == "~" || !c[run...].contains("`") {
                     state = .fencedCode(fence: String(c[indent..<run]))
                     emit(0, n, .string)
                     return tokens
@@ -509,9 +610,9 @@ struct SyntaxGrammar: Sendable {
                 } else {
                     i = run
                 }
-            } else if Self.matches(c, i, Array("<!--")) {
+            } else if Self.matches(c, i, Self.htmlCommentOpen) {
                 let start = i
-                let close = Array("-->")
+                let close = Self.htmlCommentClose
                 i += 4
                 while i < n && !Self.matches(c, i, close) { i += 1 }
                 if i < n {
@@ -557,7 +658,10 @@ struct SyntaxGrammar: Sendable {
         return false
     }
 
-    private static func scanNumber(_ c: [Character], from start: Int) -> Int {
+    private static let htmlCommentOpen = Array("<!--")
+    private static let htmlCommentClose = Array("-->")
+
+    private static func scanNumber(_ c: [Character], from start: Int, quoteSeparators: Bool) -> Int {
         let n = c.count
         let isHex = start + 1 < n && c[start] == "0" && (c[start + 1] == "x" || c[start + 1] == "X")
         var i = start + 1
@@ -566,6 +670,8 @@ struct SyntaxGrammar: Sendable {
             if ch.isASCII && (ch.isLetter || ch.isNumber) || ch == "_" {
                 i += 1
             } else if ch == ".", i + 1 < n, isDigit(c[i + 1]) {
+                i += 1
+            } else if ch == "'", quoteSeparators, i + 1 < n, c[i + 1].isHexDigit {
                 i += 1
             } else if ch == "+" || ch == "-", !isHex, c[i - 1] == "e" || c[i - 1] == "E" {
                 i += 1

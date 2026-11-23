@@ -81,7 +81,7 @@ struct TmThemeImportTests {
         // Comma-separated, descendant-qualified selectors are how real themes spell scopes.
         let keyword = """
             <dict>
-              <key>scope</key><string>source.js keyword.control, storage</string>
+              <key>scope</key><string>source.js keyword.control,\n  storage</string>
               <key>settings</key><dict><key>foreground</key><string>#F92672</string></dict>
             </dict>
           </array>

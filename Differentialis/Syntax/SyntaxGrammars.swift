@@ -68,6 +68,7 @@ extension SyntaxGrammar {
         g.keywords = javaScriptKeywords
         g.literals = ["true", "false", "null", "undefined", "NaN", "Infinity"]
         g.keywordsCanBeLabels = true
+        g.regexLiterals = true
         g.capitalizedAreTypes = true
         g.atWords = .attribute
         g.identifierStart = ["_", "$"]
@@ -191,6 +192,7 @@ extension SyntaxGrammar {
         ]
         g.literals = ["true", "false", "NULL", "nullptr", "nil", "Nil", "YES", "NO"]
         g.capitalizedAreTypes = true
+        g.quoteDigitSeparators = true
         g.atWords = .keyword   // @interface, @property, @end
         g.hashWords = .lineStart
         return g
