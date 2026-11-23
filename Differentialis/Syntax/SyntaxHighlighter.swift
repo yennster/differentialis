@@ -376,7 +376,9 @@ struct SyntaxGrammar: Sendable {
     private func regexCanStart(_ c: [Character], at i: Int) -> Bool {
         guard let before = c[..<i].lastIndex(where: { !$0.isWhitespace }) else { return true }
         let p = c[before]
-        if "(,=:[!&|?{};+-*%<>~^".contains(p) { return true }
+        // `i++ / 2` divides; `</p>` closes a JSX tag.
+        if (p == "+" || p == "-"), before > 0, c[before - 1] == p { return false }
+        if "(,=:[!&|?{};+-*%>~^".contains(p) { return true }
         guard isIdentifierContinue(p) else { return false }
         var start = before
         while start > 0 && isIdentifierContinue(c[start - 1]) { start -= 1 }
@@ -414,25 +416,35 @@ struct SyntaxGrammar: Sendable {
         return nil
     }
 
-    /// `<<WORD`, `<<-WORD`, `<<'WORD'`, `<<"WORD"` (not `<<<` or arithmetic `1 << 2`): the end
-    /// of the operator and word, and the state that starts on the next line.
+    /// `<<WORD`, `<<-WORD`, `<<'WORD'`, `<<"WORD"`, `<<\WORD` (not `<<<`, and not a shift inside
+    /// `(( … ))` arithmetic): the end of the operator and word, and the state that starts on the
+    /// next line.
     private static func heredocStart(_ c: [Character], at i: Int) -> (Int, SyntaxLineState)? {
         let n = c.count
         guard matches(c, i, ["<", "<"]), !matches(c, i + 2, ["<"]), i == 0 || c[i - 1] != "<" else { return nil }
+        // Inside `$(( … ))` / `(( … ))`, `<<` is a left shift.
+        let before = String(c[..<i])
+        if before.components(separatedBy: "((").count > before.components(separatedBy: "))").count {
+            return nil
+        }
         var j = i + 2
         let stripTabs = j < n && c[j] == "-"
         if stripTabs { j += 1 }
         while j < n && (c[j] == " " || c[j] == "\t") { j += 1 }
-        var quote: Character?
-        if j < n, c[j] == "'" || c[j] == "\"" {
-            quote = c[j]
-            j += 1
+        guard j < n else { return nil }
+        let word: String
+        if c[j] == "'" || c[j] == "\"" {
+            let quote = c[j]
+            guard let close = c[(j + 1)...].firstIndex(of: quote), close > j + 1 else { return nil }
+            word = String(c[(j + 1)..<close])
+            j = close + 1
+        } else {
+            if c[j] == "\\" { j += 1 }
+            let wordStart = j
+            while j < n && !c[j].isWhitespace && !";|&<>()'\"".contains(c[j]) { j += 1 }
+            guard j > wordStart, c[wordStart].isLetter || c[wordStart] == "_" else { return nil }
+            word = String(c[wordStart..<j])
         }
-        let wordStart = j
-        guard j < n, c[j].isLetter || c[j] == "_" else { return nil }
-        while j < n && (c[j].isLetter || isDigit(c[j]) || c[j] == "_") { j += 1 }
-        let word = String(c[wordStart..<j])
-        if let quote, j < n, c[j] == quote { j += 1 }
         return (j, .heredoc(terminator: word, stripTabs: stripTabs))
     }
 

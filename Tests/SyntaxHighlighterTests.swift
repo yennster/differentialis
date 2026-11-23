@@ -203,6 +203,14 @@ struct SyntaxHighlighterTests {
         #expect(result[3]["echo hi"] == nil)
         // A here-string and arithmetic shifts are not here-documents.
         #expect(lines("x=$(( 1 << 2 ))\nif true", .shell)[1]["if"] == .keyword)
+        #expect(lines("mask=$(( 1 << bits ))\nif true", .shell)[1]["if"] == .keyword)
+        #expect(lines("(( x <<= n ))\nif true", .shell)[1]["if"] == .keyword)
+        // Delimiters with punctuation, quoted or backslash-escaped, end where they should.
+        for opener in ["cat <<END-OF.TEXT", "cat <<'END-OF.TEXT'", "cat <<\\END-OF.TEXT;"] {
+            let heredoc = lines("\(opener)\nDon't\nEND-OF.TEXT\nif true", .shell)
+            #expect(heredoc[1]["Don't"] == .string, "\(opener)")
+            #expect(heredoc[3]["if"] == .keyword, "\(opener)")
+        }
         #expect(lines("tr a b <<< word\nif true", .shell)[1]["if"] == .keyword)
         // ANSI-C quoting escapes its quote and stays on its line.
         let ansi = lines("echo $'it\\'s'\nif true", .shell)
@@ -222,6 +230,10 @@ struct SyntaxHighlighterTests {
         #expect(result[1].count == 1)   // division, not a regex
         #expect(result[2]["/[/]x/i"] == .string)
         #expect(result[2]["return"] == .keyword)
+        #expect(spans("n = i++ / 2 + y / 3", .javaScript).values.allSatisfy { $0 == .number })
+        #expect(spans("const e = <p>a</p><b>c</b>", .javaScript)["const"] == .keyword)
+        #expect(spans("const e = <p>a</p><b>c</b>", .javaScript).count == 1)
+        #expect(spans("f(x => /a/.test(x))", .javaScript)["/a/"] == .string)
     }
 
     @Test func numbersInRangesAndCppSeparators() {
