@@ -4,7 +4,7 @@ import AppKit
 @main
 struct DifferentialisApp: App {
     @State private var model = AppModel()
-    @State private var cliInstalled = CommandLineToolInstaller.isInstalled
+    @State private var commandLineTool = CommandLineToolMenuState()
     @NSApplicationDelegateAdaptor private var appDelegate: AppDelegate
 
     init() {
@@ -29,13 +29,16 @@ struct DifferentialisApp: App {
                 }
                 .disabled(!model.updater.canCheckForUpdates)
 
-                Button(cliInstalled ? "Uninstall Command Line Tool…" : "Install Command Line Tool…") {
-                    if cliInstalled {
-                        CommandLineToolInstaller.uninstall()
-                    } else {
-                        CommandLineToolInstaller.install()
-                    }
-                    cliInstalled = CommandLineToolInstaller.isInstalled
+                switch commandLineTool.status {
+                case .notInstalled, .foreign:
+                    // A foreign file at the path is never offered for removal; installing over it
+                    // asks first.
+                    Button("Install Command Line Tool…") { commandLineTool.install() }
+                case .outdated:
+                    Button("Update Command Line Tool…") { commandLineTool.install() }
+                    Button("Uninstall Command Line Tool…") { commandLineTool.uninstall() }
+                case .current:
+                    Button("Uninstall Command Line Tool…") { commandLineTool.uninstall() }
                 }
             }
             CommandGroup(replacing: .newItem) {

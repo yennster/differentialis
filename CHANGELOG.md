@@ -18,6 +18,11 @@ When cutting a release, add a section here and use it as the release notes:
   ([#23](https://github.com/yennster/differentialis/issues/23)).
 
 ### Fixed
+- **Command Line Tool** menu fixes ([#21](https://github.com/yennster/differentialis/issues/21)):
+  uninstalling now confirms "Command Line Tool Removed" instead of "Installed"; an installed copy
+  older than the app's launcher is offered **Update Command Line Tool…**; and a
+  `/usr/local/bin/differentialis` that isn't Differentialis's is never offered for removal, and
+  installing over it asks first. Copies installed before this release are offered the update once.
 - **No more duplicate `origin` ref in Custom Comparison.** The reference menu no longer lists a
   remote's HEAD pointer as an extra entry named after the remote (for example `origin`, a duplicate
   of `origin/main`). Branches whose name ends in `/HEAD`, such as `feature/HEAD`, are no longer

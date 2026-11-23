@@ -13,6 +13,12 @@
 #
 # --wait is what `git difftool` and `git mergetool` need (see the README for the git config).
 #
+# differentialis-launcher-version: 1
+#
+# The app compares this marker with the copy installed in /usr/local/bin and offers "Update
+# Command Line Tool…" when the installed one is older. Bump it whenever this script changes.
+# (CommandLineToolStatus.swift reads it; scripts/check-cli-wait.sh checks it's here.)
+#
 # Resolves relative paths against the current directory and forwards them to the
 # app by bundle id (not app name — name lookup can resolve to a stale Debug build
 # registered with LaunchServices). Works whether Differentialis is running or not.

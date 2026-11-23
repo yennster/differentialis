@@ -115,6 +115,10 @@ FAKE_APP=status-0 expect_exit 0 "paths after -- (README form)" --wait --output m
 FAKE_APP=quit expect_exit 1 "app quit while waiting" --wait a.txt b.txt
 [ -z "$(ls -A "$wait_dir")" ] || fail "quit left files behind: $(ls -A "$wait_dir")"
 
+# The app reads this marker to offer "Update Command Line Tool…" (CommandLineToolStatus.swift).
+head -n 40 "$launcher" | grep -Eq '^[[:space:]]*# differentialis-launcher-version:[[:space:]]*[0-9]+[[:space:]]*$' \
+  || fail "launcher is missing its '# differentialis-launcher-version: N' marker in the first 40 lines"
+
 if [ "$failures" -ne 0 ]; then
   echo "$failures launcher check(s) failed" >&2
   exit 1
