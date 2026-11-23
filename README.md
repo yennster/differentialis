@@ -35,7 +35,7 @@ new version in place.
 
 ## Features
 
-- **Text diff** — a from-scratch Myers diff engine with **character-level** intra-line highlights, **syntax highlighting** (Swift, JavaScript/TypeScript, Python, JSON, YAML, Markdown, shell, and C-family, colored by your theme), **side-by-side and unified** layouts, exact or whitespace-insensitive matching, line-ending/final-newline diagnostics, change bars, collapsible unchanged regions, next/previous-change navigation, and live insertion/deletion stats.
+- **Text diff** — a from-scratch Myers diff engine with **character-level** intra-line highlights, **syntax highlighting** (Swift, JavaScript/TypeScript, Python, JSON, YAML, Markdown, shell, and C-family, colored by your theme), **side-by-side and unified** layouts, exact matching or ignoring whitespace, case, or blank lines, line-ending/final-newline diagnostics, change bars, collapsible unchanged regions, next/previous-change navigation, and live insertion/deletion stats.
 - **Paste Text** — compare snippets without saving files: paste or type into two side-by-side editors (`⌘T`) and the diff updates live as you edit, with synced scrolling and line numbers. Copy any change from one side to the other (`⌥⌘→` / `⌥⌘←`), with full undo, or flip to the split/unified Diff view.
 
 - **Image diff** — four comparison modes with `⌘1`–`⌘4`:

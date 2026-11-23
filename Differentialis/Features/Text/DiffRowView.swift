@@ -61,6 +61,8 @@ struct DiffRowView: View {
             half(number: row.rightNumber, text: row.rightText, highlights: row.rightHighlights,
                  tokens: rightTokens, kind: rightKind, side: .right)
         }
+        // An ignored difference (a blank line on one side only) stays visible, just dimmed.
+        .opacity(row.isIgnored ? 0.45 : 1)
         .background(isCurrent ? Theme.brand.opacity(0.12) : .clear)
         .contextMenu { DiffRowCopyMenu(left: row.leftText, right: row.rightText) }
     }
