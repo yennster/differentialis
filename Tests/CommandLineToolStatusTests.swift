@@ -23,6 +23,7 @@ struct CommandLineToolStatusTests {
         #expect(CommandLineToolStatus.launcherVersion(in: launcher(version: 3)) == 3)
         #expect(CommandLineToolStatus.launcherVersion(in: "#!/bin/sh\n  # differentialis-launcher-version:12  \n") == 12)
         #expect(CommandLineToolStatus.launcherVersion(in: launcher(version: nil)) == nil)
+        #expect(CommandLineToolStatus.launcherVersion(in: "#!/bin/sh\r\n# differentialis-launcher-version: 4\r\n") == 4)
     }
 
     @Test("a malformed marker or one past the header isn't a version")
@@ -105,5 +106,14 @@ struct CommandLineToolStatusTests {
         try FileManager.default.removeItem(at: installed)
         try FileManager.default.createDirectory(at: installed, withIntermediateDirectories: false)
         #expect(CommandLineToolStatus.read(installPath: installed.path, bundledPath: bundled.path) == .foreign)
+
+        // A symlink to someone else's file is foreign; a dangling one is nothing installed.
+        try FileManager.default.removeItem(at: installed)
+        let other = dir.appendingPathComponent("other")
+        try "#!/bin/sh\necho hi\n".write(to: other, atomically: true, encoding: .utf8)
+        try FileManager.default.createSymbolicLink(at: installed, withDestinationURL: other)
+        #expect(CommandLineToolStatus.read(installPath: installed.path, bundledPath: bundled.path) == .foreign)
+        try FileManager.default.removeItem(at: other)
+        #expect(CommandLineToolStatus.read(installPath: installed.path, bundledPath: bundled.path) == .notInstalled)
     }
 }

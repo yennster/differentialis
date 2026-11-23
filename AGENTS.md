@@ -127,7 +127,8 @@ project.yml       XcodeGen project definition (source of truth for the project)
 
 App source paths below are relative to `Differentialis/` unless otherwise noted.
 
-- `App/DifferentialisApp.swift` owns the `@State AppModel`, injects it into the
+- `App/DifferentialisApp.swift` owns the `@State AppModel` (and the command line
+  tool's menu state), injects it into the
   window environment, creates the Settings scene, and initializes
   `ThemeManager.shared` before windows appear. `AppDelegate` forwards Finder / CLI
   open Apple Events to `AppModel.shared`; this is app-wide state, not a separate

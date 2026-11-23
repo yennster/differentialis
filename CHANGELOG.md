@@ -22,7 +22,7 @@ When cutting a release, add a section here and use it as the release notes:
   uninstalling now confirms "Command Line Tool Removed" instead of "Installed"; an installed copy
   older than the app's launcher is offered **Update Command Line Tool…**; and a
   `/usr/local/bin/differentialis` that isn't Differentialis's is never offered for removal, and
-  installing over it asks first.
+  installing over it asks first. Copies installed before this release are offered the update once.
 - Git snapshots (commits, the index, and conflict stages) now read the way `git checkout` writes
   them, applying `.gitattributes` conversions and smudge filters
   ([#15](https://github.com/yennster/differentialis/issues/15)). With `core.autocrlf` or

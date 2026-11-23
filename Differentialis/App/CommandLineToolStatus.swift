@@ -30,7 +30,8 @@ enum CommandLineToolStatus: Equatable, Sendable {
 
     /// The marker's version, or `nil` if the text has no valid marker in its header.
     static func launcherVersion(in text: String) -> Int? {
-        for line in text.split(separator: "\n", omittingEmptySubsequences: false).prefix(headerLineLimit) {
+        // `isNewline`, not "\n": Swift treats "\r\n" as one Character, so CRLF text wouldn't split.
+        for line in text.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline).prefix(headerLineLimit) {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             guard trimmed.hasPrefix(markerPrefix) else { continue }
             let value = trimmed.dropFirst(markerPrefix.count).trimmingCharacters(in: .whitespaces)
@@ -51,8 +52,9 @@ enum CommandLineToolStatus: Equatable, Sendable {
     /// Classifies the installed file's contents against the bundled launcher's.
     ///
     /// - Parameters:
-    ///   - installed: the installed file's contents; `nil` when nothing is there. A file that
-    ///     exists but can't be read as UTF-8 text should be passed as `""` (foreign).
+    ///   - installed: the installed file's contents; `nil` when nothing is there. Something that
+    ///     exists but can't be read (a folder, no read permission) is passed as `""` and is
+    ///     treated as foreign, conservatively, even if it might be ours.
     ///   - bundled: the bundled launcher's contents; `nil` if it couldn't be read (then any copy
     ///     of ours counts as current, since there's nothing to update it to).
     static func evaluate(installed: String?, bundled: String?) -> CommandLineToolStatus {

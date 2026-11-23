@@ -41,8 +41,16 @@ enum CommandLineToolInstaller {
     /// password dialog is silent.
     static func install() {
         let status = currentStatus(bundledScriptPath: bundledScriptPath)
-        if status == .foreign, !confirmReplacingForeignFile() { return }
-        let updating = status == .outdated || status == .current
+        if status == .foreign {
+            // `rm -f` can't remove a real folder, and we won't `rm -rf` one; say so up front.
+            let type = (try? FileManager.default.attributesOfItem(atPath: installPath))?[.type] as? FileAttributeType
+            if type == .typeDirectory {
+                present(error: "\(installPath) is a folder. Move or remove it, then try again.", action: "install")
+                return
+            }
+            guard confirmReplacingForeignFile() else { return }
+        }
+        let updating = status == .outdated
 
         // Copy the launcher (don't symlink into the bundle) so it survives the app moving, and
         // chmod +x so it's directly runnable. `rm -f` first so a symlink at the path is replaced,
@@ -162,23 +170,34 @@ enum CommandLineToolInstaller {
 }
 
 /// The command line tool's install status for the app menu. Starts as "not installed" and is read
-/// off the main thread at launch (the menu can't be opened before that finishes in practice), then
-/// re-read after each install/update/uninstall.
+/// off the main thread at launch, whenever the app becomes active (the file may have changed in
+/// Terminal or from another copy of the app), and after each install/update/uninstall. The actions
+/// re-check the file themselves, so a briefly stale menu never deletes or overwrites the wrong file.
 @MainActor
 @Observable
 final class CommandLineToolMenuState {
     private(set) var status: CommandLineToolStatus = .notInstalled
+    @ObservationIgnored private var requests = LatestRequests<Int>()
+    @ObservationIgnored private var activeObserver: NSObjectProtocol?
 
     init() {
         refresh()
+        activeObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refresh() }
+        }
     }
 
     func refresh() {
         let bundled = CommandLineToolInstaller.bundledScriptPath
+        let request = requests.begin(0)
         Task {
-            let status = await Task.detached(priority: .utility) {
+            let status = await offMain {
                 CommandLineToolInstaller.currentStatus(bundledScriptPath: bundled)
-            }.value
+            }
+            // A later refresh (e.g. after an install) supersedes a slower earlier read.
+            guard requests.finish(0, request) else { return }
             self.status = status
         }
     }
