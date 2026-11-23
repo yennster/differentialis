@@ -114,6 +114,31 @@ enum TextSearch {
         return result
     }
 
+    /// A place in merge Review that survives resolving hunks: a hunk and a line offset within the
+    /// lines Review draws for it. An absolute position would shift whenever a hunk above changes
+    /// how many lines it draws.
+    struct ReviewAnchor: Hashable, Sendable {
+        let hunk: UUID
+        let offset: Int
+    }
+
+    /// The anchor for a match, given the positions `reviewLinePositions` returns.
+    static func reviewAnchor(for match: MergeSearchMatch, starts: [UUID: Int]) -> ReviewAnchor {
+        ReviewAnchor(hunk: match.hunkID, offset: max(0, match.position - (starts[match.hunkID] ?? match.position)))
+    }
+
+    /// Where an anchor now falls among Review's lines, clamped to its hunk (which may draw fewer
+    /// lines once resolved); nil when the hunk is gone.
+    static func reviewPosition(of anchor: ReviewAnchor, in hunks: [MergeHunk]) -> Int? {
+        var position = 0
+        for hunk in hunks {
+            let count = reviewParts(of: hunk).reduce(0) { $0 + $1.lines.count }
+            if hunk.id == anchor.hunk { return position + min(anchor.offset, max(count - 1, 0)) }
+            position += count
+        }
+        return nil
+    }
+
     /// Every match in merge Review, in display order. "Changed lines only" skips unchanged context.
     static func matches(of query: String, in hunks: [MergeHunk], options: TextSearchOptions,
                         limit: Int = matchLimit) -> [MergeSearchMatch] {

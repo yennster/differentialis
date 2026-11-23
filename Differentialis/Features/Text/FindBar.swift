@@ -101,7 +101,7 @@ struct FindBar: View {
         // Views search for one more than the limit, so "+" means there really are more.
         let total = matchCount > TextSearch.matchLimit
             ? "\(TextSearch.matchLimit.formatted())+" : "\(matchCount)"
-        if let currentIndex { return "\(currentIndex + 1) of \(total)" }
+        if let currentIndex { return "\(min(currentIndex + 1, TextSearch.matchLimit)) of \(total)" }
         return "\(total) match\(matchCount == 1 ? "" : "es")"
     }
 
