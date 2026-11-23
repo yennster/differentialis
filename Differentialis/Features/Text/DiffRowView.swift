@@ -8,15 +8,24 @@ func highlightedLine(_ text: String, ranges: [Range<Int>], color: Color,
                      find: LineFindHighlights = LineFindHighlights()) -> AttributedString {
     var attr = AttributedString(text)
     let count = text.count
-    func paint(_ range: Range<Int>, _ color: Color) {
-        guard range.lowerBound >= 0, range.upperBound <= count, range.lowerBound < range.upperBound else { return }
-        let lower = attr.characters.index(attr.characters.startIndex, offsetBy: range.lowerBound)
-        let upper = attr.characters.index(attr.characters.startIndex, offsetBy: range.upperBound)
-        attr[lower..<upper].backgroundColor = color
+    // Walk each sorted set of ranges with one moving index, so many matches on a long line cost
+    // one pass rather than a walk from the start per range.
+    func paint(_ ranges: [Range<Int>], _ color: Color) {
+        var index = attr.characters.startIndex
+        var offset = 0
+        for range in ranges.sorted(by: { $0.lowerBound < $1.lowerBound }) {
+            guard range.lowerBound >= offset, range.upperBound <= count, range.lowerBound < range.upperBound
+            else { continue }
+            let lower = attr.characters.index(index, offsetBy: range.lowerBound - offset)
+            let upper = attr.characters.index(lower, offsetBy: range.count)
+            attr[lower..<upper].backgroundColor = color
+            index = upper
+            offset = range.upperBound
+        }
     }
-    for range in ranges { paint(range, color) }
-    for range in find.matches { paint(range, Theme.findMatch) }
-    if let current = find.current { paint(current, Theme.findCurrentMatch) }
+    paint(ranges, color)
+    paint(find.matches, Theme.findMatch)
+    if let current = find.current { paint([current], Theme.findCurrentMatch) }
     return attr
 }
 

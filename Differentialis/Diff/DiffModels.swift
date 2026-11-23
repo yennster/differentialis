@@ -39,7 +39,8 @@ struct DiffDocument {
 
     var sections: [Section]
     var stats: DiffStats
-    /// Flattened rows that are not collapsed, in order — used for next/prev navigation.
+    /// Every row in order, including those inside collapsed gaps; next/previous navigation, Find,
+    /// and Go to Line all rely on that.
     var allRows: [DiffRow]
 
     var isIdentical: Bool { stats.insertions == 0 && stats.deletions == 0 && stats.modifications == 0 }

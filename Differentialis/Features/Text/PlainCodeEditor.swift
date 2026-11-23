@@ -105,7 +105,10 @@ final class CodeEditorHandle {
 
     private func runPending() {
         guard let textView, let window = textView.window else { return }
-        window.makeFirstResponder(textView)
+        // Next/previous match leave focus alone, so typing in the find field isn't interrupted.
+        if pendingLine != nil || pendingFinderAction == .showFindInterface {
+            window.makeFirstResponder(textView)
+        }
         if let line = pendingLine {
             pendingLine = nil
             let range = TextSearch.utf16Range(ofLine: line, in: textView.string)

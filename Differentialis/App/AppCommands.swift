@@ -18,6 +18,9 @@ struct DiffCommandActions {
     var findNext: (() -> Void)? = nil
     var findPrevious: (() -> Void)? = nil
     var goToLine: (() -> Void)? = nil
+    /// The view's Find runs in a text view's own find bar (merge Result), so the text-editor-only
+    /// Find items (Replace, Use Selection, Jump to Selection) stay available.
+    var findInTextView = false
 }
 
 /// Refreshes one open changeset's file list. Equatable (by changeset and model), so passing it
@@ -60,6 +63,11 @@ extension FocusedValues {
 struct AppMenuCommands: Commands {
     let model: AppModel
     @FocusedValue(\.diffCommands) private var diff
+
+    /// Off where a diff or merge Review owns Find, since those items need a text view.
+    private var textFinderItemsEnabled: Bool {
+        diff?.find == nil || diff?.findInTextView == true
+    }
 
     var body: some Commands {
         CommandGroup(after: .sidebar) {
@@ -123,6 +131,7 @@ struct AppMenuCommands: Commands {
                 .keyboardShortcut("f", modifiers: .command)
                 Button("Find and Replace…") { TextFinderCommand.send(.showReplaceInterface) }
                     .keyboardShortcut("f", modifiers: [.command, .option])
+                    .disabled(!textFinderItemsEnabled)
                 Button("Find Next") {
                     if let next = diff?.findNext { next() } else { TextFinderCommand.send(.nextMatch) }
                 }
@@ -131,8 +140,16 @@ struct AppMenuCommands: Commands {
                     if let previous = diff?.findPrevious { previous() } else { TextFinderCommand.send(.previousMatch) }
                 }
                 .keyboardShortcut("g", modifiers: [.command, .shift])
+                // Diff rows are SwiftUI text, whose selection can't be read, so this is for the
+                // text editors; the diff Find bar shares the system find pasteboard instead.
                 Button("Use Selection for Find") { TextFinderCommand.send(.setSearchString) }
                     .keyboardShortcut("e", modifiers: .command)
+                    .disabled(!textFinderItemsEnabled)
+                Button("Jump to Selection") {
+                    _ = NSApp.sendAction(#selector(NSTextView.centerSelectionInVisibleArea(_:)), to: nil, from: nil)
+                }
+                .keyboardShortcut("j", modifiers: .command)
+                .disabled(!textFinderItemsEnabled)
             }
         }
 

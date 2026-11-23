@@ -68,6 +68,10 @@ struct TextSearchTests {
         let matches = TextSearch.matches(of: "line 5", in: document.allRows, options: .init())
         // "line 5" appears in line 5 and lines 50+ don't exist, so one row, both sides.
         #expect(matches.count == 2)
+        let hidden = document.sections.flatMap { section -> [UUID] in
+            if case .gap(_, _, let rows) = section { return rows.map(\.id) } else { return [] }
+        }
+        #expect(hidden.contains(matches[0].rowID))
     }
 
     @Test("merge Review matches follow what Review shows for each hunk")
@@ -90,6 +94,24 @@ struct TextSearchTests {
         #expect(resolved.count == 1)
         #expect(resolved[0].part == .chosen)
         #expect(resolved[0].hunkID == hunks[conflictIndex].id)
+    }
+
+    @Test("matches stop at the limit, so a one-letter search on a huge file stays bounded")
+    func limit() {
+        let rows = LineDiff.document(String(repeating: "aaaa\n", count: 10), "b").allRows
+        #expect(TextSearch.matches(of: "a", in: rows, options: .init(), limit: 7).count == 7)
+        let hunks = ThreeWayMerge.merge(base: "aaaa\naaaa\n", left: "aaaa\naaaa\n", right: "aaaa\naaaa\n")
+        #expect(TextSearch.matches(of: "a", in: hunks, options: .init(), limit: 5).count == 5)
+    }
+
+    @Test("a new search starts at the first match at or after the anchor, wrapping to the first")
+    func startIndex() {
+        let positions = [2, 2, 5, 9]
+        #expect(TextSearch.startIndex(of: positions, at: nil) { $0 } == 0)
+        #expect(TextSearch.startIndex(of: positions, at: 3) { $0 } == 2)
+        #expect(TextSearch.startIndex(of: positions, at: 2) { $0 } == 0)
+        #expect(TextSearch.startIndex(of: positions, at: 10) { $0 } == 0)
+        #expect(TextSearch.startIndex(of: [Int](), at: 1) { $0 } == nil)
     }
 
     @Test("stepping wraps at both ends and starts at the first or last match")
@@ -127,16 +149,12 @@ struct TextSearchTests {
         #expect(TextSearch.utf16Range(ofLine: 4, in: text) == NSRange(location: 15, length: 4))
         #expect(TextSearch.utf16Range(ofLine: 9, in: text) == NSRange(location: 15, length: 4))
         #expect(TextSearch.utf16Range(ofLine: 0, in: text) == NSRange(location: 0, length: 3))
-        #expect(TextSearch.lineCount(in: text) == 4)
     }
 
     @Test("Go to Line counts UTF-16 units and treats a final newline as ending the last line")
     func goToLineEdges() {
         #expect(TextSearch.utf16Range(ofLine: 2, in: "😀\nb\n") == NSRange(location: 3, length: 1))
         #expect(TextSearch.utf16Range(ofLine: 5, in: "a\nb\n") == NSRange(location: 2, length: 1))
-        #expect(TextSearch.lineCount(in: "a\nb\n") == 2)
-        #expect(TextSearch.lineCount(in: "a\r\n") == 1)
-        #expect(TextSearch.lineCount(in: "") == 1)
         #expect(TextSearch.utf16Range(ofLine: 1, in: "") == NSRange(location: 0, length: 0))
         #expect(TextSearch.utf16Range(ofLine: 2, in: "a\n\nc") == NSRange(location: 2, length: 0))
     }

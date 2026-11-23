@@ -34,6 +34,7 @@ struct KeyboardShortcutsView: View {
             Shortcut(label: "Copy change to B", keys: ["⌥", "⌘", "→"]),
             Shortcut(label: "Copy change to A", keys: ["⌥", "⌘", "←"]),
             Shortcut(label: "Swap A / B", keys: ["⇧", "⌘", "S"]),
+            Shortcut(label: "Use selection for Find (editors)", keys: ["⌘", "E"]),
         ]),
         Group(title: "Image Diff", items: [
             Shortcut(label: "Two-Up", keys: ["⌘", "1"]),

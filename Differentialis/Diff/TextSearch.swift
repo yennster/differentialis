@@ -37,6 +37,10 @@ struct MergeSearchMatch: Hashable, Sendable {
 
 /// Pure Find and Go to Line logic, shared by the text diff, unified view, and merge.
 enum TextSearch {
+    /// Find stops collecting after this many matches, so a one-letter query on a huge file can't
+    /// build millions of highlights. The count then reads "10,000+".
+    static let matchLimit = 10_000
+
     /// Character-offset ranges of every non-overlapping occurrence of `query` in `text`, in order.
     /// Offsets count Swift `Character`s, like the diff's change highlights, so a match after an
     /// emoji or a combining sequence lands where it is drawn.
@@ -63,10 +67,11 @@ enum TextSearch {
     /// Split and unified layouts both draw a modified row's A line before its B line. The unified
     /// layout draws an unchanged row once, from A, so its B text is not searched there.
     static func matches(of query: String, in rows: [DiffRow], options: TextSearchOptions,
-                        unified: Bool = false) -> [DiffSearchMatch] {
+                        unified: Bool = false, limit: Int = matchLimit) -> [DiffSearchMatch] {
         guard !query.isEmpty else { return [] }
         var result: [DiffSearchMatch] = []
         for row in rows {
+            if result.count >= limit { break }
             if options.changedLinesOnly && !row.kind.isChange { continue }
             if let text = row.leftText {
                 for range in ranges(of: query, in: text, caseSensitive: options.caseSensitive) {
@@ -79,7 +84,7 @@ enum TextSearch {
                 }
             }
         }
-        return result
+        return Array(result.prefix(limit))
     }
 
     /// The lines merge Review shows for a hunk, with the part each belongs to.
@@ -91,20 +96,32 @@ enum TextSearch {
     }
 
     /// Every match in merge Review, in display order. "Changed lines only" skips unchanged context.
-    static func matches(of query: String, in hunks: [MergeHunk], options: TextSearchOptions) -> [MergeSearchMatch] {
+    static func matches(of query: String, in hunks: [MergeHunk], options: TextSearchOptions,
+                        limit: Int = matchLimit) -> [MergeSearchMatch] {
         guard !query.isEmpty else { return [] }
         var result: [MergeSearchMatch] = []
         for hunk in hunks {
+            if result.count >= limit { break }
             if options.changedLinesOnly && !hunk.isChange { continue }
             for (part, lines) in reviewParts(of: hunk) {
-                for (index, line) in lines.enumerated() {
+                for (index, line) in lines.enumerated() where result.count < limit {
                     for range in ranges(of: query, in: line, caseSensitive: options.caseSensitive) {
                         result.append(MergeSearchMatch(hunkID: hunk.id, part: part, line: index, range: range))
                     }
                 }
             }
         }
-        return result
+        return Array(result.prefix(limit))
+    }
+
+    /// Where Find starts after a search: the first match at or after `anchor` (a position in
+    /// display order, such as the row of the previous current match or of the change being
+    /// viewed), wrapping to the first match; nil when there are none. `position` gives each
+    /// match's display position.
+    static func startIndex<Match>(of matches: [Match], at anchor: Int?, position: (Match) -> Int) -> Int? {
+        guard !matches.isEmpty else { return nil }
+        guard let anchor else { return 0 }
+        return matches.firstIndex { position($0) >= anchor } ?? 0
     }
 
     /// The match index after stepping `delta` (1 next, -1 previous) from `current` in `count`
@@ -156,26 +173,5 @@ enum TextSearch {
         if end > start, units[end - 1] == 0x0A { end -= 1 }
         if end > start, units[end - 1] == 0x0D { end -= 1 }
         return NSRange(location: start, length: end - start)
-    }
-
-    /// The number of lines in `text`, counted the way `utf16Range(ofLine:in:)` counts them.
-    static func lineCount(in text: String) -> Int {
-        var count = 1
-        var pendingCR = false
-        var lastWasTerminator = false
-        for unit in text.utf16 {
-            if pendingCR {
-                pendingCR = false
-                if unit == 0x0A { continue }
-            }
-            if unit == 0x0D || unit == 0x0A {
-                count += 1
-                pendingCR = unit == 0x0D
-                lastWasTerminator = true
-            } else {
-                lastWasTerminator = false
-            }
-        }
-        return lastWasTerminator ? count - 1 : count
     }
 }

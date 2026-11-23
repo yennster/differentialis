@@ -2,7 +2,8 @@ import SwiftUI
 import AppKit
 
 /// The Find bar shown under a diff's or merge Review's toolbar (⌘F). Return finds the next match,
-/// ⇧Return the previous, Escape closes; ⌘G / ⇧⌘G work from the menu wherever focus is.
+/// ⇧Return the previous, Escape closes; ⌘G / ⇧⌘G work from the menu wherever focus is. The query
+/// is shared with the system find pasteboard, like other Mac apps' find fields.
 struct FindBar: View {
     @Binding var query: String
     @Binding var options: TextSearchOptions
@@ -11,11 +12,12 @@ struct FindBar: View {
     let currentIndex: Int?
     /// Bumped by ⌘F while the bar is already open, to put the cursor back in the field.
     let focusRequest: Int
+    /// The search field's focus, owned by the parent so its own key handling can stand aside
+    /// while the field is being typed in.
+    var fieldFocused: FocusState<Bool>.Binding
     let next: () -> Void
     let previous: () -> Void
     let close: () -> Void
-
-    @FocusState private var fieldFocused: Bool
 
     var body: some View {
         HStack(spacing: 8) {
@@ -26,7 +28,7 @@ struct FindBar: View {
                 TextField("Find", text: $query)
                     .textFieldStyle(.plain)
                     .font(.system(size: 12.5))
-                    .focused($fieldFocused)
+                    .focused(fieldFocused)
                     .onSubmit(next)
                     .onKeyPress(.return, phases: .down) { press in
                         guard press.modifiers.contains(.shift) else { return .ignored }
@@ -77,15 +79,30 @@ struct FindBar: View {
         }
         .padding(.horizontal, 14).padding(.vertical, 6)
         .background(.ultraThinMaterial)
-        .onAppear { fieldFocused = true }
-        .onChange(of: focusRequest) { _, _ in fieldFocused = true }
+        .onAppear {
+            if query.isEmpty, let shared = NSPasteboard(name: .find).string(forType: .string),
+               !shared.contains(where: \.isNewline) {
+                query = shared
+            }
+        }
+        // Deferred a turn: focus set while the bar is still being inserted can be dropped.
+        .task { fieldFocused.wrappedValue = true }
+        .onChange(of: focusRequest) { _, _ in fieldFocused.wrappedValue = true }
+        .onChange(of: query) { _, newValue in
+            guard !newValue.isEmpty else { return }
+            let pasteboard = NSPasteboard(name: .find)
+            pasteboard.clearContents()
+            pasteboard.setString(newValue, forType: .string)
+        }
     }
 
     private var countLabel: String {
         if query.isEmpty { return "" }
         if matchCount == 0 { return "No matches" }
-        if let currentIndex { return "\(currentIndex + 1) of \(matchCount)" }
-        return "\(matchCount) match\(matchCount == 1 ? "" : "es")"
+        let total = matchCount >= TextSearch.matchLimit
+            ? "\(TextSearch.matchLimit.formatted())+" : "\(matchCount)"
+        if let currentIndex { return "\(currentIndex + 1) of \(total)" }
+        return "\(total) match\(matchCount == 1 ? "" : "es")"
     }
 
     private var countAccessibilityLabel: String {
@@ -100,11 +117,11 @@ struct GoToLineBar: View {
     var showsSidePicker = true
     /// Bumped by ⌘L while the bar is already open.
     let focusRequest: Int
+    var fieldFocused: FocusState<Bool>.Binding
     let go: (Int) -> Void
     let close: () -> Void
 
     @State private var text = ""
-    @FocusState private var fieldFocused: Bool
 
     var body: some View {
         HStack(spacing: 8) {
@@ -118,7 +135,7 @@ struct GoToLineBar: View {
                 .frame(width: 70)
                 .padding(.horizontal, 8).padding(.vertical, 4)
                 .background(Theme.wellStrong.opacity(0.6), in: RoundedRectangle(cornerRadius: 7))
-                .focused($fieldFocused)
+                .focused(fieldFocused)
                 .onSubmit(submit)
                 .onExitCommand(perform: close)
                 .accessibilityLabel("Line number")
@@ -144,8 +161,8 @@ struct GoToLineBar: View {
         }
         .padding(.horizontal, 14).padding(.vertical, 6)
         .background(.ultraThinMaterial)
-        .onAppear { fieldFocused = true }
-        .onChange(of: focusRequest) { _, _ in fieldFocused = true }
+        .task { fieldFocused.wrappedValue = true }
+        .onChange(of: focusRequest) { _, _ in fieldFocused.wrappedValue = true }
     }
 
     private var lineNumber: Int? {

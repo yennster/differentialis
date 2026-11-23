@@ -101,6 +101,15 @@ struct TextComparisonView: View {
     @State private var lineTargetID: UUID?
     /// A row to scroll to; the token makes a repeat request for the same row scroll again.
     @State private var scrollTarget: ScrollTarget?
+    @State private var scrollCounter = 0
+    /// Display position of the current match's row, so a new search (or the same search after a
+    /// reload or a layout switch) carries on from there.
+    @State private var findAnchor: Int?
+    /// The diff the last search ran on, to tell a reload from a new query.
+    @State private var findDocument: UUID?
+    @FocusState private var findFieldFocused: Bool
+    @FocusState private var goToLineFieldFocused: Bool
+    @FocusState private var diffFocused: Bool
 
     private struct ScrollTarget: Equatable {
         let id: UUID
@@ -111,17 +120,19 @@ struct TextComparisonView: View {
         VStack(spacing: 0) {
             PathBar(a: a, b: b, splitFraction: unified ? 0.5 : splitFraction) { toolbar }
             Divider().opacity(0.4)
-            if findVisible && canSearch {
+            // Kept up through a reload, so the bars don't flicker or lose what's typed.
+            if findVisible {
                 FindBar(query: $findQuery, options: $findOptions,
                         matchCount: findMatches.count, currentIndex: findIndex,
-                        focusRequest: findFocusRequest,
+                        focusRequest: findFocusRequest, fieldFocused: $findFieldFocused,
                         next: { stepFind(1) }, previous: { stepFind(-1) },
-                        close: { findVisible = false })
+                        close: { findVisible = false; diffFocused = true })
                 Divider().opacity(0.4)
             }
-            if goToLineVisible && canSearch {
+            if goToLineVisible {
                 GoToLineBar(side: $goToLineSide, focusRequest: goToLineFocusRequest,
-                            go: goToLine, close: { goToLineVisible = false })
+                            fieldFocused: $goToLineFieldFocused,
+                            go: goToLine, close: { goToLineVisible = false; diffFocused = true })
                 Divider().opacity(0.4)
             }
             content
@@ -139,17 +150,18 @@ struct TextComparisonView: View {
             findPrevious: canSearch ? { stepFind(-1) } : nil,
             goToLine: canSearch ? { showGoToLine() } : nil))
         .focusable()
+        .focused($diffFocused)
         .focusEffectDisabled()
-        // Not while the Find or Go to Line bar is open: its field takes typed brackets.
-        .onKeyPress("]") { guard !barOpen else { return .ignored }; navigate(1); return .handled }
-        .onKeyPress("[") { guard !barOpen else { return .ignored }; navigate(-1); return .handled }
+        // Not while typing in the Find or Go to Line field: it takes typed brackets.
+        .onKeyPress("]") { guard !typingInBar else { return .ignored }; navigate(1); return .handled }
+        .onKeyPress("[") { guard !typingInBar else { return .ignored }; navigate(-1); return .handled }
     }
 
     private var taskKey: String {
         "\(a.displayName)|\(b.displayName)|\(a.subtitle)|\(b.subtitle)|\(whitespacePolicy.rawValue)|\(changesetRevision)"
     }
 
-    private var barOpen: Bool { findVisible || goToLineVisible }
+    private var typingInBar: Bool { findFieldFocused || goToLineFieldFocused }
 
     /// Find and Go to Line work on a loaded diff that has rows to show.
     private var canSearch: Bool {
@@ -329,6 +341,7 @@ struct TextComparisonView: View {
     private func navigate(_ delta: Int) {
         guard !changeIDs.isEmpty else { return }
         lineTargetID = nil
+        findAnchor = nil
         if currentChange == -1 {
             currentChange = delta > 0 ? 0 : changeIDs.count - 1
         } else {
@@ -356,6 +369,8 @@ struct TextComparisonView: View {
             findMatches = []
             findHighlights = [:]
             findIndex = nil
+            // Mid-reload the position is kept, so the new diff picks up where the old one was.
+            if !findVisible || findQuery.isEmpty { findAnchor = nil }
             return
         }
         // Let a burst of typing settle before searching a long file.
@@ -365,6 +380,10 @@ struct TextComparisonView: View {
         let found = await offMain { TextSearch.matches(of: query, in: rows, options: options, unified: unified) }
         // The key (query, options, document) changed while searching: a newer search owns the result.
         guard !Task.isCancelled else { return }
+        // Start from the match the user was on, else the line or change they're looking at, not
+        // the top of the file.
+        let position = Dictionary(uniqueKeysWithValues: rows.enumerated().map { ($1.id, $0) })
+        let anchor = findAnchor ?? (lineTargetID ?? currentChangeID).flatMap { position[$0] }
         var highlights: [UUID: RowFindHighlights] = [:]
         for match in found {
             if match.side == .left {
@@ -375,46 +394,55 @@ struct TextComparisonView: View {
         }
         findMatches = found
         findHighlights = highlights
-        findIndex = nil
-        // Start from the change or line the user is looking at, not the top of the file.
-        let anchor = lineTargetID ?? currentChangeID
-        if let anchor, let rows = document?.allRows, let anchorRow = rows.firstIndex(where: { $0.id == anchor }) {
-            let position = Dictionary(uniqueKeysWithValues: rows.enumerated().map { ($1.id, $0) })
-            if let first = found.firstIndex(where: { (position[$0.rowID] ?? 0) >= anchorRow }) {
-                findIndex = first
-                reveal(found[first].rowID)
-                return
-            }
-        }
-        if !found.isEmpty {
-            findIndex = 0
-            reveal(found[0].rowID)
-        }
+        findIndex = TextSearch.startIndex(of: found, at: anchor) { position[$0.rowID] ?? 0 }
+        let newAnchor = findIndex.map { position[found[$0].rowID] ?? 0 }
+        // Don't move the view when the current match stayed on the row it was on.
+        let unmoved = findDocument == rows.first?.id && newAnchor == findAnchor
+        if let findIndex, !unmoved { reveal(found[findIndex].rowID) }
+        findAnchor = newAnchor
+        findDocument = rows.first?.id
     }
 
     private func stepFind(_ delta: Int) {
         if !findVisible { showFind() }
-        guard let next = TextSearch.step(from: findIndex, by: delta, count: findMatches.count) else { return }
+        guard var next = TextSearch.step(from: findIndex, by: delta, count: findMatches.count) else { return }
+        // After ⌘] / ⌘[ or Go to Line moved elsewhere, carry on from there instead.
+        if findAnchor == nil, let rows = document?.allRows,
+           let target = lineTargetID ?? currentChangeID,
+           let anchor = rows.firstIndex(where: { $0.id == target }) {
+            let position = Dictionary(uniqueKeysWithValues: rows.enumerated().map { ($1.id, $0) })
+            let atOrAfter = TextSearch.startIndex(of: findMatches, at: anchor) { position[$0.rowID] ?? 0 } ?? 0
+            next = delta > 0 ? atOrAfter : (atOrAfter - 1 + findMatches.count) % findMatches.count
+        }
         findIndex = next
-        reveal(findMatches[next].rowID)
+        let rowID = findMatches[next].rowID
+        findAnchor = document?.allRows.firstIndex { $0.id == rowID }
+        reveal(rowID)
     }
 
     private func goToLine(_ line: Int) {
         guard let rows = document?.allRows,
               let id = TextSearch.row(forLine: line, side: goToLineSide, in: rows) else { return }
         lineTargetID = id
+        findAnchor = nil
         reveal(id)
     }
 
     /// Scrolls to a row, first opening the collapsed gap that hides it.
     private func reveal(_ rowID: UUID) {
-        let token = (scrollTarget?.token ?? 0) &+ 1
+        scrollCounter &+= 1
+        let token = scrollCounter
+        func scroll() {
+            // A later request superseded this one.
+            guard token == scrollCounter else { return }
+            scrollTarget = ScrollTarget(id: rowID, token: token)
+        }
         if let gap = gapByRow[rowID], !expandedGaps.contains(gap) {
             expandedGaps.insert(gap)
             // Wait a turn so the opened rows exist in the lazy stack before scrolling to one.
-            Task { @MainActor in scrollTarget = ScrollTarget(id: rowID, token: token) }
+            Task { @MainActor in scroll() }
         } else {
-            scrollTarget = ScrollTarget(id: rowID, token: token)
+            scroll()
         }
     }
 
