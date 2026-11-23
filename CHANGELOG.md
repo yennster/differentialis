@@ -16,7 +16,8 @@ When cutting a release, add a section here and use it as the release notes:
   options, for file and pasted-text comparisons alike. Ignored differences stay visible, dimmed:
   lines that match only because case or whitespace is ignored show both spellings, and a blank line
   on one side gets a dimmed row instead of counting as an insertion or deletion. Ignored blank lines
-  also no longer affect how the rest of the text lines up ([#54](https://github.com/yennster/differentialis/issues/54)).
+  never affect how the rest of the text lines up. The existing whitespace options now dim lines
+  they match the same way ([#54](https://github.com/yennster/differentialis/issues/54)).
 - **Conflict navigation in 3-way merges.** **Next Change** / **Previous Change** (`⌘]` / `⌘[`) now
   work in merge Review: they step through unresolved conflicts, wrapping at either end, and through
   every changed region once all conflicts are resolved. The header's conflict count is now a button

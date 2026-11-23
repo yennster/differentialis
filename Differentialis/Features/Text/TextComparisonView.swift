@@ -400,8 +400,9 @@ struct UnifiedRowView: View {
                 if let left = row.leftText, let right = row.rightText, left != right {
                     // A match only under the line-matching options: show both spellings, dimmed.
                     Group {
-                        line(marker: " ", number: row.leftNumber, text: left, kind: .equal, highlights: [])
-                        line(marker: " ", number: row.rightNumber, text: right, kind: .equal, highlights: [])
+                        // −/+ say which line is A and which is B; the dimming says it isn't a change.
+                        line(marker: "−", number: row.leftNumber, text: left, kind: .equal, highlights: [])
+                        line(marker: "+", number: row.rightNumber, text: right, kind: .equal, highlights: [])
                     }
                     .opacity(0.45)
                 } else {
