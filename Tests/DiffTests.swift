@@ -186,6 +186,13 @@ struct LineDiffTests {
         // The original text is still shown on both sides.
         #expect(doc.allRows.first?.leftText == "SELECT * FROM users")
         #expect(doc.allRows.first?.rightText == "select * from users")
+        // A match only because case is ignored is flagged so views can dim it.
+        #expect(doc.allRows.allSatisfy { $0.isIgnored })
+        #expect(!LineDiff.document("same", "same", options: options).allRows[0].isIgnored)
+
+        // Case folding, not just lowercasing.
+        #expect(LineDiff.document("STRASSE", "straße", options: options).isIdentical)
+        #expect(LineDiff.document("ΟΔΟΣ", "οδος", options: options).isIdentical)
 
         // Case is the only thing relaxed: other edits still count, and only they are highlighted.
         let changed = LineDiff.document("SELECT a\nFROM t", "select b\nfrom t", options: options)
@@ -242,13 +249,63 @@ struct LineDiffTests {
         let mixed = LineDiff.document("x\n\ny = 1", "x\n  \ny = 2", options: options)
         #expect(mixed.stats.totalChanges == 1)
         #expect(mixed.stats.modifications == 1)
-        #expect(mixed.allRows.filter(\.isIgnored).count == 2)
+        // The two blank lines line up, so they share one dimmed row.
+        #expect(mixed.allRows.filter(\.isIgnored).count == 1)
         #expect(mixed.allRows.compactMap(\.leftNumber) == [1, 2, 3])
         #expect(mixed.allRows.compactMap(\.rightNumber) == [1, 2, 3])
 
         // Hunks for copying changes skip the ignored lines.
         let rows = LineDiff.rows("a\nb", "a\n\nb", options: options)
         #expect(TwoWayMerge.hunks(in: rows).isEmpty)
+    }
+
+    @Test("blank lines never steer the alignment when they are ignored")
+    func blankLinesDoNotAnchor() {
+        let options = LineMatchOptions(ignoreBlankLines: true)
+        // Matching the two blank lines would cost the match on "x"; ignored blank lines must not.
+        let doc = LineDiff.document("x\n\n\nz", "\n\nx\nz", options: options)
+        #expect(doc.isIdentical)
+        #expect(doc.allRows.compactMap(\.leftNumber) == [1, 2, 3, 4])
+        #expect(doc.allRows.compactMap(\.rightNumber) == [1, 2, 3, 4])
+        #expect(doc.allRows.contains { $0.leftText == "x" && $0.rightText == "x" })
+        // Identical blank lines still pair up as ordinary unchanged rows.
+        let same = LineDiff.document("a\n\nb", "a\n\nb", options: options)
+        #expect(same.allRows.count == 3)
+        #expect(!same.allRows.contains { $0.isIgnored })
+    }
+
+    @Test("ignored lines keep every line exactly once and in order (randomized)")
+    func randomizedIgnoredRowInvariants() {
+        var rng = SeededGenerator(seed: 54)
+        let vocabulary = ["", " ", "\t", "x", "X", "alpha = 1", "Alpha = 2", "z"]
+        let optionSets = [LineMatchOptions(ignoreBlankLines: true),
+                          LineMatchOptions(ignoreCase: true, ignoreBlankLines: true),
+                          LineMatchOptions(whitespace: .ignoreAll, ignoreCase: true)]
+        for _ in 0..<500 {
+            let aText = (0..<Int.random(in: 1...8, using: &rng))
+                .map { _ in vocabulary.randomElement(using: &rng)! }.joined(separator: "\n")
+            let bText = (0..<Int.random(in: 1...8, using: &rng))
+                .map { _ in vocabulary.randomElement(using: &rng)! }.joined(separator: "\n")
+            let a = LineDiff.split(aText), b = LineDiff.split(bText)
+            for options in optionSets {
+                let rows = LineDiff.rows(aText, bText, options: options)
+                #expect(rows.compactMap(\.leftNumber) == Array(1...a.count))
+                #expect(rows.compactMap(\.rightNumber) == Array(1...b.count))
+                #expect(rows.allSatisfy { row in
+                    row.leftNumber.map { a[$0 - 1] == row.leftText } ?? (row.leftText == nil)
+                })
+                #expect(rows.allSatisfy { row in
+                    row.rightNumber.map { b[$0 - 1] == row.rightText } ?? (row.rightText == nil)
+                })
+                if options.ignoreBlankLines {
+                    let nonBlank = { (lines: [String]) in
+                        lines.filter { !LineMatchOptions.isBlank($0) }.map(options.comparisonKey)
+                    }
+                    let identical = nonBlank(a) == nonBlank(b)
+                    #expect(LineDiff.stats(for: rows).isIdentical == identical, "\(a) / \(b)")
+                }
+            }
+        }
     }
 
     @Test("match options describe what they ignore")
@@ -267,6 +324,19 @@ struct LineDiffTests {
 
         let finalOnly = textFormatDifferences("value\n", "value")
         #expect(finalOnly == ["A has a final newline; B does not."])
+    }
+}
+
+/// A small deterministic generator (SplitMix64) so randomized tests reproduce exactly.
+struct SeededGenerator: RandomNumberGenerator {
+    private var state: UInt64
+    init(seed: UInt64) { state = seed }
+    mutating func next() -> UInt64 {
+        state &+= 0x9E37_79B9_7F4A_7C15
+        var z = state
+        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+        return z ^ (z >> 31)
     }
 }
 

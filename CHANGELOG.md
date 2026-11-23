@@ -13,9 +13,10 @@ When cutting a release, add a section here and use it as the release notes:
 ### Added
 - **Ignore case and ignore blank lines** in text comparisons. The matching menu (next to the
   layout switch) now has **Ignore Case** and **Ignore Blank Lines** alongside the whitespace
-  options, for file and pasted-text comparisons alike. Ignored differences stay visible: lines that
-  differ only in case show both spellings, and a blank line on one side is drawn dimmed instead of
-  as an insertion or deletion ([#54](https://github.com/yennster/differentialis/issues/54)).
+  options, for file and pasted-text comparisons alike. Ignored differences stay visible, dimmed:
+  lines that match only because case or whitespace is ignored show both spellings, and a blank line
+  on one side gets a dimmed row instead of counting as an insertion or deletion. Ignored blank lines
+  also no longer affect how the rest of the text lines up ([#54](https://github.com/yennster/differentialis/issues/54)).
 - **Conflict navigation in 3-way merges.** **Next Change** / **Previous Change** (`⌘]` / `⌘[`) now
   work in merge Review: they step through unresolved conflicts, wrapping at either end, and through
   every changed region once all conflicts are resolved. The header's conflict count is now a button

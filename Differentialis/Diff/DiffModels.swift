@@ -18,8 +18,9 @@ struct DiffRow: Identifiable, Hashable {
     /// Character-offset ranges (into `leftText` / `rightText`) that differ.
     var leftHighlights: [Range<Int>] = []
     var rightHighlights: [Range<Int>] = []
-    /// A difference the line-matching options ignore, such as a blank line present on only one
-    /// side. Its `kind` is `.equal`, so it never counts as a change; views draw it dimmed.
+    /// A difference the line-matching options ignore: a line pair that matches only under the
+    /// options (case or whitespace differs), or a blank line present on only one side. Its `kind`
+    /// is `.equal`, so it never counts as a change; views draw it dimmed.
     var isIgnored = false
 
     static func == (lhs: DiffRow, rhs: DiffRow) -> Bool { lhs.id == rhs.id }

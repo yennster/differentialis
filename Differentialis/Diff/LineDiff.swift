@@ -30,7 +30,8 @@ enum WhitespacePolicy: String, CaseIterable, Hashable {
 /// with its original text, so nothing is hidden silently.
 struct LineMatchOptions: Hashable, Sendable {
     var whitespace: WhitespacePolicy = .significant
-    /// Lines that differ only in letter case match.
+    /// Lines that differ only in letter case match. Matched lines keep both spellings and are
+    /// marked `isIgnored` when their text differs, so views can dim them.
     var ignoreCase = false
     /// Lines that are empty or whitespace-only never count as insertions or deletions. They still
     /// appear, as ignored rows, so the line numbers on each side stay continuous.
@@ -58,7 +59,8 @@ struct LineMatchOptions: Hashable, Sendable {
 
     func comparisonKey(for line: String) -> String {
         let key = whitespace.comparisonKey(for: line)
-        return ignoreCase ? key.lowercased() : key
+        // Case folding, not just lowercasing: "STRASSE" matches "straße", "ΟΔΟΣ" matches "οδος".
+        return ignoreCase ? key.folding(options: .caseInsensitive, locale: nil) : key
     }
 
     static func isBlank(_ line: String) -> Bool {
@@ -93,9 +95,15 @@ enum LineDiff {
     static func rows(_ aText: String, _ bText: String, options: LineMatchOptions) -> [DiffRow] {
         let a = split(aText)
         let b = split(bText)
-        let aKeys = a.map(options.comparisonKey)
-        let bKeys = b.map(options.comparisonKey)
-        let edits = myersDiff(aKeys, bKeys)
+        // With blank lines ignored, they take no part in the alignment at all: Myers runs on the
+        // remaining lines only, so blank lines can never pull content out of alignment. They are
+        // woven back in afterwards (see `flushPending`).
+        let aLines = options.ignoreBlankLines ? a.indices.filter { !LineMatchOptions.isBlank(a[$0]) }
+                                              : Array(a.indices)
+        let bLines = options.ignoreBlankLines ? b.indices.filter { !LineMatchOptions.isBlank(b[$0]) }
+                                              : Array(b.indices)
+        let edits = myersDiff(aLines.map { options.comparisonKey(for: a[$0]) },
+                              bLines.map { options.comparisonKey(for: b[$0]) })
 
         var rows: [DiffRow] = []
         var pendingDeletes: [(Int, String)] = []
@@ -113,14 +121,12 @@ enum LineDiff {
             return charDiff(lowerLeft, lowerRight)
         }
 
-        func ignoredRow(left: (Int, String)) -> DiffRow {
-            DiffRow(kind: .equal, leftNumber: left.0 + 1, rightNumber: nil,
-                    leftText: left.1, rightText: nil, isIgnored: true)
-        }
-
-        func ignoredRow(right: (Int, String)) -> DiffRow {
-            DiffRow(kind: .equal, leftNumber: nil, rightNumber: right.0 + 1,
-                    leftText: nil, rightText: right.1, isIgnored: true)
+        /// An unchanged row. It is marked ignored when the two sides' text differs (a match
+        /// only under the options) or when only one side has the line (an ignored blank line).
+        func equalRow(left: (Int, String)?, right: (Int, String)?) -> DiffRow {
+            DiffRow(kind: .equal, leftNumber: left.map { $0.0 + 1 }, rightNumber: right.map { $0.0 + 1 },
+                    leftText: left?.1, rightText: right?.1,
+                    isIgnored: left == nil || right == nil || left?.1 != right?.1)
         }
 
         func appendChangeRows() {
@@ -173,9 +179,10 @@ enum LineDiff {
                 appendChangeRows()
                 return
             }
-            // Blank lines leave the change run and become ignored rows. The remaining lines pair
-            // up as usual; each ignored row is then placed before the first change row that comes
-            // after it on its side, so line numbers stay in order in both columns.
+            // Blank lines leave the change run and become unchanged rows. The remaining lines pair
+            // up as usual; each blank row is then placed before the first change row that comes
+            // after it on its side, so line numbers stay in order in both columns. Blank lines
+            // due on both sides at once share a row; leftovers get a dimmed one-sided row.
             let blankDeletes = pendingDeletes.filter { LineMatchOptions.isBlank($0.1) }
             let blankInserts = pendingInserts.filter { LineMatchOptions.isBlank($0.1) }
             guard !blankDeletes.isEmpty || !blankInserts.isEmpty else {
@@ -191,15 +198,16 @@ enum LineDiff {
 
             var nextDelete = 0, nextInsert = 0
             func emitBlanks(beforeLeft left: Int?, beforeRight right: Int?) {
-                while nextDelete < blankDeletes.count,
-                      left.map({ blankDeletes[nextDelete].0 < $0 - 1 }) ?? false {
-                    rows.append(ignoredRow(left: blankDeletes[nextDelete]))
-                    nextDelete += 1
-                }
-                while nextInsert < blankInserts.count,
-                      right.map({ blankInserts[nextInsert].0 < $0 - 1 }) ?? false {
-                    rows.append(ignoredRow(right: blankInserts[nextInsert]))
-                    nextInsert += 1
+                while true {
+                    let leftDue = nextDelete < blankDeletes.count
+                        && left.map({ blankDeletes[nextDelete].0 < $0 - 1 }) ?? false
+                    let rightDue = nextInsert < blankInserts.count
+                        && right.map({ blankInserts[nextInsert].0 < $0 - 1 }) ?? false
+                    guard leftDue || rightDue else { return }
+                    rows.append(equalRow(left: leftDue ? blankDeletes[nextDelete] : nil,
+                                         right: rightDue ? blankInserts[nextInsert] : nil))
+                    if leftDue { nextDelete += 1 }
+                    if rightDue { nextInsert += 1 }
                 }
             }
             for row in changeRows {
@@ -209,19 +217,36 @@ enum LineDiff {
             emitBlanks(beforeLeft: .max, beforeRight: .max)
         }
 
+        // Lines skipped by the alignment (blank lines, when ignored) join the pending run once
+        // the edit script passes them, keeping each pending list in line order.
+        var nextA = 0, nextB = 0
+        func catchUp(a upToA: Int, b upToB: Int) {
+            while nextA < upToA { pendingDeletes.append((nextA, a[nextA])); nextA += 1 }
+            while nextB < upToB { pendingInserts.append((nextB, b[nextB])); nextB += 1 }
+        }
+
         for edit in edits {
             switch edit {
-            case let .equal(i, j):
+            case let .equal(fi, fj):
+                let i = aLines[fi], j = bLines[fj]
+                catchUp(a: i, b: j)
                 flushPending()
-                rows.append(DiffRow(kind: .equal,
-                                    leftNumber: i + 1, rightNumber: j + 1,
-                                    leftText: a[i], rightText: b[j]))
-            case let .delete(i):
+                rows.append(equalRow(left: (i, a[i]), right: (j, b[j])))
+                nextA = i + 1
+                nextB = j + 1
+            case let .delete(fi):
+                let i = aLines[fi]
+                catchUp(a: i, b: nextB)
                 pendingDeletes.append((i, a[i]))
-            case let .insert(j):
+                nextA = i + 1
+            case let .insert(fj):
+                let j = bLines[fj]
+                catchUp(a: nextA, b: j)
                 pendingInserts.append((j, b[j]))
+                nextB = j + 1
             }
         }
+        catchUp(a: a.count, b: b.count)
         flushPending()
         return rows
     }

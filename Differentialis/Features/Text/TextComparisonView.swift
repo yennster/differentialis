@@ -152,7 +152,10 @@ struct TextComparisonView: View {
         ContentUnavailableView {
             Label("Text matches, formatting differs", systemImage: "textformat")
         } description: {
-            Text(formatDifferences.joined(separator: "\n"))
+            // Name the ignored differences too, so a match under the options isn't mistaken for
+            // text that differs only in formatting.
+            Text((formatDifferences + [matchOptions.ignoredSummary.map { "Text compared \($0)." }]
+                    .compactMap { $0 }).joined(separator: "\n"))
         }
         .foregroundStyle(Theme.modified)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -394,10 +397,19 @@ struct UnifiedRowView: View {
         VStack(spacing: 0) {
             switch row.kind {
             case .equal:
-                // An ignored blank line exists on only one side; show whichever side has it.
-                line(marker: " ", number: row.leftNumber ?? row.rightNumber,
-                     text: row.leftText ?? row.rightText, kind: .equal, highlights: [])
-                    .opacity(row.isIgnored ? 0.45 : 1)
+                if let left = row.leftText, let right = row.rightText, left != right {
+                    // A match only under the line-matching options: show both spellings, dimmed.
+                    Group {
+                        line(marker: " ", number: row.leftNumber, text: left, kind: .equal, highlights: [])
+                        line(marker: " ", number: row.rightNumber, text: right, kind: .equal, highlights: [])
+                    }
+                    .opacity(0.45)
+                } else {
+                    // An ignored blank line exists on only one side; show whichever side has it.
+                    line(marker: " ", number: row.leftNumber ?? row.rightNumber,
+                         text: row.leftText ?? row.rightText, kind: .equal, highlights: [])
+                        .opacity(row.isIgnored ? 0.45 : 1)
+                }
             case .inserted:
                 line(marker: "+", number: row.rightNumber, text: row.rightText, kind: .inserted, highlights: row.rightHighlights)
             case .deleted:

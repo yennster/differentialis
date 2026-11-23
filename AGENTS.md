@@ -212,8 +212,10 @@ git or diff work in `Task { ... }` does **not** move it off the main actor.
   `DiffDocument` sections. Similar delete/insert pairs become modified rows;
   unrelated pairs remain deletions/insertions. `LineMatchOptions` (whitespace policy,
   ignore case, ignore blank lines) changes comparison keys, not the displayed source text.
-  Ignored blank lines become `.equal` rows with `isIgnored` and only one side, so they never
-  count as changes or hunks; views draw them dimmed rather than hiding them.
+  With blank lines ignored, Myers aligns only the non-blank lines and blank lines are woven back
+  in as `.equal` rows (one-sided when unmatched). Equal rows whose sides differ, or that have
+  only one side, carry `isIgnored`; they never count as changes or hunks, and views draw them
+  dimmed rather than hiding them.
 - `LineDiff.split` recognizes LF/CRLF/CR, drops the phantom segment after a final
   newline, and represents empty input as one empty line. Content equality therefore
   does not imply byte equality: `textFormatDifferences` in `TextComparisonView.swift`
