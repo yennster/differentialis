@@ -83,28 +83,92 @@ struct TextComparisonView: View {
     @State private var loadError: String?
     @State private var formatDifferences: [String] = []
     @State private var loadRequest: UUID?
+    /// Rows inside collapsed gaps, by the gap's section ID, so Find and Go to Line can open them.
+    @State private var gapByRow: [UUID: String] = [:]
+
+    // Find (⌘F) and Go to Line (⌘L).
+    @State private var findVisible = false
+    @State private var findQuery = ""
+    @State private var findOptions = TextSearchOptions()
+    @State private var findMatches: [DiffSearchMatch] = []
+    @State private var findHighlights: [UUID: RowFindHighlights] = [:]
+    @State private var findIndex: Int?
+    @State private var findFocusRequest = 0
+    @State private var goToLineVisible = false
+    @State private var goToLineSide = DiffSide.left
+    @State private var goToLineFocusRequest = 0
+    /// The row Go to Line landed on, marked like the current change.
+    @State private var lineTargetID: UUID?
+    /// A row to scroll to; the token makes a repeat request for the same row scroll again.
+    @State private var scrollTarget: ScrollTarget?
+
+    private struct ScrollTarget: Equatable {
+        let id: UUID
+        let token: Int
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             PathBar(a: a, b: b, splitFraction: unified ? 0.5 : splitFraction) { toolbar }
             Divider().opacity(0.4)
+            if findVisible && canSearch {
+                FindBar(query: $findQuery, options: $findOptions,
+                        matchCount: findMatches.count, currentIndex: findIndex,
+                        focusRequest: findFocusRequest,
+                        next: { stepFind(1) }, previous: { stepFind(-1) },
+                        close: { findVisible = false })
+                Divider().opacity(0.4)
+            }
+            if goToLineVisible && canSearch {
+                GoToLineBar(side: $goToLineSide, focusRequest: goToLineFocusRequest,
+                            go: goToLine, close: { goToLineVisible = false })
+                Divider().opacity(0.4)
+            }
             content
                 .codeFontZoomGesture()
         }
         .task(id: taskKey) { await load() }
+        .task(id: findKey) { await search() }
         .focusedSceneValue(\.diffCommands, DiffCommandActions(
             nextChange: { navigate(1) },
             prevChange: { navigate(-1) },
             toggleLayout: { unified.toggle() },
-            refresh: { refresh() }))
+            refresh: { refresh() },
+            find: canSearch ? { showFind() } : nil,
+            findNext: canSearch ? { stepFind(1) } : nil,
+            findPrevious: canSearch ? { stepFind(-1) } : nil,
+            goToLine: canSearch ? { showGoToLine() } : nil))
         .focusable()
         .focusEffectDisabled()
-        .onKeyPress("]") { navigate(1); return .handled }
-        .onKeyPress("[") { navigate(-1); return .handled }
+        // Not while the Find or Go to Line bar is open: its field takes typed brackets.
+        .onKeyPress("]") { guard !barOpen else { return .ignored }; navigate(1); return .handled }
+        .onKeyPress("[") { guard !barOpen else { return .ignored }; navigate(-1); return .handled }
     }
 
     private var taskKey: String {
         "\(a.displayName)|\(b.displayName)|\(a.subtitle)|\(b.subtitle)|\(whitespacePolicy.rawValue)|\(changesetRevision)"
+    }
+
+    private var barOpen: Bool { findVisible || goToLineVisible }
+
+    /// Find and Go to Line work on a loaded diff that has rows to show.
+    private var canSearch: Bool {
+        guard let document else { return false }
+        return !document.isIdentical
+    }
+
+    /// Re-run Find when the query, its options, or the loaded diff changes.
+    private struct FindKey: Hashable {
+        let visible: Bool
+        let query: String
+        let options: TextSearchOptions
+        let unified: Bool
+        let document: UUID?
+    }
+
+    private var findKey: FindKey {
+        FindKey(visible: findVisible, query: findQuery, options: findOptions, unified: unified,
+                document: document?.allRows.first?.id)
     }
 
     /// Inside an open changeset, refreshing the changeset also reloads this file (its revision is
@@ -202,6 +266,10 @@ struct TextComparisonView: View {
                     guard let id else { return }
                     withAnimation(.easeInOut(duration: 0.25)) { proxy.scrollTo(id, anchor: .center) }
                 }
+                .onChange(of: scrollTarget) { _, target in
+                    guard let target else { return }
+                    withAnimation(.easeInOut(duration: 0.25)) { proxy.scrollTo(target.id, anchor: .center) }
+                }
             }
             .overlay(alignment: .topLeading) {
                 if !unified {
@@ -234,26 +302,120 @@ struct TextComparisonView: View {
 
     @ViewBuilder
     private func rowView(_ row: DiffRow, leftWidth: CGFloat?) -> some View {
+        let isCurrent = row.id == currentChangeID || row.id == lineTargetID
+        let find = rowFindHighlights(row.id)
         Group {
             if unified {
-                UnifiedRowView(row: row, isCurrent: row.id == currentChangeID)
+                UnifiedRowView(row: row, isCurrent: isCurrent, find: find)
             } else {
-                DiffRowView(row: row, isCurrent: row.id == currentChangeID, leftWidth: leftWidth)
+                DiffRowView(row: row, isCurrent: isCurrent, leftWidth: leftWidth, find: find)
             }
         }
         .id(row.id)
+    }
+
+    /// The row's Find matches, with the current match marked on its side.
+    private func rowFindHighlights(_ rowID: UUID) -> RowFindHighlights {
+        var highlights = findHighlights[rowID] ?? RowFindHighlights()
+        if let findIndex, findIndex < findMatches.count, findMatches[findIndex].rowID == rowID {
+            let match = findMatches[findIndex]
+            if match.side == .left { highlights.left.current = match.range } else { highlights.right.current = match.range }
+        }
+        return highlights
     }
 
     // MARK: - Navigation
 
     private func navigate(_ delta: Int) {
         guard !changeIDs.isEmpty else { return }
+        lineTargetID = nil
         if currentChange == -1 {
             currentChange = delta > 0 ? 0 : changeIDs.count - 1
         } else {
             currentChange = (currentChange + delta + changeIDs.count) % changeIDs.count
         }
         currentChangeID = changeIDs[currentChange]
+    }
+
+    // MARK: - Find and Go to Line
+
+    private func showFind() {
+        goToLineVisible = false
+        findVisible = true
+        findFocusRequest &+= 1
+    }
+
+    private func showGoToLine() {
+        findVisible = false
+        goToLineVisible = true
+        goToLineFocusRequest &+= 1
+    }
+
+    private func search() async {
+        guard findVisible, !findQuery.isEmpty, let rows = document?.allRows else {
+            findMatches = []
+            findHighlights = [:]
+            findIndex = nil
+            return
+        }
+        // Let a burst of typing settle before searching a long file.
+        try? await Task.sleep(for: .milliseconds(120))
+        guard !Task.isCancelled else { return }
+        let query = findQuery, options = findOptions, unified = unified
+        let found = await offMain { TextSearch.matches(of: query, in: rows, options: options, unified: unified) }
+        // The key (query, options, document) changed while searching: a newer search owns the result.
+        guard !Task.isCancelled else { return }
+        var highlights: [UUID: RowFindHighlights] = [:]
+        for match in found {
+            if match.side == .left {
+                highlights[match.rowID, default: RowFindHighlights()].left.matches.append(match.range)
+            } else {
+                highlights[match.rowID, default: RowFindHighlights()].right.matches.append(match.range)
+            }
+        }
+        findMatches = found
+        findHighlights = highlights
+        findIndex = nil
+        // Start from the change or line the user is looking at, not the top of the file.
+        let anchor = lineTargetID ?? currentChangeID
+        if let anchor, let rows = document?.allRows, let anchorRow = rows.firstIndex(where: { $0.id == anchor }) {
+            let position = Dictionary(uniqueKeysWithValues: rows.enumerated().map { ($1.id, $0) })
+            if let first = found.firstIndex(where: { (position[$0.rowID] ?? 0) >= anchorRow }) {
+                findIndex = first
+                reveal(found[first].rowID)
+                return
+            }
+        }
+        if !found.isEmpty {
+            findIndex = 0
+            reveal(found[0].rowID)
+        }
+    }
+
+    private func stepFind(_ delta: Int) {
+        if !findVisible { showFind() }
+        guard let next = TextSearch.step(from: findIndex, by: delta, count: findMatches.count) else { return }
+        findIndex = next
+        reveal(findMatches[next].rowID)
+    }
+
+    private func goToLine(_ line: Int) {
+        guard let rows = document?.allRows,
+              let id = TextSearch.row(forLine: line, side: goToLineSide, in: rows) else { return }
+        lineTargetID = id
+        reveal(id)
+    }
+
+    /// Scrolls to a row, first opening the collapsed gap that hides it.
+    private func reveal(_ rowID: UUID) {
+        let token = (scrollTarget?.token ?? 0) &+ 1
+        if let gap = gapByRow[rowID], !expandedGaps.contains(gap) {
+            expandedGaps.insert(gap)
+            // Wait a turn so the opened rows exist in the lazy stack before scrolling to one.
+            Task { @MainActor in scrollTarget = ScrollTarget(id: rowID, token: token) }
+        } else {
+            scrollTarget = ScrollTarget(id: rowID, token: token)
+        }
     }
 
     // MARK: - Loading
@@ -266,8 +428,10 @@ struct TextComparisonView: View {
         formatDifferences = []
         changeIDs = []
         expandedGaps = []
+        gapByRow = [:]
         currentChange = -1
         currentChangeID = nil
+        lineTargetID = nil
         let a = a, b = b
         let whitespacePolicy = whitespacePolicy
         let key = taskKey
@@ -290,6 +454,13 @@ struct TextComparisonView: View {
             document = doc
             formatDifferences = outcome.1
             changeIDs = hunkStartIDs(doc.allRows)
+            var gaps: [UUID: String] = [:]
+            for section in doc.sections {
+                if case .gap(_, _, let rows) = section {
+                    for row in rows { gaps[row.id] = section.id }
+                }
+            }
+            gapByRow = gaps
             currentChange = -1
             currentChangeID = nil
         } else {
@@ -370,26 +541,34 @@ struct WhitespacePolicyMenu: View {
 struct UnifiedRowView: View {
     let row: DiffRow
     var isCurrent: Bool = false
+    var find = RowFindHighlights()
 
     var body: some View {
         VStack(spacing: 0) {
             switch row.kind {
             case .equal:
-                line(marker: " ", number: row.leftNumber, text: row.leftText, kind: .equal, highlights: [])
+                // An unchanged row draws A's text once; its B half matches it.
+                line(marker: " ", number: row.leftNumber, text: row.leftText, kind: .equal, highlights: [],
+                     find: find.left)
             case .inserted:
-                line(marker: "+", number: row.rightNumber, text: row.rightText, kind: .inserted, highlights: row.rightHighlights)
+                line(marker: "+", number: row.rightNumber, text: row.rightText, kind: .inserted, highlights: row.rightHighlights,
+                     find: find.right)
             case .deleted:
-                line(marker: "−", number: row.leftNumber, text: row.leftText, kind: .deleted, highlights: row.leftHighlights)
+                line(marker: "−", number: row.leftNumber, text: row.leftText, kind: .deleted, highlights: row.leftHighlights,
+                     find: find.left)
             case .modified:
-                line(marker: "−", number: row.leftNumber, text: row.leftText, kind: .deleted, highlights: row.leftHighlights)
-                line(marker: "+", number: row.rightNumber, text: row.rightText, kind: .inserted, highlights: row.rightHighlights)
+                line(marker: "−", number: row.leftNumber, text: row.leftText, kind: .deleted, highlights: row.leftHighlights,
+                     find: find.left)
+                line(marker: "+", number: row.rightNumber, text: row.rightText, kind: .inserted, highlights: row.rightHighlights,
+                     find: find.right)
             }
         }
         .background(isCurrent ? Theme.brand.opacity(0.12) : .clear)
     }
 
     @ViewBuilder
-    private func line(marker: String, number: Int?, text: String?, kind: DiffRow.Kind, highlights: [Range<Int>]) -> some View {
+    private func line(marker: String, number: Int?, text: String?, kind: DiffRow.Kind, highlights: [Range<Int>],
+                      find: LineFindHighlights) -> some View {
         let accent = Theme.color(for: kind)
         HStack(spacing: 0) {
             Rectangle().fill(kind.isChange ? accent : .clear).frame(width: 2.5)
@@ -400,7 +579,8 @@ struct UnifiedRowView: View {
                 .font(Theme.codeFont).foregroundStyle(accent == .clear ? .secondary : accent)
                 .frame(width: 14)
             Text(highlightedLine(text ?? "", ranges: highlights,
-                                 color: kind == .deleted ? Theme.removedHighlight : Theme.addedHighlight))
+                                 color: kind == .deleted ? Theme.removedHighlight : Theme.addedHighlight,
+                                 find: find))
                 .font(Theme.codeFont)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)

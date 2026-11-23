@@ -12,6 +12,12 @@ struct DiffCommandActions {
     var refresh: (() -> Void)? = nil
     var copyChangeToA: (() -> Void)? = nil
     var copyChangeToB: (() -> Void)? = nil
+    /// Find in the focused diff or merge. When nil, the Find menu goes to the focused text view's
+    /// own find bar instead (the pasted-text editors, merge Result).
+    var find: (() -> Void)? = nil
+    var findNext: (() -> Void)? = nil
+    var findPrevious: (() -> Void)? = nil
+    var goToLine: (() -> Void)? = nil
 }
 
 /// Refreshes one open changeset's file list. Equatable (by changeset and model), so passing it
@@ -69,6 +75,9 @@ struct AppMenuCommands: Commands {
             Button("Previous Change") { diff?.prevChange?() }
                 .keyboardShortcut("[", modifiers: .command)
                 .disabled(diff?.prevChange == nil)
+            Button("Go to Line…") { diff?.goToLine?() }
+                .keyboardShortcut("l", modifiers: .command)
+                .disabled(diff?.goToLine == nil)
             Button("Copy Change to B") { diff?.copyChangeToB?() }
                 .keyboardShortcut(.rightArrow, modifiers: [.command, .option])
                 .disabled(diff?.copyChangeToB == nil)
@@ -101,6 +110,30 @@ struct AppMenuCommands: Commands {
                 .keyboardShortcut("-", modifiers: .command)
             Button("Reset Font Size") { ThemeManager.shared.resetFontSize() }
                 .keyboardShortcut("0", modifiers: .command)
+        }
+
+        // Replaces the standard Find submenu so ⌘F, ⌘G, and ⇧⌘G reach the diff and merge views,
+        // which aren't text views. Without a Find of their own, each item goes to the focused text
+        // view's find bar, as the standard menu would.
+        CommandGroup(replacing: .textEditing) {
+            Menu("Find") {
+                Button("Find…") {
+                    if let find = diff?.find { find() } else { TextFinderCommand.send(.showFindInterface) }
+                }
+                .keyboardShortcut("f", modifiers: .command)
+                Button("Find and Replace…") { TextFinderCommand.send(.showReplaceInterface) }
+                    .keyboardShortcut("f", modifiers: [.command, .option])
+                Button("Find Next") {
+                    if let next = diff?.findNext { next() } else { TextFinderCommand.send(.nextMatch) }
+                }
+                .keyboardShortcut("g", modifiers: .command)
+                Button("Find Previous") {
+                    if let previous = diff?.findPrevious { previous() } else { TextFinderCommand.send(.previousMatch) }
+                }
+                .keyboardShortcut("g", modifiers: [.command, .shift])
+                Button("Use Selection for Find") { TextFinderCommand.send(.setSearchString) }
+                    .keyboardShortcut("e", modifiers: .command)
+            }
         }
 
         CommandGroup(replacing: .help) {

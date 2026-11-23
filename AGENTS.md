@@ -85,6 +85,7 @@ includes `Tests/` automatically through XcodeGen.
 | --- | --- |
 | `Tests/DiffTests.swift` | Myers reconstruction/bounded fallback, character and line diffs, whitespace/format diagnostics, git parsing, diff3 conflicts and line styles |
 | `Tests/MergeSessionTests.swift` | Merge session state: choices, manual Result edits, unsaved-work tracking, reload, ownership by `Comparison` |
+| `Tests/TextSearchTests.swift` | Find matching (Character offsets, case, changed-only, unified context, merge Review parts), match stepping, Go to Line rows and UTF-16 line ranges |
 | `Tests/MergeNavigationTests.swift` | Merge Next/Previous Change: conflict-first stops, wraparound, fallback to changes, continuing after a resolve |
 | `Tests/PastedTextTests.swift` | Two-way hunk copying, line correspondence, terminator preservation, UTF-16 ranges, editor decorations |
 | `Tests/GitComparisonTests.swift` | Real disposable git repos: index/worktree snapshots, staged reversions, conflicts, unborn HEAD, SHA-256 empty trees, option-like/unknown/file-named refs, `.gitattributes` eol/smudge filters on snapshot reads and raw-blob fallback, LFS pointer parsing, re-resolving a Working Copy changeset, refresh selection and stale-request rules |
@@ -151,6 +152,9 @@ App source paths below are relative to `Differentialis/` unless otherwise noted.
   supported actions via `.focusedSceneValue(\.diffCommands, ...)`, and menus use
   `@FocusedValue` to enable commands for the focused scene. Wire new shortcuts here
   and in `Features/KeyboardShortcutsView.swift`, rather than global key handlers.
+  The Edit ▸ Find submenu is replaced (`CommandGroup(replacing: .textEditing)`) so `⌘F`/`⌘G`
+  reach views that publish `find`/`findNext`/`findPrevious`; without them each item falls back to
+  the first responder's `NSTextFinder` (`TextFinderCommand`), so text editors keep their find bar.
 
 Typical flow:
 
@@ -237,7 +241,7 @@ git or diff work in `Task { ... }` does **not** move it off the main actor.
 
 | Feature | Owning code and responsibilities |
 | --- | --- |
-| Text diff | `Features/Text/TextComparisonView.swift`: async load, whitespace options, split/unified layout, gaps, navigation, format diagnostics; `DiffRowView.swift` renders highlighted rows |
+| Text diff | `Features/Text/TextComparisonView.swift`: async load, whitespace options, split/unified layout, gaps, navigation, format diagnostics, Find and Go to Line (`FindBar.swift`, matching in `Diff/TextSearch.swift`); `DiffRowView.swift` renders highlighted rows |
 | Pasted text | `PastedTextComparisonView.swift`: live analysis with typing debounce, editor/diff presentations, hunk actions; `PastedTextAnalysis.swift` shapes rows into UTF-16 decorations and scroll mappings |
 | Native editors | `DiffTextEditor.swift`: TextKit 1 `NSTextView`, line-number ruler, SwiftUI representable, `PastedTextEditorController` for edits/scroll synchronization/shared undo |
 | Three-way merge | `MergeView.swift`: Review and editable Result (`PlainCodeEditor.swift`), hunk choices, format resolution, conflict navigation (`Diff/MergeNavigation.swift`), save warnings and atomic UTF-8 save |

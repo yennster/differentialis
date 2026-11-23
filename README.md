@@ -91,6 +91,8 @@ Every command is in the menu bar, and **Help ▸ Keyboard Shortcuts** (`⌘/`) s
 | New Pasted Text comparison | `⌘T` |
 | Open Repository | `⌘O` |
 | Next / previous change | `⌘]` / `⌘[` |
+| Find in diff or merge / next / previous match | `⌘F` / `⌘G` / `⇧⌘G` |
+| Go to line | `⌘L` |
 | Toggle Split / Unified | `⌘U` |
 | Pasted text: copy change to B / A | `⌥⌘→` / `⌥⌘←` |
 | Image: Two-Up / One-Up / Split / Difference | `⌘1` / `⌘2` / `⌘3` / `⌘4` |

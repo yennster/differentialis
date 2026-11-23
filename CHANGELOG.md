@@ -11,6 +11,13 @@ When cutting a release, add a section here and use it as the release notes:
 ## [Unreleased]
 
 ### Added
+- **Find and Go to Line in diffs and merges** ([#53](https://github.com/yennster/differentialis/issues/53)).
+  **Find** (`⌘F`) opens a find bar in the text diff (split and unified) and in merge Review. It
+  searches both sides, shows a match count, and highlights matches above the change tints; `⌘G` /
+  `⇧⌘G` (or Return / ⇧Return) step through them, opening collapsed unchanged lines as needed.
+  Options: **Match Case** and **Changed Lines Only**. **Go to Line** (`⌘L`) jumps to a line on the
+  A or B side; in a merge it opens that line of the Result. In merge Result and the pasted-text
+  editors, `⌘F`, `⌘G`, and `⌘E` use the editor's standard find bar.
 - **Conflict navigation in 3-way merges.** **Next Change** / **Previous Change** (`⌘]` / `⌘[`) now
   work in merge Review: they step through unresolved conflicts, wrapping at either end, and through
   every changed region once all conflicts are resolved. The header's conflict count is now a button

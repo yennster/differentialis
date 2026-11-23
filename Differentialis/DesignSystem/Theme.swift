@@ -21,6 +21,11 @@ enum Theme {
     static var addedHighlight: Color { added.opacity(palette.highlightOpacity) }
     static var removedHighlight: Color { removed.opacity(palette.highlightOpacity) }
 
+    /// Find matches, painted over the change tints and character highlights so they stay visible
+    /// on any row. The current match is stronger than the rest.
+    static var findMatch: Color { Color.yellow.opacity(palette.isDark ? 0.38 : 0.5) }
+    static var findCurrentMatch: Color { Color.orange.opacity(palette.isDark ? 0.75 : 0.7) }
+
     // Recessed "well" backgrounds (tracks, panes, chips). A dark canvas can absorb a heavy
     // darkening; over a light canvas the same wash turns the whole surface gray and kills
     // text contrast, so wells fade to a hint of shade there.

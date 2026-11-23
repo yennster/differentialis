@@ -61,8 +61,8 @@ claimed is not recorded here** — it is determined by branches and PRs (see AGE
 | ID | Size | Status | Feature | Where / Tests |
 | --- | --- | --- | --- | --- |
 | R-010 | S | Open | **Change minimap / overview ruler** beside the diff showing where changes are. | `Features/Text/`; unit-test the pure position math. |
-| R-011 | S | Open | **Go to line** (`⌘L`) in text and diff views. | `App/AppCommands.swift`, `Features/Text/`; add to `KeyboardShortcutsView` and README table. |
-| R-012 | S | Open | **Find in diff** (`⌘F`) with next/previous match. | `Features/Text/`; test the matching helper. |
+| R-011 | S | Shipped (next version) | **Go to line** (`⌘L`) in text and diff views. | `App/AppCommands.swift`, `Features/Text/`; add to `KeyboardShortcutsView` and README table. |
+| R-012 | S | Shipped (next version) | **Find in diff** (`⌘F`) with next/previous match. | `Features/Text/`; test the matching helper. |
 | R-013 | S | Open | **Folder diff: sort** by name/status/size/modified date. | `Features/Folder/`; test sort comparator. |
 | R-014 | S | Open | **Folder diff: ignore patterns** (e.g. `.git`, `.DS_Store`, `node_modules`) editable in Settings. | `Features/Folder/FolderScanner.swift`; `Tests/FolderAndFilterTests.swift`. |
 | R-015 | S | Open | **Folder diff: compare by content hash vs. size+mtime** toggle. | `FolderScanner.swift`; scanner tests. |

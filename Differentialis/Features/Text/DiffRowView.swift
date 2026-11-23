@@ -1,17 +1,35 @@
 import SwiftUI
 import AppKit
 
-/// Builds an AttributedString with the changed character ranges highlighted.
-func highlightedLine(_ text: String, ranges: [Range<Int>], color: Color) -> AttributedString {
+/// Builds an AttributedString with the changed character ranges highlighted, then any Find
+/// matches on top (the current match strongest), so a match is visible inside a change.
+@MainActor
+func highlightedLine(_ text: String, ranges: [Range<Int>], color: Color,
+                     find: LineFindHighlights = LineFindHighlights()) -> AttributedString {
     var attr = AttributedString(text)
     let count = text.count
-    for range in ranges {
-        guard range.lowerBound >= 0, range.upperBound <= count, range.lowerBound < range.upperBound else { continue }
+    func paint(_ range: Range<Int>, _ color: Color) {
+        guard range.lowerBound >= 0, range.upperBound <= count, range.lowerBound < range.upperBound else { return }
         let lower = attr.characters.index(attr.characters.startIndex, offsetBy: range.lowerBound)
         let upper = attr.characters.index(attr.characters.startIndex, offsetBy: range.upperBound)
         attr[lower..<upper].backgroundColor = color
     }
+    for range in ranges { paint(range, color) }
+    for range in find.matches { paint(range, Theme.findMatch) }
+    if let current = find.current { paint(current, Theme.findCurrentMatch) }
     return attr
+}
+
+/// Find matches to draw on one line of text, in Character offsets.
+struct LineFindHighlights: Equatable {
+    var matches: [Range<Int>] = []
+    var current: Range<Int>?
+}
+
+/// Find matches to draw on one diff row, per side.
+struct RowFindHighlights: Equatable {
+    var left = LineFindHighlights()
+    var right = LineFindHighlights()
 }
 
 /// A single side-by-side diff row: two gutter+text halves sharing one height.
@@ -20,15 +38,16 @@ struct DiffRowView: View {
     var isCurrent: Bool = false
     /// Fixed width for the left half (the draggable column split); nil splits evenly.
     var leftWidth: CGFloat? = nil
+    var find = RowFindHighlights()
 
     var body: some View {
         HStack(spacing: 0) {
             half(number: row.leftNumber, text: row.leftText, highlights: row.leftHighlights,
-                 kind: leftKind, side: .left)
+                 kind: leftKind, side: .left, find: find.left)
                 .frame(width: leftWidth)
             Rectangle().fill(.primary.opacity(0.06)).frame(width: 1)
             half(number: row.rightNumber, text: row.rightText, highlights: row.rightHighlights,
-                 kind: rightKind, side: .right)
+                 kind: rightKind, side: .right, find: find.right)
         }
         .background(isCurrent ? Theme.brand.opacity(0.12) : .clear)
         .contextMenu { DiffRowCopyMenu(left: row.leftText, right: row.rightText) }
@@ -50,7 +69,8 @@ struct DiffRowView: View {
     }
 
     @ViewBuilder
-    private func half(number: Int?, text: String?, highlights: [Range<Int>], kind: DiffRow.Kind, side: Side) -> some View {
+    private func half(number: Int?, text: String?, highlights: [Range<Int>], kind: DiffRow.Kind, side: Side,
+                      find: LineFindHighlights) -> some View {
         let accent = Theme.color(for: kind)
         HStack(spacing: 0) {
             // change bar + line number gutter
@@ -64,7 +84,7 @@ struct DiffRowView: View {
             .frame(width: 46, alignment: .trailing)
 
             // line content
-            lineText(text, highlights: highlights, side: side)
+            lineText(text, highlights: highlights, side: side, find: find)
                 .padding(.leading, 8)
                 .padding(.vertical, 1.5)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -74,10 +94,10 @@ struct DiffRowView: View {
     }
 
     @ViewBuilder
-    private func lineText(_ text: String?, highlights: [Range<Int>], side: Side) -> some View {
+    private func lineText(_ text: String?, highlights: [Range<Int>], side: Side, find: LineFindHighlights) -> some View {
         if let text {
             let highlightColor = side == .left ? Theme.removedHighlight : Theme.addedHighlight
-            Text(highlightedLine(text, ranges: highlights, color: highlightColor))
+            Text(highlightedLine(text, ranges: highlights, color: highlightColor, find: find))
                 .font(Theme.codeFont)
                 .foregroundStyle(.primary)
                 .textSelection(.enabled)
