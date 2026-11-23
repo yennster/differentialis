@@ -2,18 +2,33 @@ import SwiftUI
 import AppKit
 
 /// Builds the attributed text for one diff line: syntax token foregrounds first, then the
-/// changed-character backgrounds on top, so intra-line highlights stay visible over code colors.
-/// `tokens` and `ranges` are Character offsets into `text`.
+/// changed-character backgrounds, then any Find matches on top (the current match strongest), so
+/// intra-line highlights stay visible over code colors and a match is visible inside a change.
+/// `tokens`, `ranges`, and Find matches are Character offsets into `text`.
+@MainActor
 func highlightedLine(_ text: String, ranges: [Range<Int>], color: Color,
-                     tokens: [SyntaxToken] = [], palette: SyntaxPalette? = nil) -> AttributedString {
+                     tokens: [SyntaxToken] = [], palette: SyntaxPalette? = nil,
+                     find: LineFindHighlights = LineFindHighlights()) -> AttributedString {
     var attr = syntaxColoredLine(text, tokens: tokens, palette: palette)
     let count = text.count
-    for range in ranges {
-        guard range.lowerBound >= 0, range.upperBound <= count, range.lowerBound < range.upperBound else { continue }
-        let lower = attr.characters.index(attr.characters.startIndex, offsetBy: range.lowerBound)
-        let upper = attr.characters.index(attr.characters.startIndex, offsetBy: range.upperBound)
-        attr[lower..<upper].backgroundColor = color
+    // Walk each sorted set of ranges with one moving index, so many matches on a long line cost
+    // one pass rather than a walk from the start per range.
+    func paint(_ ranges: [Range<Int>], _ color: Color) {
+        var index = attr.characters.startIndex
+        var offset = 0
+        for range in ranges.sorted(by: { $0.lowerBound < $1.lowerBound }) {
+            guard range.lowerBound >= offset, range.upperBound <= count, range.lowerBound < range.upperBound
+            else { continue }
+            let lower = attr.characters.index(index, offsetBy: range.lowerBound - offset)
+            let upper = attr.characters.index(lower, offsetBy: range.count)
+            attr[lower..<upper].backgroundColor = color
+            index = upper
+            offset = range.upperBound
+        }
     }
+    paint(ranges, color)
+    paint(find.matches, Theme.findMatch)
+    if let current = find.current { paint([current], Theme.findCurrentMatch) }
     return attr
 }
 
@@ -42,6 +57,18 @@ private func syntaxColoredLine(_ text: String, tokens: [SyntaxToken], palette: S
     return result
 }
 
+/// Find matches to draw on one line of text, in Character offsets.
+struct LineFindHighlights: Equatable {
+    var matches: [Range<Int>] = []
+    var current: Range<Int>?
+}
+
+/// Find matches to draw on one diff row, per side.
+struct RowFindHighlights: Equatable {
+    var left = LineFindHighlights()
+    var right = LineFindHighlights()
+}
+
 /// A single side-by-side diff row: two gutter+text halves sharing one height.
 struct DiffRowView: View {
     let row: DiffRow
@@ -51,15 +78,16 @@ struct DiffRowView: View {
     /// Syntax tokens for each side's line; empty when highlighting is off or unavailable.
     var leftTokens: [SyntaxToken] = []
     var rightTokens: [SyntaxToken] = []
+    var find = RowFindHighlights()
 
     var body: some View {
         HStack(spacing: 0) {
             half(number: row.leftNumber, text: row.leftText, highlights: row.leftHighlights,
-                 tokens: leftTokens, kind: leftKind, side: .left)
+                 tokens: leftTokens, kind: leftKind, side: .left, find: find.left)
                 .frame(width: leftWidth)
             Rectangle().fill(.primary.opacity(0.06)).frame(width: 1)
             half(number: row.rightNumber, text: row.rightText, highlights: row.rightHighlights,
-                 tokens: rightTokens, kind: rightKind, side: .right)
+                 tokens: rightTokens, kind: rightKind, side: .right, find: find.right)
         }
         // An ignored difference (a blank line on one side only) stays visible, just dimmed.
         .opacity(row.isIgnored ? 0.45 : 1)
@@ -84,7 +112,7 @@ struct DiffRowView: View {
 
     @ViewBuilder
     private func half(number: Int?, text: String?, highlights: [Range<Int>], tokens: [SyntaxToken],
-                      kind: DiffRow.Kind, side: Side) -> some View {
+                      kind: DiffRow.Kind, side: Side, find: LineFindHighlights) -> some View {
         let accent = Theme.color(for: kind)
         HStack(spacing: 0) {
             // change bar + line number gutter
@@ -98,7 +126,7 @@ struct DiffRowView: View {
             .frame(width: 46, alignment: .trailing)
 
             // line content
-            lineText(text, highlights: highlights, tokens: tokens, side: side)
+            lineText(text, highlights: highlights, tokens: tokens, side: side, find: find)
                 .padding(.leading, 8)
                 .padding(.vertical, 1.5)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -108,11 +136,12 @@ struct DiffRowView: View {
     }
 
     @ViewBuilder
-    private func lineText(_ text: String?, highlights: [Range<Int>], tokens: [SyntaxToken], side: Side) -> some View {
+    private func lineText(_ text: String?, highlights: [Range<Int>], tokens: [SyntaxToken], side: Side,
+                          find: LineFindHighlights) -> some View {
         if let text {
             let highlightColor = side == .left ? Theme.removedHighlight : Theme.addedHighlight
             Text(highlightedLine(text, ranges: highlights, color: highlightColor,
-                                 tokens: tokens, palette: Theme.syntax))
+                                 tokens: tokens, palette: Theme.syntax, find: find))
                 .font(Theme.codeFont)
                 .foregroundStyle(.primary)
                 .textSelection(.enabled)

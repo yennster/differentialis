@@ -25,6 +25,14 @@ When cutting a release, add a section here and use it as the release notes:
   on one side gets a dimmed row instead of counting as an insertion or deletion. Ignored blank lines
   never affect how the rest of the text lines up. The existing whitespace options now dim lines
   they match the same way ([#54](https://github.com/yennster/differentialis/issues/54)).
+- **Find and Go to Line in diffs and merges** ([#53](https://github.com/yennster/differentialis/issues/53)).
+  **Find** (`⌘F`) opens a find bar in the text diff (split and unified) and in merge Review. It
+  searches both sides, shows a match count, and highlights matches above the change tints; `⌘G` /
+  `⇧⌘G` (or Return / ⇧Return) step through them, opening collapsed unchanged lines as needed.
+  Options: **Match Case** and **Changed Lines Only**. The query is shared with the system find
+  pasteboard, so text searched for in another app is ready in the bar. **Go to Line** (`⌘L`) jumps to
+  a line on the A or B side; in a merge it opens that line of the Result. In merge Result and the
+  pasted-text editors, `⌘F`, `⌘G`, and `⌘E` use the editor's standard find bar.
 - **Conflict navigation in 3-way merges.** **Next Change** / **Previous Change** (`⌘]` / `⌘[`) now
   work in merge Review: they step through unresolved conflicts, wrapping at either end, and through
   every changed region once all conflicts are resolved. The header's conflict count is now a button

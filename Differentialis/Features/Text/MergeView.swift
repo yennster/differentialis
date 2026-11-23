@@ -28,10 +28,44 @@ struct MergeView: View {
     /// Scroll identity for the line-ending choice, which is not a hunk.
     @State private var lineStyleStopID = UUID()
 
+    // Find (⌘F) in Review, and Go to Line (⌘L) in Result. In Result, Find is the editor's own.
+    @State private var findVisible = false
+    @State private var findQuery = ""
+    @State private var findOptions = TextSearchOptions()
+    @State private var findMatches: [MergeSearchMatch] = []
+    @State private var findByHunk: [UUID: HunkFindHighlights] = [:]
+    @State private var findIndex: Int?
+    @State private var findFocusRequest = 0
+    @State private var findScrollRequest = 0
+    @State private var goToLineVisible = false
+    @State private var goToLineFocusRequest = 0
+    @State private var resultEditorHandle = CodeEditorHandle()
+    /// The current match's hunk, part, and line, so re-searching after a resolve or an option
+    /// change carries on there.
+    @State private var findAnchor: TextSearch.ReviewAnchor?
+    /// The line the current match is on, to scroll only when a re-search moves it.
+    @State private var findCurrentLine: MergeLineID?
+    @FocusState private var findFieldFocused: Bool
+    @FocusState private var goToLineFieldFocused: Bool
+
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider().opacity(0.4)
+            if findVisible && canFindInReview {
+                FindBar(query: $findQuery, options: $findOptions,
+                        matchCount: findMatches.count, currentIndex: findIndex,
+                        focusRequest: findFocusRequest, fieldFocused: $findFieldFocused,
+                        next: { stepFind(1) }, previous: { stepFind(-1) },
+                        close: { findVisible = false })
+                Divider().opacity(0.4)
+            }
+            if goToLineVisible && session.loaded && session.loadError == nil {
+                GoToLineBar(side: .constant(.left), showsSidePicker: false,
+                            focusRequest: goToLineFocusRequest, fieldFocused: $goToLineFieldFocused,
+                            go: goToResultLine, close: { goToLineVisible = false })
+                Divider().opacity(0.4)
+            }
             if let loadError = session.loadError {
                 ContentUnavailableView("Couldn’t load files", systemImage: "exclamationmark.triangle",
                                        description: Text(loadError))
@@ -47,6 +81,7 @@ struct MergeView: View {
         // The session outlives this view, so coming back to an already-loaded merge keeps its
         // choices and edits instead of re-reading the sources.
         .task { if session.needsLoad { await session.load() } }
+        .task(id: findKey) { await search() }
         .focusedSceneValue(\.diffCommands, DiffCommandActions(
             nextChange: canNavigate ? { navigate(1) } : nil,
             prevChange: canNavigate ? { navigate(-1) } : nil,
@@ -54,7 +89,12 @@ struct MergeView: View {
                 guard session.confirmDiscardingChanges(before: .reload) else { return }
                 currentStopID = nil
                 Task { await session.load() }
-            }))
+            },
+            find: canFind ? { showFind() } : nil,
+            findNext: canFind ? { stepFind(1) } : nil,
+            findPrevious: canFind ? { stepFind(-1) } : nil,
+            goToLine: canFind ? { showGoToLine() } : nil,
+            findInTextView: session.presentation == .result))
     }
 
     private var review: some View {
@@ -70,7 +110,8 @@ struct MergeView: View {
                             .id(lineStyleStopID)
                     }
                     ForEach(session.hunks) { hunk in
-                        HunkBlock(hunk: hunk, isCurrent: hunk.id == currentStopID) { source in
+                        HunkBlock(hunk: hunk, isCurrent: hunk.id == currentStopID,
+                                  find: findHighlights(for: hunk.id)) { source in
                             session.resolve(hunk: hunk.id, as: source)
                             // Navigation carries on from the hunk the user just worked on.
                             currentStopID = hunk.id
@@ -85,6 +126,22 @@ struct MergeView: View {
                 guard let id = currentStopID else { return }
                 withAnimation(.easeInOut(duration: 0.25)) { proxy.scrollTo(id, anchor: .center) }
             }
+            .onChange(of: findScrollRequest) { _, request in
+                guard let findIndex, findIndex < findMatches.count else { return }
+                let match = findMatches[findIndex]
+                // Bring the hunk into the lazy stack, then centre the matching line: an unchanged
+                // hunk can be thousands of lines long.
+                proxy.scrollTo(match.hunkID, anchor: .center)
+                Task { @MainActor in
+                    // Give the lazy stack a moment to lay the hunk out, so its lines have ids.
+                    try? await Task.sleep(for: .milliseconds(30))
+                    guard request == findScrollRequest else { return }
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        proxy.scrollTo(MergeLineID(hunk: match.hunkID, part: match.part, line: match.line),
+                                       anchor: .center)
+                    }
+                }
+            }
             // The conflict chip can switch from Result to Review, which mounts this list after the
             // request was made, so a pending target is honoured on appear as well.
             .onAppear {
@@ -93,6 +150,120 @@ struct MergeView: View {
                 Task { @MainActor in scrollRequest &+= 1 }
             }
         }
+    }
+
+    // MARK: - Find and Go to Line
+
+    private var canFind: Bool { session.loaded && session.loadError == nil }
+    private var canFindInReview: Bool { canFind && session.presentation == .review }
+
+    /// Re-run Find when the query, its options, or a hunk's resolution changes.
+    private struct FindKey: Hashable {
+        let visible: Bool
+        let query: String
+        let options: TextSearchOptions
+        let hunks: [UUID]
+        let resolutions: [MergeResolution]
+    }
+
+    private var findKey: FindKey {
+        FindKey(visible: findVisible && canFindInReview, query: findQuery, options: findOptions,
+                hunks: session.hunks.map(\.id), resolutions: session.hunks.map(\.resolution))
+    }
+
+    private func showFind() {
+        if session.presentation == .result {
+            // Result is a text view with its own find bar.
+            resultEditorHandle.perform(.showFindInterface)
+            return
+        }
+        goToLineVisible = false
+        findVisible = true
+        findFocusRequest &+= 1
+    }
+
+    private func showGoToLine() {
+        findVisible = false
+        goToLineVisible = true
+        goToLineFocusRequest &+= 1
+    }
+
+    /// Review has no line numbers, so Go to Line opens the line in the Result the merge saves.
+    private func goToResultLine(_ line: Int) {
+        session.presentation = .result
+        resultEditorHandle.goToLine(line)
+    }
+
+    private func stepFind(_ delta: Int) {
+        if session.presentation == .result {
+            resultEditorHandle.perform(delta > 0 ? .nextMatch : .previousMatch)
+            return
+        }
+        if !findVisible { showFind() }
+        guard var next = TextSearch.step(from: findIndex, by: delta, count: findMatches.count) else { return }
+        // After ⌘] / ⌘[ moved to another hunk, carry on from there instead.
+        // The line-ending stop sits above every hunk.
+        if findAnchor == nil, let currentStopID,
+           let anchor = currentStopID == lineStyleStopID
+               ? 0 : TextSearch.reviewLinePositions(of: session.hunks)[currentStopID] {
+            let atOrAfter = TextSearch.startIndex(of: findMatches, at: anchor) { $0.position } ?? 0
+            next = delta > 0 ? atOrAfter : (atOrAfter - 1 + findMatches.count) % findMatches.count
+        }
+        setCurrentMatch(next)
+        findScrollRequest &+= 1
+    }
+
+    private func setCurrentMatch(_ index: Int?) {
+        findIndex = index
+        guard let index, index < findMatches.count else {
+            findAnchor = nil
+            findCurrentLine = nil
+            return
+        }
+        let match = findMatches[index]
+        findAnchor = TextSearch.reviewAnchor(for: match)
+        findCurrentLine = MergeLineID(hunk: match.hunkID, part: match.part, line: match.line)
+    }
+
+    private func search() async {
+        guard findKey.visible, !findQuery.isEmpty else {
+            findMatches = []
+            findByHunk = [:]
+            setCurrentMatch(nil)
+            return
+        }
+        try? await Task.sleep(for: .milliseconds(120))
+        guard !Task.isCancelled else { return }
+        let query = findQuery, options = findOptions, hunks = session.hunks
+        let found = await offMain {
+            TextSearch.matches(of: query, in: hunks, options: options, limit: TextSearch.matchLimit + 1)
+        }
+        guard !Task.isCancelled else { return }
+        var byHunk: [UUID: HunkFindHighlights] = [:]
+        for match in found {
+            byHunk[match.hunkID, default: [:]][match.part, default: [:]][match.line, default: LineFindHighlights()]
+                .matches.append(match.range)
+        }
+        findMatches = found
+        findByHunk = byHunk
+        // Carry on from the match the user was on (resolving a hunk re-runs the search), else from
+        // the hunk Next/Previous Change last moved to.
+        let anchor = findAnchor.flatMap { TextSearch.reviewPosition(of: $0, in: hunks) }
+            ?? currentStopID.flatMap { TextSearch.reviewLinePositions(of: hunks)[$0] }
+        let previousLine = findCurrentLine
+        setCurrentMatch(TextSearch.startIndex(of: found, at: anchor) { $0.position })
+        // Don't move the view when the current match is still on the line it was on.
+        if findIndex != nil, findCurrentLine != previousLine { findScrollRequest &+= 1 }
+    }
+
+    /// Find highlights for one hunk, by part and line, with the current match marked.
+    private func findHighlights(for hunkID: UUID) -> HunkFindHighlights {
+        var result = findByHunk[hunkID] ?? [:]
+        if let findIndex, findIndex < findMatches.count, findMatches[findIndex].hunkID == hunkID {
+            let match = findMatches[findIndex]
+            result[match.part, default: [:]][match.line, default: LineFindHighlights()].current = match.range
+        }
+        return result
     }
 
     // MARK: - Navigation
@@ -122,6 +293,8 @@ struct MergeView: View {
 
     private func move(to id: UUID) {
         currentStopID = id
+        // The next search or ⌘G starts from here, not from the last match.
+        findAnchor = nil
         scrollRequest &+= 1
     }
 
@@ -201,7 +374,8 @@ struct MergeView: View {
                 get: { session.resultText },
                 set: { session.editResult($0) }),
                 font: DiffEditorStyle.codeFont(Theme.codeFontSize),
-                accessibilityLabel: "Merged result")
+                accessibilityLabel: "Merged result",
+                handle: resultEditorHandle)
                 .padding(8)
                 .background(Theme.well)
         }
@@ -350,9 +524,20 @@ private struct LineStyleConflictBlock: View {
     }
 }
 
+/// Find matches in one hunk: by the part of the hunk, then by line index within that part.
+typealias HunkFindHighlights = [MergeSearchPart: [Int: LineFindHighlights]]
+
+/// Scroll identity of one line in merge Review, so Find can centre the matching line.
+struct MergeLineID: Hashable {
+    let hunk: UUID
+    let part: MergeSearchPart
+    let line: Int
+}
+
 private struct HunkBlock: View {
     let hunk: MergeHunk
     var isCurrent = false
+    var find: HunkFindHighlights = [:]
     let choose: (MergeResolution) -> Void
 
     var body: some View {
@@ -367,8 +552,9 @@ private struct HunkBlock: View {
 
     private var unchangedView: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(hunk.chosen.enumerated()), id: \.offset) { _, line in
-                lineText(line, color: .secondary.opacity(0.7))
+            ForEach(Array(hunk.chosen.enumerated()), id: \.offset) { index, line in
+                lineText(line, color: .secondary.opacity(0.7), find: find[.chosen]?[index])
+                    .id(MergeLineID(hunk: hunk.id, part: .chosen, line: index))
             }
         }
         .padding(.horizontal, 14)
@@ -384,8 +570,9 @@ private struct HunkBlock: View {
                 sourceMenu
             }
             .padding(.bottom, 3)
-            ForEach(Array(hunk.chosen.enumerated()), id: \.offset) { _, line in
-                lineText(line, color: .primary)
+            ForEach(Array(hunk.chosen.enumerated()), id: \.offset) { index, line in
+                lineText(line, color: .primary, find: find[.chosen]?[index])
+                    .id(MergeLineID(hunk: hunk.id, part: .chosen, line: index))
             }
         }
         .padding(10)
@@ -403,10 +590,12 @@ private struct HunkBlock: View {
                     .foregroundStyle(Theme.conflict)
             }
             HStack(alignment: .top, spacing: 8) {
-                conflictColumn(title: "Left", lines: hunk.leftLines, color: Theme.removed) {
+                conflictColumn(title: "Left", part: .left, lines: hunk.leftLines, color: Theme.removed,
+                               find: find[.left] ?? [:]) {
                     choose(.takeLeft)
                 }
-                conflictColumn(title: "Right", lines: hunk.rightLines, color: Theme.modified) {
+                conflictColumn(title: "Right", part: .right, lines: hunk.rightLines, color: Theme.modified,
+                               find: find[.right] ?? [:]) {
                     choose(.takeRight)
                 }
             }
@@ -425,7 +614,9 @@ private struct HunkBlock: View {
         .padding(.horizontal, 12).padding(.vertical, 4)
     }
 
-    private func conflictColumn(title: String, lines: [String], color: Color, choose: @escaping () -> Void) -> some View {
+    private func conflictColumn(title: String, part: MergeSearchPart, lines: [String], color: Color,
+                                find: [Int: LineFindHighlights],
+                                choose: @escaping () -> Void) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(title).font(.system(size: 10.5, weight: .bold)).foregroundStyle(color)
@@ -433,8 +624,9 @@ private struct HunkBlock: View {
                 Button("Use") { choose() }.buttonStyle(.borderless).controlSize(.small).foregroundStyle(color)
             }
             VStack(alignment: .leading, spacing: 0) {
-                ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
-                    lineText(line, color: .primary)
+                ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
+                    lineText(line, color: .primary, find: find[index])
+                        .id(MergeLineID(hunk: hunk.id, part: part, line: index))
                 }
                 if lines.isEmpty { lineText("(empty)", color: .secondary) }
             }
@@ -457,13 +649,20 @@ private struct HunkBlock: View {
         .fixedSize()
     }
 
-    private func lineText(_ text: String, color: Color) -> some View {
-        Text(text.isEmpty ? " " : text)
-            .font(Theme.codeFont)
-            .foregroundStyle(color)
-            .textSelection(.enabled)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .fixedSize(horizontal: false, vertical: true)
+    private func lineText(_ text: String, color: Color, find: LineFindHighlights? = nil) -> some View {
+        // Only lines with matches pay for an attributed string.
+        Group {
+            if let find, !text.isEmpty {
+                Text(highlightedLine(text, ranges: [], color: .clear, find: find))
+            } else {
+                Text(verbatim: text.isEmpty ? " " : text)
+            }
+        }
+        .font(Theme.codeFont)
+        .foregroundStyle(color)
+        .textSelection(.enabled)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 

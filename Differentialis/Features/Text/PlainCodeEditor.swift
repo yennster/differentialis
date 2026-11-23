@@ -8,6 +8,8 @@ struct PlainCodeEditor: NSViewRepresentable {
     @Binding var text: String
     var font: NSFont
     var accessibilityLabel: String
+    /// Lets the owning view run Find and Go to Line in this editor.
+    var handle: CodeEditorHandle? = nil
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -29,12 +31,15 @@ struct PlainCodeEditor: NSViewRepresentable {
         textView.font = font
         textView.delegate = context.coordinator
         textView.setSelectedRange(NSRange(location: 0, length: 0))
+        handle?.attach(textView)
         return scrollView
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         context.coordinator.parent = self
         guard let textView = scrollView.documentView as? NSTextView else { return }
+        // Re-attaching also retries a request made before the editor was in a window.
+        if let handle, handle.textView !== textView || handle.hasPendingRequest { handle.attach(textView) }
         // Compare code units, not Strings: String equality treats precomposed and decomposed
         // characters as equal, but they save as different bytes.
         if !(textView.string as NSString).isEqual(to: text) {
@@ -67,6 +72,56 @@ struct PlainCodeEditor: NSViewRepresentable {
             guard let textView = notification.object as? NSTextView else { return }
             let string = textView.string
             if !(string as NSString).isEqual(to: parent.text) { parent.text = string }
+        }
+    }
+}
+
+/// A reference to a mounted `PlainCodeEditor`'s text view, so its owner can run Find and Go to
+/// Line in it from the menu. A request made before the editor is on screen (say, Go to Line while
+/// merge Review is showing) waits for it.
+@MainActor
+final class CodeEditorHandle {
+    private(set) weak var textView: NSTextView?
+    private var pendingLine: Int?
+    private var pendingFinderAction: NSTextFinder.Action?
+
+    var hasPendingRequest: Bool { pendingLine != nil || pendingFinderAction != nil }
+
+    func attach(_ textView: NSTextView) {
+        self.textView = textView
+        guard hasPendingRequest else { return }
+        // The view isn't in a window yet while SwiftUI is still mounting it.
+        Task { @MainActor [weak self] in self?.runPending() }
+    }
+
+    /// Selects and scrolls to 1-based `line` (clamped to the text) and focuses the editor.
+    func goToLine(_ line: Int) {
+        pendingLine = line
+        runPending()
+    }
+
+    /// Runs a text-finder action (show the find bar, next or previous match) in the editor.
+    func perform(_ action: NSTextFinder.Action) {
+        pendingFinderAction = action
+        runPending()
+    }
+
+    private func runPending() {
+        guard let textView, let window = textView.window else { return }
+        // Next/previous match leave focus alone, so typing in the find field isn't interrupted.
+        if pendingLine != nil || pendingFinderAction == .showFindInterface {
+            window.makeFirstResponder(textView)
+        }
+        if let line = pendingLine {
+            pendingLine = nil
+            let range = TextSearch.utf16Range(ofLine: line, in: textView.string)
+            textView.setSelectedRange(range)
+            textView.scrollRangeToVisible(range)
+            if range.length > 0 { textView.showFindIndicator(for: range) }
+        }
+        if let action = pendingFinderAction {
+            pendingFinderAction = nil
+            TextFinderCommand.perform(action, on: textView)
         }
     }
 }
