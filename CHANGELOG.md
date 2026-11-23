@@ -18,6 +18,11 @@ When cutting a release, add a section here and use it as the release notes:
   ([#23](https://github.com/yennster/differentialis/issues/23)).
 
 ### Fixed
+- **Command Line Tool** menu fixes ([#21](https://github.com/yennster/differentialis/issues/21)):
+  uninstalling now confirms "Command Line Tool Removed" instead of "Installed"; an installed copy
+  older than the app's launcher is offered **Update Command Line Tool…**; and a
+  `/usr/local/bin/differentialis` that isn't Differentialis's is never offered for removal, and
+  installing over it asks first.
 - Git snapshots (commits, the index, and conflict stages) now read the way `git checkout` writes
   them, applying `.gitattributes` conversions and smudge filters
   ([#15](https://github.com/yennster/differentialis/issues/15)). With `core.autocrlf` or

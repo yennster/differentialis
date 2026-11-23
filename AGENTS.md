@@ -91,6 +91,7 @@ includes `Tests/` automatically through XcodeGen.
 | `Tests/FolderAndFilterTests.swift` | Package traversal, scan errors, stable identities, composed git filters, file properties |
 | `Tests/ThemeImportTests.swift` | `.tmTheme` import, hex colors, observable settings clamping |
 | `Tests/CommandLineWaitTests.swift` | `--wait` request parsing and location checks, launcher acknowledgement/status, request-to-comparison routing, merge save result |
+| `Tests/CommandLineToolStatusTests.swift` | Launcher version marker parsing; installed-copy status (absent, current, outdated, pre-marker, foreign) |
 
 **Add or update tests when changing the diff or merge engines.** Extend the relevant
 suite for other behavioral changes; prefer observable results over private helper
@@ -374,8 +375,14 @@ session-only.
   so Finder and already-running-app opens reach `AppDelegate` without making the
   app the default handler. Preserve this when changing launching behavior.
 - `CommandLineToolInstaller` installs a **copy** of the bundled script at
-  `/usr/local/bin/differentialis` through an administrator prompt. The app menu
-  toggles installation/removal; this is privileged user-driven work.
+  `/usr/local/bin/differentialis` through an administrator prompt; this is
+  privileged user-driven work. `CommandLineToolStatus` compares the copy's
+  `# differentialis-launcher-version: N` marker with the bundled script's: the app
+  menu offers Install (nothing there, or a file that isn't ours; replacing one asks
+  first), Update + Uninstall (older copy, including pre-marker copies), or
+  Uninstall (current copy). Uninstall never removes a file that isn't ours.
+  **Bump the marker whenever `Resources/differentialis` changes**, or installed
+  copies are never offered the update.
 - `Models/SparkleUpdater.swift` isolates Sparkle from views via `AvailableUpdate`.
   Scheduled checks use `Features/UpdateBanner.swift`; manual checks and actual
   installation use Sparkle's UI. Skip persists a build number, Later only dismisses

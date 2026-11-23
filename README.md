@@ -125,7 +125,7 @@ open build/Build/Products/Debug/Differentialis.app
 A thin `differentialis` shell script is bundled inside the app and opens a diff from any
 directory. Install it from the app menu: **Differentialis ▸ Install Command Line Tool…** — one
 password prompt, then it's on your `$PATH` forever. (The menu item toggles to **Uninstall…**
-once installed.)
+once installed, and shows **Update Command Line Tool…** when a newer app ships a newer launcher.)
 
 Then:
 
