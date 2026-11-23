@@ -83,7 +83,7 @@ includes `Tests/` automatically through XcodeGen.
 
 | Test file | Coverage |
 | --- | --- |
-| `Tests/DiffTests.swift` | Myers reconstruction/bounded fallback, character and line diffs, whitespace/format diagnostics, git parsing, diff3 conflicts and line styles |
+| `Tests/DiffTests.swift` | Myers reconstruction/bounded fallback, character and line diffs, whitespace/case/blank-line matching, format diagnostics, git parsing, diff3 conflicts and line styles |
 | `Tests/MergeSessionTests.swift` | Merge session state: choices, manual Result edits, unsaved-work tracking, reload, ownership by `Comparison` |
 | `Tests/MergeNavigationTests.swift` | Merge Next/Previous Change: conflict-first stops, wraparound, fallback to changes, continuing after a resolve |
 | `Tests/PastedTextTests.swift` | Two-way hunk copying, line correspondence, terminator preservation, UTF-16 ranges, editor decorations |
@@ -210,8 +210,12 @@ git or diff work in `Task { ... }` does **not** move it off the main actor.
 - `CharDiff.swift` computes similarity and intra-line highlights together, with a
   long-line guard. `LineDiff.swift` builds aligned `DiffRow`s, stats, and collapsible
   `DiffDocument` sections. Similar delete/insert pairs become modified rows;
-  unrelated pairs remain deletions/insertions. Whitespace policy changes comparison
-  keys, not the displayed source text.
+  unrelated pairs remain deletions/insertions. `LineMatchOptions` (whitespace policy,
+  ignore case, ignore blank lines) changes comparison keys, not the displayed source text.
+  With blank lines ignored, Myers aligns only the non-blank lines and blank lines are woven back
+  in as `.equal` rows (one-sided when unmatched). Equal rows whose sides differ, or that have
+  only one side, carry `isIgnored`; they never count as changes or hunks, and views draw them
+  dimmed rather than hiding them.
 - `LineDiff.split` recognizes LF/CRLF/CR, drops the phantom segment after a final
   newline, and represents empty input as one empty line. Content equality therefore
   does not imply byte equality: `textFormatDifferences` in `TextComparisonView.swift`
@@ -237,7 +241,7 @@ git or diff work in `Task { ... }` does **not** move it off the main actor.
 
 | Feature | Owning code and responsibilities |
 | --- | --- |
-| Text diff | `Features/Text/TextComparisonView.swift`: async load, whitespace options, split/unified layout, gaps, navigation, format diagnostics; `DiffRowView.swift` renders highlighted rows |
+| Text diff | `Features/Text/TextComparisonView.swift`: async load, line-matching options (whitespace, case, blank lines), split/unified layout, gaps, navigation, format diagnostics; `DiffRowView.swift` renders highlighted rows |
 | Pasted text | `PastedTextComparisonView.swift`: live analysis with typing debounce, editor/diff presentations, hunk actions; `PastedTextAnalysis.swift` shapes rows into UTF-16 decorations and scroll mappings |
 | Native editors | `DiffTextEditor.swift`: TextKit 1 `NSTextView`, line-number ruler, SwiftUI representable, `PastedTextEditorController` for edits/scroll synchronization/shared undo |
 | Three-way merge | `MergeView.swift`: Review and editable Result (`PlainCodeEditor.swift`), hunk choices, format resolution, conflict navigation (`Diff/MergeNavigation.swift`), save warnings and atomic UTF-8 save |
