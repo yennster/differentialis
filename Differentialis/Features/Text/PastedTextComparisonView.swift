@@ -8,6 +8,8 @@ struct PastedTextComparisonView: View {
 
     @AppStorage("diffSplitFraction") private var splitFraction = 0.5
     @AppStorage("textWhitespacePolicy") private var whitespacePolicy = WhitespacePolicy.significant
+    @AppStorage("textIgnoreCase") private var ignoreCase = false
+    @AppStorage("textIgnoreBlankLines") private var ignoreBlankLines = false
     @State private var presentation = Presentation.edit
     @State private var analysis: PastedTextAnalysis?
     @State private var currentHunk: Int?
@@ -28,7 +30,12 @@ struct PastedTextComparisonView: View {
     private struct AnalysisKey: Equatable {
         var a: String
         var b: String
-        var whitespace: WhitespacePolicy
+        var options: LineMatchOptions
+    }
+
+    private var matchOptions: LineMatchOptions {
+        LineMatchOptions(whitespace: whitespacePolicy, ignoreCase: ignoreCase,
+                         ignoreBlankLines: ignoreBlankLines)
     }
 
     var body: some View {
@@ -40,7 +47,7 @@ struct PastedTextComparisonView: View {
                 TextComparisonView(a: source(.a), b: source(.b), accessory: AnyView(presentationSwitch))
             }
         }
-        .task(id: AnalysisKey(a: document.a, b: document.b, whitespace: whitespacePolicy)) {
+        .task(id: AnalysisKey(a: document.a, b: document.b, options: matchOptions)) {
             await analyze()
         }
     }
@@ -190,7 +197,8 @@ struct PastedTextComparisonView: View {
         .buttonStyle(.borderless)
         .disabled(analysis?.hunks.isEmpty ?? true)
 
-        WhitespacePolicyMenu(policy: $whitespacePolicy)
+        LineMatchingMenu(whitespace: $whitespacePolicy, ignoreCase: $ignoreCase,
+                         ignoreBlankLines: $ignoreBlankLines)
 
         Button { swapSides() } label: { Image(systemName: "arrow.left.arrow.right") }
             .buttonStyle(.borderless)
@@ -254,7 +262,7 @@ struct PastedTextComparisonView: View {
     // MARK: - Analysis
 
     private func analyze() async {
-        let a = document.a, b = document.b, whitespace = whitespacePolicy
+        let a = document.a, b = document.b, options = matchOptions
         guard !a.isEmpty, !b.isEmpty else {
             analysis = nil
             currentHunk = nil
@@ -269,8 +277,8 @@ struct PastedTextComparisonView: View {
             try? await Task.sleep(for: .milliseconds(150))
             guard !Task.isCancelled else { return }
         }
-        let result = await offMain { PastedTextAnalysis.make(a: a, b: b, whitespace: whitespace) }
-        guard !Task.isCancelled, a == document.a, b == document.b, whitespace == whitespacePolicy else { return }
+        let result = await offMain { PastedTextAnalysis.make(a: a, b: b, options: options) }
+        guard !Task.isCancelled, a == document.a, b == document.b, options == matchOptions else { return }
 
         analysis = result
         controller.aToB = result.aToB

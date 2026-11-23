@@ -48,6 +48,14 @@ struct TextSearchTests {
         #expect(TextSearch.matches(of: "x", in: rows, options: .init(), unified: true).count == 3)
     }
 
+    @Test("unified searches both spellings of a row matched only by ignoring case")
+    func unifiedSearchesIgnoredRowsBothSides() {
+        let rows = LineDiff.document("Foo\nend A\n", "foo\nend B\n",
+                                     options: LineMatchOptions(ignoreCase: true)).allRows
+        let matches = TextSearch.matches(of: "foo", in: rows, options: .init(), unified: true)
+        #expect(matches.map(\.side) == [.left, .right])
+    }
+
     @Test("changed lines only skips unchanged context on both sides")
     func changedOnly() {
         let rows = LineDiff.document("same x\nold x\n", "same x\nnew x\n").allRows

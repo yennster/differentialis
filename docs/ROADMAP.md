@@ -49,8 +49,8 @@ claimed is not recorded here** — it is determined by branches and PRs (see AGE
 
 | ID | Size | Status | Feature | Where / Tests |
 | --- | --- | --- | --- | --- |
-| R-001 | S | Open | **Ignore case** option for text diff (alongside whitespace-insensitive matching). | `Diff/LineDiff.swift`, `TextComparisonView`; unit tests in `Tests/DiffTests.swift` (Swift Testing). |
-| R-002 | S | Open | **Ignore blank lines** option for text diff. | `Diff/LineDiff.swift`; engine tests. |
+| R-001 | S | Shipped (next version) | **Ignore case** option for text diff (alongside whitespace-insensitive matching). | `Diff/LineDiff.swift`, `TextComparisonView`; unit tests in `Tests/DiffTests.swift` (Swift Testing). |
+| R-002 | S | Shipped (next version) | **Ignore blank lines** option for text diff. | `Diff/LineDiff.swift`; engine tests. |
 | R-003 | M | Open | **Moved-line detection**: mark deleted/added lines that moved rather than changed. | `Diff/` (new pure-Swift pass over `LineDiff` output); engine tests. |
 | R-004 | S | Open | **Large-file notice and cancel**: the text diff already loads and diffs off-main (`offMain`) with a bounded Myers fallback; add a size/line threshold notice, a Cancel button, and a clear "approximate diff" indicator when the fallback triggers. | `Features/Text/TextComparisonView.swift`, `Diff/MyersDiff.swift`; test the threshold/fallback-flag helper. |
 | R-005 | S | Open | **Show detected text encoding** (UTF-8/BOM, UTF-16, Latin-1 fallback already decoded by `loadText`) in File Properties, and warn when a merge save will convert to UTF-8. | `Models/ComparisonSource.swift`, `FilePropertiesView`; tests in `Tests/FolderAndFilterTests.swift`. |

@@ -101,7 +101,7 @@ struct PastedTextAnalysisTests {
     func decorations() {
         let analysis = PastedTextAnalysis.make(a: "let x = 1\nlet y = 2\n",
                                                b: "let x = 1\nlet y = 3\nlet z = 4\n",
-                                               whitespace: .significant)
+                                               options: .exact)
         #expect(analysis.hunks == [TextHunk(a: 1..<2, b: 1..<3)])
         #expect(analysis.a.lineFills == [.init(range: NSRange(location: 10, length: 10), kind: .modified)])
         #expect(analysis.b.lineFills == [.init(range: NSRange(location: 10, length: 10), kind: .modified),
@@ -115,7 +115,7 @@ struct PastedTextAnalysisTests {
 
     @Test("an insertion is a zero-length hunk range that the caret can select")
     func insertionPoint() {
-        let analysis = PastedTextAnalysis.make(a: "one\nthree\n", b: "one\ntwo\nthree\n", whitespace: .significant)
+        let analysis = PastedTextAnalysis.make(a: "one\nthree\n", b: "one\ntwo\nthree\n", options: .exact)
         #expect(analysis.a.hunkRanges == [NSRange(location: 4, length: 0)])
         #expect(analysis.b.hunkRanges == [NSRange(location: 4, length: 4)])
         #expect(analysis.hunkIndex(containing: 4, on: .a) == 0)
@@ -126,14 +126,27 @@ struct PastedTextAnalysisTests {
 
     @Test("an insertion after a last line without a newline points at the end of the text")
     func insertionAtEnd() {
-        let analysis = PastedTextAnalysis.make(a: "one", b: "one\ntwo", whitespace: .significant)
+        let analysis = PastedTextAnalysis.make(a: "one", b: "one\ntwo", options: .exact)
         #expect(analysis.a.hunkRanges == [NSRange(location: 3, length: 0)])
     }
 
     @Test("highlights land on UTF-16 offsets, not character offsets")
     func emojiHighlights() {
-        let analysis = PastedTextAnalysis.make(a: "👋 hi", b: "👋 ho", whitespace: .significant)
+        let analysis = PastedTextAnalysis.make(a: "👋 hi", b: "👋 ho", options: .exact)
         #expect(analysis.a.characterHighlights == [NSRange(location: 4, length: 1)])
         #expect(analysis.b.characterHighlights == [NSRange(location: 4, length: 1)])
+    }
+
+    @Test("ignored differences get no fills or hunks, and lines stay linked")
+    func ignoredDifferences() {
+        let options = LineMatchOptions(ignoreCase: true, ignoreBlankLines: true)
+        let analysis = PastedTextAnalysis.make(a: "Alpha\nbeta\n", b: "alpha\n\nBETA\n", options: options)
+        #expect(analysis.isIdentical)
+        #expect(analysis.hunks.isEmpty)
+        #expect(analysis.a.lineFills.isEmpty)
+        #expect(analysis.b.lineFills.isEmpty)
+        #expect(analysis.aToB == [LineLink(line: 0, matched: true), LineLink(line: 2, matched: true)])
+        #expect(analysis.bToA == [LineLink(line: 0, matched: true), LineLink(line: 1, matched: false),
+                                  LineLink(line: 1, matched: true)])
     }
 }

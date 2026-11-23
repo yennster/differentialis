@@ -76,6 +76,8 @@ struct TextComparisonView: View {
     /// comparisons and persisted; the PathBar headings track the same value.
     @AppStorage("diffSplitFraction") private var splitFraction = 0.5
     @AppStorage("textWhitespacePolicy") private var whitespacePolicy = WhitespacePolicy.significant
+    @AppStorage("textIgnoreCase") private var ignoreCase = false
+    @AppStorage("textIgnoreBlankLines") private var ignoreBlankLines = false
     @State private var expandedGaps: Set<String> = []
     @State private var changeIDs: [UUID] = []
     @State private var currentChange = -1
@@ -158,7 +160,12 @@ struct TextComparisonView: View {
     }
 
     private var taskKey: String {
-        "\(a.displayName)|\(b.displayName)|\(a.subtitle)|\(b.subtitle)|\(whitespacePolicy.rawValue)|\(changesetRevision)"
+        "\(a.displayName)|\(b.displayName)|\(a.subtitle)|\(b.subtitle)|\(whitespacePolicy.rawValue)|\(ignoreCase)|\(ignoreBlankLines)|\(changesetRevision)"
+    }
+
+    private var matchOptions: LineMatchOptions {
+        LineMatchOptions(whitespace: whitespacePolicy, ignoreCase: ignoreCase,
+                         ignoreBlankLines: ignoreBlankLines)
     }
 
     private var typingInBar: Bool { findFieldFocused || goToLineFieldFocused }
@@ -210,9 +217,8 @@ struct TextComparisonView: View {
         ContentUnavailableView {
             Label("No differences", systemImage: "checkmark.seal.fill")
         } description: {
-            Text(whitespacePolicy == .significant
-                 ? "A and B are identical."
-                 : "A and B match with \(whitespacePolicy.label.lowercased()).")
+            Text(matchOptions.ignoredSummary.map { "A and B match when \($0)." }
+                 ?? "A and B are identical.")
         }
         .foregroundStyle(Theme.added)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -222,7 +228,10 @@ struct TextComparisonView: View {
         ContentUnavailableView {
             Label("Text matches, formatting differs", systemImage: "textformat")
         } description: {
-            Text(formatDifferences.joined(separator: "\n"))
+            // Name the ignored differences too, so a match under the options isn't mistaken for
+            // text that differs only in formatting.
+            Text((formatDifferences + [matchOptions.ignoredSummary.map { "Text compared \($0)." }]
+                    .compactMap { $0 }).joined(separator: "\n"))
         }
         .foregroundStyle(Theme.modified)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -244,7 +253,8 @@ struct TextComparisonView: View {
         .buttonStyle(.borderless)
         .disabled(changeIDs.isEmpty)
 
-        WhitespacePolicyMenu(policy: $whitespacePolicy)
+        LineMatchingMenu(whitespace: $whitespacePolicy, ignoreCase: $ignoreCase,
+                         ignoreBlankLines: $ignoreBlankLines)
 
         GlassSegmentedControl(
             selection: $unified,
@@ -463,7 +473,7 @@ struct TextComparisonView: View {
         currentChangeID = nil
         lineTargetID = nil
         let a = a, b = b
-        let whitespacePolicy = whitespacePolicy
+        let options = matchOptions
         let key = taskKey
         // Reading the bytes (possibly a git blob) and the Myers + character-level diff are heavy
         // for large files — run them off the main actor so the UI never freezes mid-diff.
@@ -471,7 +481,7 @@ struct TextComparisonView: View {
             do {
                 let aText = try a.loadText()
                 let bText = try b.loadText()
-                return (LineDiff.document(aText, bText, whitespace: whitespacePolicy),
+                return (LineDiff.document(aText, bText, options: options),
                         textFormatDifferences(aText, bText), nil)
             } catch {
                 return (nil, [], error.localizedDescription)
@@ -539,31 +549,43 @@ struct ColumnSplitHandle: View {
     }
 }
 
-/// Picks how whitespace counts when matching lines.
-struct WhitespacePolicyMenu: View {
-    @Binding var policy: WhitespacePolicy
+/// Picks which differences count when matching lines: whitespace, letter case, blank lines.
+struct LineMatchingMenu: View {
+    @Binding var whitespace: WhitespacePolicy
+    @Binding var ignoreCase: Bool
+    @Binding var ignoreBlankLines: Bool
+
+    private var options: LineMatchOptions {
+        LineMatchOptions(whitespace: whitespace, ignoreCase: ignoreCase,
+                         ignoreBlankLines: ignoreBlankLines)
+    }
 
     var body: some View {
         Menu {
-            ForEach(WhitespacePolicy.allCases, id: \.self) { option in
-                Button {
-                    policy = option
-                } label: {
-                    if policy == option {
-                        Label(option.label, systemImage: "checkmark")
-                    } else {
-                        Text(option.label)
+            Section("Whitespace") {
+                ForEach(WhitespacePolicy.allCases, id: \.self) { option in
+                    Button {
+                        whitespace = option
+                    } label: {
+                        if whitespace == option {
+                            Label(option.label, systemImage: "checkmark")
+                        } else {
+                            Text(option.label)
+                        }
                     }
                 }
             }
+            Divider()
+            Toggle("Ignore Case", isOn: $ignoreCase)
+            Toggle("Ignore Blank Lines", isOn: $ignoreBlankLines)
         } label: {
-            Image(systemName: policy == .significant ? "space" : "space.circle.fill")
-                .foregroundStyle(policy == .significant ? Color.gray : Theme.brandAlt)
+            Image(systemName: options.isExact ? "space" : "space.circle.fill")
+                .foregroundStyle(options.isExact ? Color.gray : Theme.brandAlt)
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
-        .help(policy.label)
-        .accessibilityLabel("Whitespace comparison policy")
+        .help(options.ignoredSummary.map { "Matching lines \($0)" } ?? "Matching lines exactly")
+        .accessibilityLabel("Line matching options")
     }
 }
 
@@ -577,9 +599,24 @@ struct UnifiedRowView: View {
         VStack(spacing: 0) {
             switch row.kind {
             case .equal:
-                // An unchanged row draws A's text once; its B half matches it.
-                line(marker: " ", number: row.leftNumber, text: row.leftText, kind: .equal, highlights: [],
-                     find: find.left)
+                if let left = row.leftText, let right = row.rightText, left != right {
+                    // A match only under the line-matching options: show both spellings, dimmed.
+                    Group {
+                        // −/+ say which line is A and which is B; the dimming says it isn't a change.
+                        line(marker: "−", number: row.leftNumber, text: left, kind: .equal, highlights: [],
+                             find: find.left)
+                        line(marker: "+", number: row.rightNumber, text: right, kind: .equal, highlights: [],
+                             find: find.right)
+                    }
+                    .opacity(0.45)
+                } else {
+                    // An ignored blank line exists on only one side; show whichever side has it.
+                    // Otherwise the two sides are identical and A's text is drawn once.
+                    line(marker: " ", number: row.leftNumber ?? row.rightNumber,
+                         text: row.leftText ?? row.rightText, kind: .equal, highlights: [],
+                         find: row.leftText != nil ? find.left : find.right)
+                        .opacity(row.isIgnored ? 0.45 : 1)
+                }
             case .inserted:
                 line(marker: "+", number: row.rightNumber, text: row.rightText, kind: .inserted, highlights: row.rightHighlights,
                      find: find.right)

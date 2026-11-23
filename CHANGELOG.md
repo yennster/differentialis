@@ -11,6 +11,13 @@ When cutting a release, add a section here and use it as the release notes:
 ## [Unreleased]
 
 ### Added
+- **Ignore case and ignore blank lines** in text comparisons. The matching menu (next to the
+  layout switch) now has **Ignore Case** and **Ignore Blank Lines** alongside the whitespace
+  options, for file and pasted-text comparisons alike. Ignored differences stay visible, dimmed:
+  lines that match only because case or whitespace is ignored show both spellings, and a blank line
+  on one side gets a dimmed row instead of counting as an insertion or deletion. Ignored blank lines
+  never affect how the rest of the text lines up. The existing whitespace options now dim lines
+  they match the same way ([#54](https://github.com/yennster/differentialis/issues/54)).
 - **Find and Go to Line in diffs and merges** ([#53](https://github.com/yennster/differentialis/issues/53)).
   **Find** (`⌘F`) opens a find bar in the text diff (split and unified) and in merge Review. It
   searches both sides, shows a match count, and highlights matches above the change tints; `⌘G` /

@@ -70,7 +70,8 @@ enum TextSearch {
 
     /// Every match in `rows`, in display order: row by row, the left (A) text before the right (B).
     /// Split and unified layouts both draw a modified row's A line before its B line. The unified
-    /// layout draws an unchanged row once, from A, so its B text is not searched there.
+    /// layout draws an unchanged row with identical sides once, from A, so its B text is not
+    /// searched there; a row matched only under the line-matching options shows, and searches, both.
     static func matches(of query: String, in rows: [DiffRow], options: TextSearchOptions,
                         unified: Bool = false, limit: Int = matchLimit) -> [DiffSearchMatch] {
         guard !query.isEmpty else { return [] }
@@ -83,7 +84,8 @@ enum TextSearch {
                     result.append(DiffSearchMatch(rowID: row.id, side: .left, range: range, position: position))
                 }
             }
-            if let text = row.rightText, !(unified && row.kind == .equal) {
+            // Unified draws an unchanged row once when both sides read the same.
+            if let text = row.rightText, !(unified && row.kind == .equal && row.leftText == text) {
                 for range in ranges(of: query, in: text, caseSensitive: options.caseSensitive) {
                     result.append(DiffSearchMatch(rowID: row.id, side: .right, range: range, position: position))
                 }
