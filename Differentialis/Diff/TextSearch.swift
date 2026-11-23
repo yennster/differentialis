@@ -18,6 +18,8 @@ struct DiffSearchMatch: Hashable, Sendable {
     let side: DiffSide
     /// Character offsets into that side's text, the same coordinates as the row's change highlights.
     let range: Range<Int>
+    /// The row's index in the rows searched, for ordering matches against a position in the diff.
+    let position: Int
 }
 
 /// Which lines of a merge hunk a match is in. Mirrors what merge Review shows for the hunk:
@@ -33,6 +35,9 @@ struct MergeSearchMatch: Hashable, Sendable {
     /// 0-based index into that part's lines.
     let line: Int
     let range: Range<Int>
+    /// The line's position among every line Review draws (see `reviewLinePositions`), for
+    /// ordering matches against a place in the merge finer than a whole hunk.
+    let position: Int
 }
 
 /// Pure Find and Go to Line logic, shared by the text diff, unified view, and merge.
@@ -70,17 +75,17 @@ enum TextSearch {
                         unified: Bool = false, limit: Int = matchLimit) -> [DiffSearchMatch] {
         guard !query.isEmpty else { return [] }
         var result: [DiffSearchMatch] = []
-        for row in rows {
+        for (position, row) in rows.enumerated() {
             if result.count >= limit { break }
             if options.changedLinesOnly && !row.kind.isChange { continue }
             if let text = row.leftText {
                 for range in ranges(of: query, in: text, caseSensitive: options.caseSensitive) {
-                    result.append(DiffSearchMatch(rowID: row.id, side: .left, range: range))
+                    result.append(DiffSearchMatch(rowID: row.id, side: .left, range: range, position: position))
                 }
             }
             if let text = row.rightText, !(unified && row.kind == .equal) {
                 for range in ranges(of: query, in: text, caseSensitive: options.caseSensitive) {
-                    result.append(DiffSearchMatch(rowID: row.id, side: .right, range: range))
+                    result.append(DiffSearchMatch(rowID: row.id, side: .right, range: range, position: position))
                 }
             }
         }
@@ -95,18 +100,38 @@ enum TextSearch {
         return [(.chosen, hunk.chosen)]
     }
 
+    /// Where each hunk's first line falls among every line merge Review draws, by hunk ID: the
+    /// positions `MergeSearchMatch.position` counts in.
+    static func reviewLinePositions(of hunks: [MergeHunk]) -> [UUID: Int] {
+        var result: [UUID: Int] = [:]
+        var position = 0
+        for hunk in hunks {
+            result[hunk.id] = position
+            position += reviewParts(of: hunk).reduce(0) { $0 + $1.lines.count }
+        }
+        return result
+    }
+
     /// Every match in merge Review, in display order. "Changed lines only" skips unchanged context.
     static func matches(of query: String, in hunks: [MergeHunk], options: TextSearchOptions,
                         limit: Int = matchLimit) -> [MergeSearchMatch] {
         guard !query.isEmpty else { return [] }
         var result: [MergeSearchMatch] = []
+        var position = 0
         for hunk in hunks {
             if result.count >= limit { break }
-            if options.changedLinesOnly && !hunk.isChange { continue }
-            for (part, lines) in reviewParts(of: hunk) {
-                for (index, line) in lines.enumerated() where result.count < limit {
+            let parts = reviewParts(of: hunk)
+            if options.changedLinesOnly && !hunk.isChange {
+                position += parts.reduce(0) { $0 + $1.lines.count }
+                continue
+            }
+            for (part, lines) in parts {
+                for (index, line) in lines.enumerated() {
+                    defer { position += 1 }
+                    guard result.count < limit else { continue }
                     for range in ranges(of: query, in: line, caseSensitive: options.caseSensitive) {
-                        result.append(MergeSearchMatch(hunkID: hunk.id, part: part, line: index, range: range))
+                        result.append(MergeSearchMatch(hunkID: hunk.id, part: part, line: index, range: range,
+                                                       position: position))
                     }
                 }
             }

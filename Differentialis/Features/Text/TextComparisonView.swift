@@ -377,13 +377,17 @@ struct TextComparisonView: View {
         try? await Task.sleep(for: .milliseconds(120))
         guard !Task.isCancelled else { return }
         let query = findQuery, options = findOptions, unified = unified
-        let found = await offMain { TextSearch.matches(of: query, in: rows, options: options, unified: unified) }
+        let found = await offMain {
+            TextSearch.matches(of: query, in: rows, options: options, unified: unified,
+                               limit: TextSearch.matchLimit + 1)
+        }
         // The key (query, options, document) changed while searching: a newer search owns the result.
         guard !Task.isCancelled else { return }
         // Start from the match the user was on, else the line or change they're looking at, not
         // the top of the file.
-        let position = Dictionary(uniqueKeysWithValues: rows.enumerated().map { ($1.id, $0) })
-        let anchor = findAnchor ?? (lineTargetID ?? currentChangeID).flatMap { position[$0] }
+        let anchor = findAnchor ?? (lineTargetID ?? currentChangeID).flatMap { target in
+            rows.firstIndex { $0.id == target }
+        }
         var highlights: [UUID: RowFindHighlights] = [:]
         for match in found {
             if match.side == .left {
@@ -394,8 +398,8 @@ struct TextComparisonView: View {
         }
         findMatches = found
         findHighlights = highlights
-        findIndex = TextSearch.startIndex(of: found, at: anchor) { position[$0.rowID] ?? 0 }
-        let newAnchor = findIndex.map { position[found[$0].rowID] ?? 0 }
+        findIndex = TextSearch.startIndex(of: found, at: anchor) { $0.position }
+        let newAnchor = findIndex.map { found[$0].position }
         // Don't move the view when the current match stayed on the row it was on.
         let unmoved = findDocument == rows.first?.id && newAnchor == findAnchor
         if let findIndex, !unmoved { reveal(found[findIndex].rowID) }
@@ -410,14 +414,12 @@ struct TextComparisonView: View {
         if findAnchor == nil, let rows = document?.allRows,
            let target = lineTargetID ?? currentChangeID,
            let anchor = rows.firstIndex(where: { $0.id == target }) {
-            let position = Dictionary(uniqueKeysWithValues: rows.enumerated().map { ($1.id, $0) })
-            let atOrAfter = TextSearch.startIndex(of: findMatches, at: anchor) { position[$0.rowID] ?? 0 } ?? 0
+            let atOrAfter = TextSearch.startIndex(of: findMatches, at: anchor) { $0.position } ?? 0
             next = delta > 0 ? atOrAfter : (atOrAfter - 1 + findMatches.count) % findMatches.count
         }
         findIndex = next
-        let rowID = findMatches[next].rowID
-        findAnchor = document?.allRows.firstIndex { $0.id == rowID }
-        reveal(rowID)
+        findAnchor = findMatches[next].position
+        reveal(findMatches[next].rowID)
     }
 
     private func goToLine(_ line: Int) {

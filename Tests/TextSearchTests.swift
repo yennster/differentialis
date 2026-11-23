@@ -114,6 +114,27 @@ struct TextSearchTests {
         #expect(TextSearch.startIndex(of: [Int](), at: 1) { $0 } == nil)
     }
 
+    @Test("merge match positions count Review lines, so two matches in one hunk are ordered apart")
+    func mergePositions() {
+        let base = "a\nfoo 1\nb\nc\nfoo 2\nz\n"
+        let left = "a\nfoo 1\nb\nc\nfoo 2\nLEFT\n"
+        let right = "a\nfoo 1\nb\nc\nfoo 2\nRIGHT\n"
+        let hunks = ThreeWayMerge.merge(base: base, left: left, right: right)
+        let matches = TextSearch.matches(of: "foo", in: hunks, options: .init())
+        #expect(matches.count == 2)
+        #expect(matches[0].hunkID == matches[1].hunkID)
+        #expect(matches.map(\.position) == [1, 4])
+        // A position between the two lines starts at the second match, not the hunk's first.
+        #expect(TextSearch.startIndex(of: matches, at: 2) { $0.position } == 1)
+        let starts = TextSearch.reviewLinePositions(of: hunks)
+        #expect(starts[hunks[0].id] == 0)
+        let conflict = try! #require(hunks.first { $0.isConflict })
+        #expect(starts[conflict.id] == 5)
+        // Skipping unchanged hunks for "changed lines only" doesn't shift later positions.
+        let changed = TextSearch.matches(of: "RIGHT", in: hunks, options: .init(changedLinesOnly: true))
+        #expect(changed.map(\.position) == [6])
+    }
+
     @Test("stepping wraps at both ends and starts at the first or last match")
     func stepping() {
         #expect(TextSearch.step(from: nil, by: 1, count: 3) == 0)

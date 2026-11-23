@@ -29,11 +29,10 @@ struct FindBar: View {
                     .textFieldStyle(.plain)
                     .font(.system(size: 12.5))
                     .focused(fieldFocused)
-                    .onSubmit(next)
-                    .onKeyPress(.return, phases: .down) { press in
-                        guard press.modifiers.contains(.shift) else { return .ignored }
-                        previous()
-                        return .handled
+                    // The field editor turns Return into a submit before any key handler sees it,
+                    // so ⇧Return is told apart by the event that triggered the submit.
+                    .onSubmit {
+                        if NSApp.currentEvent?.modifierFlags.contains(.shift) == true { previous() } else { next() }
                     }
                     .onExitCommand(perform: close)
                     .accessibilityLabel("Find")
@@ -99,7 +98,8 @@ struct FindBar: View {
     private var countLabel: String {
         if query.isEmpty { return "" }
         if matchCount == 0 { return "No matches" }
-        let total = matchCount >= TextSearch.matchLimit
+        // Views search for one more than the limit, so "+" means there really are more.
+        let total = matchCount > TextSearch.matchLimit
             ? "\(TextSearch.matchLimit.formatted())+" : "\(matchCount)"
         if let currentIndex { return "\(currentIndex + 1) of \(total)" }
         return "\(total) match\(matchCount == 1 ? "" : "es")"

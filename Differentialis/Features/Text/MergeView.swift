@@ -40,8 +40,11 @@ struct MergeView: View {
     @State private var goToLineVisible = false
     @State private var goToLineFocusRequest = 0
     @State private var resultEditorHandle = CodeEditorHandle()
-    /// Display position of the current match's hunk, so re-searching after a resolve carries on there.
+    /// Review line position of the current match (`MergeSearchMatch.position`), so re-searching
+    /// after a resolve or an option change carries on there.
     @State private var findAnchor: Int?
+    /// The line the current match is on, to scroll only when a re-search moves it.
+    @State private var findCurrentLine: MergeLineID?
     @FocusState private var findFieldFocused: Bool
     @FocusState private var goToLineFieldFocused: Bool
 
@@ -130,6 +133,8 @@ struct MergeView: View {
                 // hunk can be thousands of lines long.
                 proxy.scrollTo(match.hunkID, anchor: .center)
                 Task { @MainActor in
+                    // Give the lazy stack a moment to lay the hunk out, so its lines have ids.
+                    try? await Task.sleep(for: .milliseconds(30))
                     guard request == findScrollRequest else { return }
                     withAnimation(.easeInOut(duration: 0.25)) {
                         proxy.scrollTo(MergeLineID(hunk: match.hunkID, part: match.part, line: match.line),
@@ -195,25 +200,42 @@ struct MergeView: View {
             return
         }
         if !findVisible { showFind() }
-        guard let next = TextSearch.step(from: findIndex, by: delta, count: findMatches.count) else { return }
-        findIndex = next
-        let hunkID = findMatches[next].hunkID
-        findAnchor = session.hunks.firstIndex { $0.id == hunkID }
+        guard var next = TextSearch.step(from: findIndex, by: delta, count: findMatches.count) else { return }
+        // After ⌘] / ⌘[ moved to another hunk, carry on from there instead.
+        if findAnchor == nil, let currentStopID,
+           let anchor = TextSearch.reviewLinePositions(of: session.hunks)[currentStopID] {
+            let atOrAfter = TextSearch.startIndex(of: findMatches, at: anchor) { $0.position } ?? 0
+            next = delta > 0 ? atOrAfter : (atOrAfter - 1 + findMatches.count) % findMatches.count
+        }
+        setCurrentMatch(next)
         findScrollRequest &+= 1
+    }
+
+    private func setCurrentMatch(_ index: Int?) {
+        findIndex = index
+        guard let index, index < findMatches.count else {
+            findAnchor = nil
+            findCurrentLine = nil
+            return
+        }
+        let match = findMatches[index]
+        findAnchor = match.position
+        findCurrentLine = MergeLineID(hunk: match.hunkID, part: match.part, line: match.line)
     }
 
     private func search() async {
         guard findKey.visible, !findQuery.isEmpty else {
             findMatches = []
             findByHunk = [:]
-            findIndex = nil
-            findAnchor = nil
+            setCurrentMatch(nil)
             return
         }
         try? await Task.sleep(for: .milliseconds(120))
         guard !Task.isCancelled else { return }
         let query = findQuery, options = findOptions, hunks = session.hunks
-        let found = await offMain { TextSearch.matches(of: query, in: hunks, options: options) }
+        let found = await offMain {
+            TextSearch.matches(of: query, in: hunks, options: options, limit: TextSearch.matchLimit + 1)
+        }
         guard !Task.isCancelled else { return }
         var byHunk: [UUID: HunkFindHighlights] = [:]
         for match in found {
@@ -224,13 +246,11 @@ struct MergeView: View {
         findByHunk = byHunk
         // Carry on from the match the user was on (resolving a hunk re-runs the search), else from
         // the hunk Next/Previous Change last moved to.
-        let position = Dictionary(uniqueKeysWithValues: hunks.enumerated().map { ($1.id, $0) })
-        let anchor = findAnchor ?? currentStopID.flatMap { position[$0] }
-        findIndex = TextSearch.startIndex(of: found, at: anchor) { position[$0.hunkID] ?? 0 }
-        let newAnchor = findIndex.map { position[found[$0].hunkID] ?? 0 }
-        // Don't move the view when the current match is still in the hunk it was in.
-        if findIndex != nil, newAnchor != findAnchor { findScrollRequest &+= 1 }
-        findAnchor = newAnchor
+        let anchor = findAnchor ?? currentStopID.flatMap { TextSearch.reviewLinePositions(of: hunks)[$0] }
+        let previousLine = findCurrentLine
+        setCurrentMatch(TextSearch.startIndex(of: found, at: anchor) { $0.position })
+        // Don't move the view when the current match is still on the line it was on.
+        if findIndex != nil, findCurrentLine != previousLine { findScrollRequest &+= 1 }
     }
 
     /// Find highlights for one hunk, by part and line, with the current match marked.
@@ -270,7 +290,7 @@ struct MergeView: View {
 
     private func move(to id: UUID) {
         currentStopID = id
-        // The next search starts from here, not from the last match.
+        // The next search or ⌘G starts from here, not from the last match.
         findAnchor = nil
         scrollRequest &+= 1
     }

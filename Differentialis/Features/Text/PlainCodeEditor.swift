@@ -38,7 +38,8 @@ struct PlainCodeEditor: NSViewRepresentable {
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         context.coordinator.parent = self
         guard let textView = scrollView.documentView as? NSTextView else { return }
-        if let handle, handle.textView !== textView { handle.attach(textView) }
+        // Re-attaching also retries a request made before the editor was in a window.
+        if let handle, handle.textView !== textView || handle.hasPendingRequest { handle.attach(textView) }
         // Compare code units, not Strings: String equality treats precomposed and decomposed
         // characters as equal, but they save as different bytes.
         if !(textView.string as NSString).isEqual(to: text) {
@@ -84,9 +85,11 @@ final class CodeEditorHandle {
     private var pendingLine: Int?
     private var pendingFinderAction: NSTextFinder.Action?
 
+    var hasPendingRequest: Bool { pendingLine != nil || pendingFinderAction != nil }
+
     func attach(_ textView: NSTextView) {
         self.textView = textView
-        guard pendingLine != nil || pendingFinderAction != nil else { return }
+        guard hasPendingRequest else { return }
         // The view isn't in a window yet while SwiftUI is still mounting it.
         Task { @MainActor [weak self] in self?.runPending() }
     }
