@@ -168,7 +168,7 @@ Put this in `~/.gitconfig`:
   file resolved; a save that still has markers keeps the merge open. **Cancel Merge** (or closing
   without a resolved save) leaves the file unresolved.
 - git waits until you finish, even if you close the window; reopen it from the Dock to carry on.
-- If you installed the command-line tool before `--wait` existed, uninstall and reinstall it from the app menu.
+- If the app menu offers **Update Command Line Tool…**, choose it to get `--wait` and `--output`.
 
 You can also launch straight into a comparison with `open` directly:
 

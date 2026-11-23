@@ -5,11 +5,12 @@ one at a time. Read [AGENTS.md](../AGENTS.md#autonomous-roadmap-work) before cla
 
 _Last reviewed: 2026-10-10, at v0.3.1; every Open item was checked against the code and confirmed not yet implemented._
 
-## Where we are (v0.4.0)
+## Where we are (v0.5.0)
 
-Shipped: Myers text diff with character-level highlights (split/unified), Paste Text comparisons
+Shipped: Myers text diff with character-level highlights and syntax highlighting (split/unified),
+Find and Go to Line, ignore whitespace/case/blank lines, Paste Text comparisons
 with per-change copy, image diff (Two-Up / One-Up / Split / Difference), recursive folder diff,
-three-way merge, git history and changed-files views, Custom Comparison (ref/commit/working copy,
+three-way merge with conflict navigation, git history and changed-files views, Custom Comparison (ref/commit/working copy,
 saved), themes and fonts, a bundled `differentialis` CLI launcher that also works as git difftool/mergetool (`--wait`,
 `--output`), and Sparkle self-update.
 See the [changelog](../CHANGELOG.md). There are no open GitHub issues; this file is the backlog.
@@ -49,8 +50,8 @@ claimed is not recorded here** — it is determined by branches and PRs (see AGE
 
 | ID | Size | Status | Feature | Where / Tests |
 | --- | --- | --- | --- | --- |
-| R-001 | S | Shipped (next version) | **Ignore case** option for text diff (alongside whitespace-insensitive matching). | `Diff/LineDiff.swift`, `TextComparisonView`; unit tests in `Tests/DiffTests.swift` (Swift Testing). |
-| R-002 | S | Shipped (next version) | **Ignore blank lines** option for text diff. | `Diff/LineDiff.swift`; engine tests. |
+| R-001 | S | Shipped (v0.5.0) | **Ignore case** option for text diff (alongside whitespace-insensitive matching). | `Diff/LineDiff.swift`, `TextComparisonView`; unit tests in `Tests/DiffTests.swift` (Swift Testing). |
+| R-002 | S | Shipped (v0.5.0) | **Ignore blank lines** option for text diff. | `Diff/LineDiff.swift`; engine tests. |
 | R-003 | M | Open | **Moved-line detection**: mark deleted/added lines that moved rather than changed. | `Diff/` (new pure-Swift pass over `LineDiff` output); engine tests. |
 | R-004 | S | Open | **Large-file notice and cancel**: the text diff already loads and diffs off-main (`offMain`) with a bounded Myers fallback; add a size/line threshold notice, a Cancel button, and a clear "approximate diff" indicator when the fallback triggers. | `Features/Text/TextComparisonView.swift`, `Diff/MyersDiff.swift`; test the threshold/fallback-flag helper. |
 | R-005 | S | Open | **Show detected text encoding** (UTF-8/BOM, UTF-16, Latin-1 fallback already decoded by `loadText`) in File Properties, and warn when a merge save will convert to UTF-8. | `Models/ComparisonSource.swift`, `FilePropertiesView`; tests in `Tests/FolderAndFilterTests.swift`. |
@@ -61,8 +62,8 @@ claimed is not recorded here** — it is determined by branches and PRs (see AGE
 | ID | Size | Status | Feature | Where / Tests |
 | --- | --- | --- | --- | --- |
 | R-010 | S | Open | **Change minimap / overview ruler** beside the diff showing where changes are. | `Features/Text/`; unit-test the pure position math. |
-| R-011 | S | Shipped (next version) | **Go to line** (`⌘L`) in text and diff views. | `App/AppCommands.swift`, `Features/Text/`; add to `KeyboardShortcutsView` and README table. |
-| R-012 | S | Shipped (next version) | **Find in diff** (`⌘F`) with next/previous match. | `Features/Text/`; test the matching helper. |
+| R-011 | S | Shipped (v0.5.0) | **Go to line** (`⌘L`) in text and diff views. | `App/AppCommands.swift`, `Features/Text/`; add to `KeyboardShortcutsView` and README table. |
+| R-012 | S | Shipped (v0.5.0) | **Find in diff** (`⌘F`) with next/previous match. | `Features/Text/`; test the matching helper. |
 | R-013 | S | Open | **Folder diff: sort** by name/status/size/modified date. | `Features/Folder/`; test sort comparator. |
 | R-014 | S | Open | **Folder diff: ignore patterns** (e.g. `.git`, `.DS_Store`, `node_modules`) editable in Settings. | `Features/Folder/FolderScanner.swift`; `Tests/FolderAndFilterTests.swift`. |
 | R-015 | S | Open | **Folder diff: compare by content hash vs. size+mtime** toggle. | `FolderScanner.swift`; scanner tests. |
@@ -100,7 +101,7 @@ claimed is not recorded here** — it is determined by branches and PRs (see AGE
 
 | ID | Status | Epic |
 | --- | --- | --- |
-| R-100 | Epic | Syntax highlighting inside diffs. Text diff shipped (next version) with a no-dependency tokenizer (`Syntax/`); still open: the merge Result editor, Paste Text editors, more languages. |
+| R-100 | Epic | Syntax highlighting inside diffs. Text diff shipped (v0.5.0) with a no-dependency tokenizer (`Syntax/`); still open: the merge Result editor, Paste Text editors, more languages. |
 | R-101 | Epic | Directory/package (`.app`, `.xcassets`) aware folder diff. |
 | R-102 | Epic | Editable text diff (edit either side with live re-diff, save). |
 | R-103 | Epic | Shortcuts/App Intents actions ("Compare two files"). |
