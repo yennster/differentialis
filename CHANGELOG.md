@@ -55,6 +55,10 @@ When cutting a release, add a section here and use it as the release notes:
   compared at their full pixel size regardless of DPI, so a 144-dpi and a 72-dpi export of the same
   pixels no longer compare at different scales. The info bar shows **Sizes differ** when A and B
   have different pixel dimensions ([#18](https://github.com/yennster/differentialis/issues/18)).
+- Image **Split** and **One-Up** now line up images of different sizes the same way Difference
+  does: both sit on one canvas, pinned to the top-left at the same scale, so dragging the divider
+  or blinking between A and B no longer shifts pixels that are the same on both sides. The area
+  only one image covers is hatched ([#50](https://github.com/yennster/differentialis/issues/50)).
 
 ## [0.4.0] — 2026-10-28
 

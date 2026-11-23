@@ -89,6 +89,8 @@ includes `Tests/` automatically through XcodeGen.
 | `Tests/PastedTextTests.swift` | Two-way hunk copying, line correspondence, terminator preservation, UTF-16 ranges, editor decorations |
 | `Tests/GitComparisonTests.swift` | Real disposable git repos: index/worktree snapshots, staged reversions, conflicts, unborn HEAD, SHA-256 empty trees, option-like/unknown/file-named refs, `.gitattributes` eol/smudge filters on snapshot reads and raw-blob fallback, LFS pointer parsing, re-resolving a Working Copy changeset, refresh selection and stale-request rules |
 | `Tests/FolderAndFilterTests.swift` | Package traversal, scan errors, stable identities, composed git filters, file properties |
+| `Tests/ImageDiffTests.swift` | Difference renderer: pixel-space, top-left-aligned canvas, hatched size mismatch, mixed DPI |
+| `Tests/ImageAlignmentTests.swift` | Split/One-Up shared canvas: fit scale, top-down uncovered rects, rendered alignment and hatch |
 | `Tests/ThemeImportTests.swift` | `.tmTheme` import, hex colors, observable settings clamping |
 | `Tests/CommandLineWaitTests.swift` | `--wait` request parsing and location checks, launcher acknowledgement/status, request-to-comparison routing, merge save result |
 | `Tests/CommandLineToolStatusTests.swift` | Launcher version marker parsing; installed-copy status (absent, current, outdated, pre-marker, foreign) |
@@ -245,7 +247,7 @@ git or diff work in `Task { ... }` does **not** move it off the main actor.
 | Pasted text | `PastedTextComparisonView.swift`: live analysis with typing debounce, editor/diff presentations, hunk actions; `PastedTextAnalysis.swift` shapes rows into UTF-16 decorations and scroll mappings |
 | Native editors | `DiffTextEditor.swift`: TextKit 1 `NSTextView`, line-number ruler, SwiftUI representable, `PastedTextEditorController` for edits/scroll synchronization/shared undo |
 | Three-way merge | `MergeView.swift`: Review and editable Result (`PlainCodeEditor.swift`), hunk choices, format resolution, conflict navigation (`Diff/MergeNavigation.swift`), save warnings and atomic UTF-8 save |
-| Images | `Features/Image/ImageComparisonView.swift`: Two-Up, One-Up/blink, Split, Difference; `ImageSupport.swift`: shared zoom/pan gestures, checkerboard, Core Image difference renderer (pixel space, top-left-aligned canvas, hatched size mismatch) |
+| Images | `Features/Image/ImageComparisonView.swift`: Two-Up, One-Up/blink, Split, Difference; `ImageSupport.swift`: shared zoom/pan gestures, checkerboard, Core Image difference renderer (pixel space, top-left-aligned canvas, hatched size mismatch) and `AlignedCanvasLayout`/`AlignedImageLayer`, the same canvas for Split and One-Up |
 | Folders | `Features/Folder/FolderScanner.swift`: inventory and byte comparison; `FolderComparisonView.swift`: filtering, issues, selection, embedded file comparison |
 | Git | `Features/Repo/RepositoryView.swift`: history/working changes; `GitChangesetView.swift` and `ChangesetDetailView.swift`: file lists/detail; `CustomComparisonPopover.swift`: endpoint selection; `GitFileFilterBar.swift`: shared path/type/status filtering |
 | Metadata/binary | `Features/FilePropertiesView.swift`: async metadata comparison for sources; `BinaryComparisonView.swift`: non-text fallback |

@@ -128,6 +128,135 @@ struct CheckerboardBackground: View {
     }
 }
 
+/// Geometry for showing images of possibly different sizes on one shared canvas, the way
+/// `ImageDiffRenderer.difference` lays them out: a `max(widths) × max(heights)` canvas in **pixel
+/// space**, every image pinned to its **top-left** corner, and one fit factor for the whole canvas.
+/// Identical pixels in A and B therefore land on the same spot on screen, so Split, One-Up, and
+/// Difference line up with each other and a size change only shows at the right or bottom edge.
+/// Coordinates here are top-down (SwiftUI), unlike Core Image's bottom-up ones.
+struct AlignedCanvasLayout: Equatable {
+    /// The shared canvas in pixels.
+    let canvas: CGSize
+
+    init(_ pixelSizes: [CGSize]) {
+        canvas = CGSize(width: pixelSizes.map(\.width).max() ?? 0,
+                        height: pixelSizes.map(\.height).max() ?? 0)
+    }
+
+    /// One scale for the whole canvas (points per pixel) so it fits `viewSize`, like
+    /// `.scaledToFit()` does for a single image.
+    func fitScale(in viewSize: CGSize) -> CGFloat {
+        guard canvas.width > 0, canvas.height > 0, viewSize.width > 0, viewSize.height > 0 else { return 0 }
+        return min(viewSize.width / canvas.width, viewSize.height / canvas.height)
+    }
+
+    /// The canvas regions, in canvas pixels, that an image of `pixelSize` doesn't cover: a strip on
+    /// the right (full height) and a strip along the bottom (under the image), the same split as
+    /// `ImageDiffRenderer.uncoveredRects` but top-down.
+    func uncoveredRects(for pixelSize: CGSize) -> [CGRect] {
+        let w = min(max(pixelSize.width, 0), canvas.width)
+        let h = min(max(pixelSize.height, 0), canvas.height)
+        guard w > 0, h > 0 else {
+            return canvas.width > 0 && canvas.height > 0 ? [CGRect(origin: .zero, size: canvas)] : []
+        }
+        var rects: [CGRect] = []
+        if w < canvas.width {
+            rects.append(CGRect(x: w, y: 0, width: canvas.width - w, height: canvas.height))
+        }
+        if h < canvas.height {
+            rects.append(CGRect(x: 0, y: h, width: w, height: canvas.height - h))
+        }
+        return rects
+    }
+
+    /// Stripe width, in canvas pixels, of the size-mismatch hatch, matching Difference mode.
+    var hatchStripeWidth: CGFloat { ImageDiffRenderer.hatchStripeWidth(forCanvas: canvas) }
+}
+
+/// One image drawn on an `AlignedCanvasLayout`: pinned top-left at its pixel size, with the part
+/// of the canvas it doesn't cover hatched like Difference mode. Applies the shared zoom/pan to the
+/// whole canvas, so every layer built from the same layout stays registered. Gestures are left to
+/// the caller.
+struct AlignedImageLayer: View {
+    let image: NSImage
+    let layout: AlignedCanvasLayout
+    let zoom: ZoomPanState
+    let viewSize: CGSize
+
+    var body: some View {
+        let scale = layout.fitScale(in: viewSize)
+        let pixels = image.pixelSize
+        ZStack(alignment: .topLeading) {
+            Image(nsImage: image)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: pixels.width * scale, height: pixels.height * scale)
+            let uncovered = layout.uncoveredRects(for: pixels)
+            if !uncovered.isEmpty {
+                SizeMismatchHatch(rects: uncovered, stripeWidth: layout.hatchStripeWidth, scale: scale)
+            }
+        }
+        .frame(width: layout.canvas.width * scale, height: layout.canvas.height * scale,
+               alignment: .topLeading)
+        .scaleEffect(zoom.scale)
+        .offset(zoom.offset)
+        .frame(width: viewSize.width, height: viewSize.height)
+        .accessibilityHidden(true)
+    }
+}
+
+/// A zoomable, pannable `AlignedImageLayer`, the aligned counterpart of `ZoomableImageView`.
+struct AlignedImageView: View {
+    let image: NSImage
+    let layout: AlignedCanvasLayout
+    let zoom: ZoomPanState
+
+    var body: some View {
+        GeometryReader { geo in
+            AlignedImageLayer(image: image, layout: layout, zoom: zoom, viewSize: geo.size)
+                .contentShape(Rectangle())
+                .zoomPanGestures(zoom)
+        }
+        .background(CheckerboardBackground())
+        .clipped()
+    }
+}
+
+/// The diagonal hatch Difference mode paints where only one image has pixels, drawn in SwiftUI
+/// over `rects` (canvas pixels, scaled by `scale` points per pixel).
+private struct SizeMismatchHatch: View {
+    let rects: [CGRect]
+    let stripeWidth: CGFloat
+    let scale: CGFloat
+
+    var body: some View {
+        Canvas { context, size in
+            let stripe = max(stripeWidth * scale, 1)
+            // Stripes at 45°: the horizontal distance between stripe centers for a period of
+            // two stripe widths, measured perpendicular to the stripes.
+            let step = stripe * 2 * 2.squareRoot()
+            for pixelRect in rects {
+                let rect = CGRect(x: pixelRect.minX * scale, y: pixelRect.minY * scale,
+                                  width: pixelRect.width * scale, height: pixelRect.height * scale)
+                guard rect.width > 0, rect.height > 0 else { continue }
+                var clipped = context
+                clipped.clip(to: Path(rect))
+                clipped.fill(Path(rect), with: .color(ImageDiffRenderer.hatchDark))
+                var stripes = Path()
+                var x = rect.minX - rect.height
+                while x < rect.maxX + step {
+                    // Top-left to bottom-right, the same slant as the Core Image hatch.
+                    stripes.move(to: CGPoint(x: x, y: rect.minY))
+                    stripes.addLine(to: CGPoint(x: x + rect.height, y: rect.maxY))
+                    x += step
+                }
+                clipped.stroke(stripes, with: .color(ImageDiffRenderer.hatchLight), lineWidth: stripe)
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
 /// Renders image comparisons that require pixel math.
 ///
 /// Everything here works in **pixel space**: a 144-dpi export and a 72-dpi export with the same
@@ -225,11 +354,28 @@ enum ImageDiffRenderer {
     /// the canvas so it stays visible when a large image is fit to the window.
     private static func sizeMismatchHatch(scale: CGFloat) -> CIImage? {
         let stripes = CIFilter.stripesGenerator()
-        stripes.color0 = CIColor(red: 0.42, green: 0.30, blue: 0.55, alpha: 1)
-        stripes.color1 = CIColor(red: 0.20, green: 0.15, blue: 0.27, alpha: 1)
-        stripes.width = Float(max(4, (scale / 120).rounded()))
+        stripes.color0 = CIColor(red: hatchLightRGB.r, green: hatchLightRGB.g, blue: hatchLightRGB.b, alpha: 1)
+        stripes.color1 = CIColor(red: hatchDarkRGB.r, green: hatchDarkRGB.g, blue: hatchDarkRGB.b, alpha: 1)
+        stripes.width = Float(hatchStripeWidth(forLongestSide: scale))
         stripes.sharpness = 1
         return stripes.outputImage?.transformed(by: CGAffineTransform(rotationAngle: .pi / 4))
+    }
+
+    /// Hatch colors (sRGB), used by the Core Image hatch here and the SwiftUI hatch in Split and
+    /// One-Up so the two can't drift apart.
+    private static let hatchLightRGB: (r: CGFloat, g: CGFloat, b: CGFloat) = (0.42, 0.30, 0.55)
+    private static let hatchDarkRGB: (r: CGFloat, g: CGFloat, b: CGFloat) = (0.20, 0.15, 0.27)
+    static let hatchLight = Color(.sRGB, red: hatchLightRGB.r, green: hatchLightRGB.g, blue: hatchLightRGB.b)
+    static let hatchDark = Color(.sRGB, red: hatchDarkRGB.r, green: hatchDarkRGB.g, blue: hatchDarkRGB.b)
+
+    /// Stripe width in canvas pixels: scales with the canvas so it stays visible when a large
+    /// image is fit to the window.
+    static func hatchStripeWidth(forLongestSide side: CGFloat) -> CGFloat {
+        max(4, (side / 120).rounded())
+    }
+
+    static func hatchStripeWidth(forCanvas canvas: CGSize) -> CGFloat {
+        hatchStripeWidth(forLongestSide: max(canvas.width, canvas.height))
     }
 }
 

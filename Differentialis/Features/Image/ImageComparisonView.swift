@@ -178,7 +178,11 @@ struct ImageComparisonView: View {
 
     private func oneUp(_ a: NSImage, _ b: NSImage) -> some View {
         ZStack(alignment: .top) {
-            ZoomableImageView(image: showB ? b : a, zoom: zoom)
+            // Both sides share one top-left-aligned canvas, so blinking only changes the pixels
+            // that differ instead of rescaling and re-centering when the sizes differ.
+            AlignedImageView(image: showB ? b : a,
+                             layout: AlignedCanvasLayout([a.pixelSize, b.pixelSize]),
+                             zoom: zoom)
             HStack(spacing: 6) {
                 sideBadge("A", active: !showB, color: Theme.removed)
                 sideBadge("B", active: showB, color: Theme.modified)
@@ -249,7 +253,7 @@ struct ImageComparisonView: View {
                     .foregroundStyle(Theme.conflict)
                     .padding(.horizontal, 7).padding(.vertical, 2)
                     .background(Theme.conflict.opacity(0.15), in: Capsule())
-                    .help("A and B have different pixel dimensions. Difference pins both to the top-left and hatches the area only one side covers.")
+                    .help("A and B have different pixel dimensions. Split, One-Up, and Difference pin both to the top-left at the same scale and hatch the area only one side covers.")
             }
             Spacer()
             HStack(spacing: 6) {
@@ -346,6 +350,8 @@ struct SplitImageView: View {
             ZStack(alignment: .topLeading) {
                 // B fills the canvas; A is revealed from the leading edge so the labels and
                 // conventional A-left / B-right reading order always agree.
+                // Both share one top-left-aligned canvas and fit factor, so a pixel that is the
+                // same in A and B doesn't move as the divider crosses it, even when sizes differ.
                 imageLayer(b, size: geo.size)
                 imageLayer(a, size: geo.size)
                     .mask(alignment: .leading) {
@@ -412,14 +418,8 @@ struct SplitImageView: View {
     }
 
     private func imageLayer(_ image: NSImage, size: CGSize) -> some View {
-        Image(nsImage: image)
-            .resizable()
-            .interpolation(.high)
-            .scaledToFit()
-            .scaleEffect(zoom.scale)
-            .offset(zoom.offset)
-            .frame(width: size.width, height: size.height)
-            .accessibilityHidden(true)
+        AlignedImageLayer(image: image, layout: AlignedCanvasLayout([a.pixelSize, b.pixelSize]),
+                          zoom: zoom, viewSize: size)
     }
 
     private func adjustFraction(by amount: CGFloat) {
