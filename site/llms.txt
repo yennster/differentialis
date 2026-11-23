@@ -13,7 +13,7 @@ Key facts:
 
 ## Features
 
-- Text diff: side-by-side (split) or unified layouts, character-level highlights inside changed lines, whitespace-insensitive matching, line-ending and final-newline checks, collapsible unchanged regions, next/previous-change navigation.
+- Text diff: side-by-side (split) or unified layouts, character-level highlights inside changed lines, syntax highlighting (Swift, JavaScript/TypeScript, Python, JSON, YAML, Markdown, shell, C-family), whitespace-insensitive matching, line-ending and final-newline checks, collapsible unchanged regions, next/previous-change navigation.
 - Paste Text: compare snippets without saving files. Two side-by-side editors diff live as you type, scroll together, show line numbers, and let you copy any change from one side to the other with undo. Can switch to the regular split/unified diff view.
 - Image diff: Two-Up, One-Up (blink), Split (draggable divider), and Difference (only changed pixels show), with synced zoom and pan. Works with PNG, JPEG, HEIC, and any other image format macOS can open.
 - Folder comparison: recursive scan marking each file as added, removed, modified, or identical, with filters and a diff for the selected file.

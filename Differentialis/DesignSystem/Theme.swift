@@ -28,6 +28,10 @@ enum Theme {
     static var wellDeep: Color { .black.opacity(palette.isDark ? 0.22 : 0.035) }
     static var wellStrong: Color { .black.opacity(palette.isDark ? 0.40 : 0.10) }
 
+    /// Foreground colors for syntax tokens in the active theme.
+    static var syntax: SyntaxPalette { palette.resolvedSyntax }
+    static var syntaxHighlighting: Bool { ThemeManager.shared.syntaxHighlighting }
+
     static var brand: Color { palette.brand }
     static var brandAlt: Color { palette.brandAlt }
     /// Semantic colors are intentionally saturated; the per-theme badge foreground

@@ -83,6 +83,8 @@ struct TextComparisonView: View {
     @State private var loadError: String?
     @State private var formatDifferences: [String] = []
     @State private var loadRequest: UUID?
+    /// Per-line syntax tokens for both sides; nil for unrecognized languages.
+    @State private var syntax: SyntaxLines?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -234,11 +236,16 @@ struct TextComparisonView: View {
 
     @ViewBuilder
     private func rowView(_ row: DiffRow, leftWidth: CGFloat?) -> some View {
+        let lines = Theme.syntaxHighlighting ? syntax : nil
+        let leftTokens = lines?.left(row.leftNumber) ?? []
+        let rightTokens = lines?.right(row.rightNumber) ?? []
         Group {
             if unified {
-                UnifiedRowView(row: row, isCurrent: row.id == currentChangeID)
+                UnifiedRowView(row: row, isCurrent: row.id == currentChangeID,
+                               leftTokens: leftTokens, rightTokens: rightTokens)
             } else {
-                DiffRowView(row: row, isCurrent: row.id == currentChangeID, leftWidth: leftWidth)
+                DiffRowView(row: row, isCurrent: row.id == currentChangeID, leftWidth: leftWidth,
+                            leftTokens: leftTokens, rightTokens: rightTokens)
             }
         }
         .id(row.id)
@@ -264,6 +271,7 @@ struct TextComparisonView: View {
         document = nil
         loadError = nil
         formatDifferences = []
+        syntax = nil
         changeIDs = []
         expandedGaps = []
         currentChange = -1
@@ -271,16 +279,23 @@ struct TextComparisonView: View {
         let a = a, b = b
         let whitespacePolicy = whitespacePolicy
         let key = taskKey
+        // Either side's name picks the language (one side may be absent or renamed).
+        let language = a.syntaxLanguage ?? b.syntaxLanguage
         // Reading the bytes (possibly a git blob) and the Myers + character-level diff are heavy
         // for large files — run them off the main actor so the UI never freezes mid-diff.
-        let outcome = await offMain { () -> (DiffDocument?, [String], String?) in
+        // Tokenizing is linear but still real work on big files, so it rides along off-main too.
+        let outcome = await offMain { () -> (DiffDocument?, [String], SyntaxLines?, String?) in
             do {
                 let aText = try a.loadText()
                 let bText = try b.loadText()
+                let syntax = language.map {
+                    SyntaxLines(left: SyntaxHighlighter.tokenize(text: aText, language: $0),
+                                right: SyntaxHighlighter.tokenize(text: bText, language: $0))
+                }
                 return (LineDiff.document(aText, bText, whitespace: whitespacePolicy),
-                        textFormatDifferences(aText, bText), nil)
+                        textFormatDifferences(aText, bText), syntax, nil)
             } catch {
-                return (nil, [], error.localizedDescription)
+                return (nil, [], nil, error.localizedDescription)
             }
         }
         // Discard a result the user has already navigated past — otherwise an older, slower diff
@@ -289,11 +304,12 @@ struct TextComparisonView: View {
         if let doc = outcome.0 {
             document = doc
             formatDifferences = outcome.1
+            syntax = outcome.2
             changeIDs = hunkStartIDs(doc.allRows)
             currentChange = -1
             currentChangeID = nil
         } else {
-            loadError = outcome.2
+            loadError = outcome.3
         }
     }
 
@@ -370,26 +386,35 @@ struct WhitespacePolicyMenu: View {
 struct UnifiedRowView: View {
     let row: DiffRow
     var isCurrent: Bool = false
+    /// Syntax tokens for the row's left (A) and right (B) lines.
+    var leftTokens: [SyntaxToken] = []
+    var rightTokens: [SyntaxToken] = []
 
     var body: some View {
         VStack(spacing: 0) {
             switch row.kind {
             case .equal:
-                line(marker: " ", number: row.leftNumber, text: row.leftText, kind: .equal, highlights: [])
+                line(marker: " ", number: row.leftNumber, text: row.leftText, kind: .equal, highlights: [],
+                     tokens: leftTokens)
             case .inserted:
-                line(marker: "+", number: row.rightNumber, text: row.rightText, kind: .inserted, highlights: row.rightHighlights)
+                line(marker: "+", number: row.rightNumber, text: row.rightText, kind: .inserted, highlights: row.rightHighlights,
+                     tokens: rightTokens)
             case .deleted:
-                line(marker: "−", number: row.leftNumber, text: row.leftText, kind: .deleted, highlights: row.leftHighlights)
+                line(marker: "−", number: row.leftNumber, text: row.leftText, kind: .deleted, highlights: row.leftHighlights,
+                     tokens: leftTokens)
             case .modified:
-                line(marker: "−", number: row.leftNumber, text: row.leftText, kind: .deleted, highlights: row.leftHighlights)
-                line(marker: "+", number: row.rightNumber, text: row.rightText, kind: .inserted, highlights: row.rightHighlights)
+                line(marker: "−", number: row.leftNumber, text: row.leftText, kind: .deleted, highlights: row.leftHighlights,
+                     tokens: leftTokens)
+                line(marker: "+", number: row.rightNumber, text: row.rightText, kind: .inserted, highlights: row.rightHighlights,
+                     tokens: rightTokens)
             }
         }
         .background(isCurrent ? Theme.brand.opacity(0.12) : .clear)
     }
 
     @ViewBuilder
-    private func line(marker: String, number: Int?, text: String?, kind: DiffRow.Kind, highlights: [Range<Int>]) -> some View {
+    private func line(marker: String, number: Int?, text: String?, kind: DiffRow.Kind, highlights: [Range<Int>],
+                      tokens: [SyntaxToken]) -> some View {
         let accent = Theme.color(for: kind)
         HStack(spacing: 0) {
             Rectangle().fill(kind.isChange ? accent : .clear).frame(width: 2.5)
@@ -400,7 +425,8 @@ struct UnifiedRowView: View {
                 .font(Theme.codeFont).foregroundStyle(accent == .clear ? .secondary : accent)
                 .frame(width: 14)
             Text(highlightedLine(text ?? "", ranges: highlights,
-                                 color: kind == .deleted ? Theme.removedHighlight : Theme.addedHighlight))
+                                 color: kind == .deleted ? Theme.removedHighlight : Theme.addedHighlight,
+                                 tokens: tokens, palette: Theme.syntax))
                 .font(Theme.codeFont)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)

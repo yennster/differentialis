@@ -39,7 +39,7 @@ installed packages. `.agents/resume` does no installation or authentication.
   do not attempt to install Apple's SDKs on Linux. Useful checks are:
 
   ```bash
-  swiftc -swift-version 6 -typecheck Differentialis/Diff/*.swift Differentialis/Models/DiffStats.swift
+  swiftc -swift-version 6 -typecheck Differentialis/Diff/*.swift Differentialis/Syntax/*.swift Differentialis/Models/DiffStats.swift
   python3 scripts/check-site.py
   scripts/check-cli-wait.sh
   ```
@@ -89,7 +89,8 @@ includes `Tests/` automatically through XcodeGen.
 | `Tests/PastedTextTests.swift` | Two-way hunk copying, line correspondence, terminator preservation, UTF-16 ranges, editor decorations |
 | `Tests/GitComparisonTests.swift` | Real disposable git repos: index/worktree snapshots, staged reversions, conflicts, unborn HEAD, SHA-256 empty trees, option-like/unknown/file-named refs, `.gitattributes` eol/smudge filters on snapshot reads and raw-blob fallback, LFS pointer parsing, re-resolving a Working Copy changeset, refresh selection and stale-request rules |
 | `Tests/FolderAndFilterTests.swift` | Package traversal, scan errors, stable identities, composed git filters, file properties |
-| `Tests/ThemeImportTests.swift` | `.tmTheme` import, hex colors, observable settings clamping |
+| `Tests/ThemeImportTests.swift` | `.tmTheme` import (including code-color scopes), theme-file `syntax` colors, hex colors, observable settings clamping |
+| `Tests/SyntaxHighlighterTests.swift` | Language detection, per-language tokens, multi-line state (block comments, strings, Markdown fences), Character offsets, size limits |
 | `Tests/CommandLineWaitTests.swift` | `--wait` request parsing and location checks, launcher acknowledgement/status, request-to-comparison routing, merge save result |
 | `Tests/CommandLineToolStatusTests.swift` | Launcher version marker parsing; installed-copy status (absent, current, outdated, pre-marker, foreign) |
 
@@ -106,6 +107,7 @@ not exercise them end to end.
 Differentialis/
 ├── App/          Lifecycle, AppModel routing, focused menu commands, concurrency, CLI installer
 ├── Diff/         Pure Swift Myers, line/character diff, two-way edits, three-way merge
+├── Syntax/       Pure Swift, dependency-free syntax tokenizer and per-language grammar data
 ├── Git/          Process runner, git models/parsers, changeset-to-comparison bridge
 ├── Models/       Comparison sources, pasted document, merge session, JSON stores, Sparkle bridge
 ├── Features/     Text (including paste/merge), Image, Folder, Repo, Settings, Welcome
@@ -233,11 +235,24 @@ git or diff work in `Task { ... }` does **not** move it off the main actor.
   choosing Base records `.takeBase`, never `.unchanged`, which `MergeView` renders
   as plain context with no source menu.
 
+### Syntax highlighting
+
+`Syntax/` is a dependency-free tokenizer, kept free of SwiftUI/AppKit like `Diff/`.
+`SyntaxHighlighter` runs a per-line state machine (block comments, multi-line strings, Markdown
+fences carry across lines) driven by `SyntaxGrammar` data in `SyntaxGrammars.swift`; add a
+language there plus an extension in `SyntaxLanguage`. Tokens are **Character** offsets, the same
+coordinates as `DiffRow` highlights, and lines are split by `LineDiff.split` so token arrays index
+by row line number. `TextComparisonView` tokenizes both sides inside its off-main load; texts over
+`maxTextLength` and lines over `maxLineLength` stay plain. Colors come from
+`ColorTheme.resolvedSyntax` (`DesignSystem/SyntaxPalette.swift`), and the Settings toggle is
+`ThemeManager.syntaxHighlighting`. The merge Result editor and Paste Text editors are not
+highlighted yet.
+
 ### Feature owners
 
 | Feature | Owning code and responsibilities |
 | --- | --- |
-| Text diff | `Features/Text/TextComparisonView.swift`: async load, whitespace options, split/unified layout, gaps, navigation, format diagnostics; `DiffRowView.swift` renders highlighted rows |
+| Text diff | `Features/Text/TextComparisonView.swift`: async load (diff and syntax tokens off-main), whitespace options, split/unified layout, gaps, navigation, format diagnostics; `DiffRowView.swift` renders highlighted rows (syntax foregrounds under change backgrounds) |
 | Pasted text | `PastedTextComparisonView.swift`: live analysis with typing debounce, editor/diff presentations, hunk actions; `PastedTextAnalysis.swift` shapes rows into UTF-16 decorations and scroll mappings |
 | Native editors | `DiffTextEditor.swift`: TextKit 1 `NSTextView`, line-number ruler, SwiftUI representable, `PastedTextEditorController` for edits/scroll synchronization/shared undo |
 | Three-way merge | `MergeView.swift`: Review and editable Result (`PlainCodeEditor.swift`), hunk choices, format resolution, conflict navigation (`Diff/MergeNavigation.swift`), save warnings and atomic UTF-8 save |

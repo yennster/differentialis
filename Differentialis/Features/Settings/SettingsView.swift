@@ -95,12 +95,21 @@ struct SettingsView: View {
                             .font(.system(size: 11, design: .rounded))
                             .foregroundStyle(.secondary)
                     }
-                    Text("func compare(a: Line, b: Line) -> Diff")
+                    Text(highlightedLine(Self.codeSample, ranges: [], color: .clear,
+                                         tokens: theme.syntaxHighlighting ? Self.codeSampleTokens : [],
+                                         palette: Theme.syntax))
                         .font(Theme.codeFont)
                         .padding(.horizontal, 10).padding(.vertical, 7)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(Theme.well, in: RoundedRectangle(cornerRadius: 8))
                         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.primary.opacity(0.08)))
+                    VStack(alignment: .leading, spacing: 4) {
+                        Toggle("Syntax highlighting", isOn: $theme.syntaxHighlighting)
+                        Text("Colors code in text comparisons for Swift, JavaScript, TypeScript, Python, JSON, YAML, Markdown, shell, and C-family files. Colors come from the theme.")
+                            .font(.system(size: 10.5)).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.top, 4)
                 }
             }
         }
@@ -118,6 +127,10 @@ struct SettingsView: View {
             Text(themeError ?? "")
         }
     }
+
+    private static let codeSample = #"func compare(a: Line, b: Line) -> Diff { "same" }"#
+    private static let codeSampleTokens =
+        SyntaxHighlighter.tokenize(lines: [codeSample], language: .swift)[0]
 
     /// Live preview of one appearance's canvas at the given gradient strength — feedback
     /// even for the appearance that isn't currently active.

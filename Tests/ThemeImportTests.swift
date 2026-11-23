@@ -77,11 +77,107 @@ struct TmThemeImportTests {
         }
     }
 
+    @Test func mapsCodeColorsFromScopes() throws {
+        // Comma-separated, descendant-qualified selectors are how real themes spell scopes.
+        let keyword = """
+            <dict>
+              <key>scope</key><string>source.js keyword.control, storage</string>
+              <key>settings</key><dict><key>foreground</key><string>#F92672</string></dict>
+            </dict>
+          </array>
+        """
+        let withKeyword = sample.replacingOccurrences(of: "</array>", with: keyword)
+        let theme = try TmThemeImporter.colorTheme(from: Data(withKeyword.utf8), fallbackName: "x")
+        let syntax = try #require(theme.syntax)
+        #expect(syntax.keyword == RGB(hex: "#F92672")!.color)
+        #expect(syntax.string == RGB(hex: "#E6DB74")!.color)
+        #expect(syntax.literal == RGB(hex: "#AE81FF")!.color)   // `constant` covers constant.other
+        // Kinds the theme doesn't define keep the default code colors for its appearance.
+        #expect(syntax.comment == SyntaxPalette.defaultDark.comment)
+        #expect(syntax.number == SyntaxPalette.defaultDark.number)
+    }
+
+    @Test func themesWithoutCodeScopesUseDefaultCodeColors() throws {
+        let plain = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <plist version="1.0">
+        <dict>
+          <key>settings</key>
+          <array>
+            <dict><key>settings</key><dict><key>background</key><string>#FFFFFF</string></dict></dict>
+            <dict>
+              <key>scope</key><string>markup.inserted</string>
+              <key>settings</key><dict><key>foreground</key><string>#22863A</string></dict>
+            </dict>
+          </array>
+        </dict>
+        </plist>
+        """
+        let theme = try TmThemeImporter.colorTheme(from: Data(plain.utf8), fallbackName: "Plain")
+        #expect(theme.syntax == nil)
+        #expect(theme.resolvedSyntax == SyntaxPalette.defaultLight)
+    }
+
     @Test func parsesHexColorForms() {
         #expect(RGB(hex: "#FFF") != nil)
         #expect(RGB(hex: "A6E22E") != nil)
         #expect(RGB(hex: "#A6E22EFF") != nil)
         #expect(RGB(hex: "#GGHHII") == nil)
+    }
+}
+
+@Suite("Theme file code colors")
+@MainActor
+struct ThemeFileSyntaxTests {
+    private func file(syntax: String?) -> Data {
+        let syntaxEntry = syntax.map { ",\n  \"syntax\": \($0)" } ?? ""
+        return Data("""
+        {
+          "name": "Code", "appearance": "dark", "background": "#101218",
+          "added": "#4DD17F", "removed": "#F56680", "modified": "#6BA8FF"\(syntaxEntry)
+        }
+        """.utf8)
+    }
+
+    @Test func missingSyntaxFallsBackToDefaults() throws {
+        let theme = try ThemeFile.decode(file(syntax: nil)).colorTheme()
+        #expect(theme.syntax == nil)
+        #expect(theme.resolvedSyntax == SyntaxPalette.defaultDark)
+    }
+
+    @Test func partialSyntaxFillsMissingKinds() throws {
+        let theme = try ThemeFile.decode(file(syntax: #"{"string": "#112233"}"#)).colorTheme()
+        let syntax = try #require(theme.syntax)
+        #expect(RGB(syntax.string).hexString == "#112233")
+        #expect(syntax.keyword == SyntaxPalette.defaultDark.keyword)
+    }
+
+    @Test func badSyntaxColorNamesTheKey() throws {
+        let data = file(syntax: #"{"keyword": "purple"}"#)
+        let error = #expect(throws: ThemeFile.ThemeFileError.self) {
+            try ThemeFile.decode(data).colorTheme()
+        }
+        guard case .badColor(let key, let value) = error else {
+            Issue.record("expected a badColor error, got \(String(describing: error))")
+            return
+        }
+        #expect(key == "syntax.keyword")
+        #expect(value == "purple")
+    }
+
+    @Test func builtInCodeColorsSurviveExportAndImport() throws {
+        let monokai = try #require(ColorTheme.darkThemes.first { $0.id == "monokai" })
+        let encoded = try JSONEncoder().encode(ThemeFile(monokai))
+        let imported = try ThemeFile.decode(encoded).colorTheme()
+        let syntax = try #require(imported.syntax)
+        #expect(SyntaxColorsFile(syntax) == SyntaxColorsFile(SyntaxPalette.monokai))
+    }
+
+    @Test func convertingAppearanceDropsCodeColors() {
+        let monokai = ColorTheme.darkThemes.first { $0.id == "monokai" }!
+        let light = monokai.converted(toDark: false)
+        #expect(light.syntax == nil)
+        #expect(light.resolvedSyntax == SyntaxPalette.defaultLight)
     }
 }
 

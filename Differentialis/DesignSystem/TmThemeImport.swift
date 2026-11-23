@@ -9,6 +9,10 @@ import SwiftUI
 /// missing is filled by hue-matching the theme's saturated scope colors (green → added,
 /// red → removed, blue → modified, orange → conflict, purple → accent, cyan → alt accent),
 /// falling back to the built-in default theme for that appearance.
+///
+/// Code colors come from the theme's own token scopes (`keyword`, `string`, `comment`, …),
+/// matched by scope prefix; when the theme defines none of them, the default code colors for
+/// its appearance apply.
 enum TmThemeImporter {
     enum TmThemeError: LocalizedError {
         case notAPlist
@@ -70,6 +74,7 @@ enum TmThemeImporter {
         let caret = (globals["caret"] as? String).flatMap(RGB.init(hex:))
         let brand = hueMatch(285, within: 45) ?? caret.flatMap { $0.saturation > 0.25 ? $0 : nil }
         let brandAlt = hueMatch(190, within: 30)
+        let syntax = syntaxPalette(scoped, fallback: .defaultPalette(isDark: isDark))
 
         return ColorTheme(
             id: ThemeFile.customID(name: name, isDark: isDark),
@@ -85,7 +90,55 @@ enum TmThemeImporter {
             // Badges carry the theme's bright accents in dark themes (dark text keeps them
             // legible) and darker accents in light themes (white text does the same).
             badgeForeground: isDark ? background.scaled(by: 0.55).color : RGB(r: 1, g: 1, b: 1).color,
-            isCustom: true)
+            isCustom: true,
+            syntax: syntax)
+    }
+
+    /// Scope selectors tried, in order, for each token kind. A selector matches a scope entry
+    /// when one of its comma-separated selectors ends in that scope or a child of it
+    /// (`keyword` matches `keyword.control` and `source.js keyword`).
+    static let syntaxScopes: [(SyntaxTokenKind, [String])] = [
+        (.keyword, ["keyword.control", "keyword", "storage"]),
+        (.type, ["entity.name.type", "support.type", "entity.name.class", "support.class", "storage.type"]),
+        (.string, ["string"]),
+        (.number, ["constant.numeric"]),
+        (.comment, ["comment"]),
+        (.literal, ["constant.language", "constant"]),
+        (.attribute, ["entity.other.attribute-name", "meta.preprocessor", "keyword.other.preprocessor",
+                      "meta.annotation", "storage.modifier"]),
+        (.property, ["support.type.property-name", "meta.object-literal.key", "variable.other.property",
+                     "variable.other.member", "variable.other", "variable"]),
+        (.heading, ["markup.heading", "entity.name.section"]),
+    ]
+
+    private static func syntaxPalette(_ scoped: [(scope: String, color: RGB)],
+                                      fallback: SyntaxPalette) -> SyntaxPalette? {
+        func matches(_ entry: String, _ scope: String) -> Bool {
+            entry.split(separator: ",").contains { selector in
+                guard let last = selector.split(separator: " ").last else { return false }
+                return last == scope || last.hasPrefix(scope + ".")
+            }
+        }
+        var palette = fallback
+        var found = false
+        for (kind, scopes) in syntaxScopes {
+            guard let rgb = scopes.lazy.compactMap({ scope in
+                scoped.first { matches($0.scope, scope) }?.color
+            }).first else { continue }
+            found = true
+            switch kind {
+            case .keyword: palette.keyword = rgb.color
+            case .type: palette.type = rgb.color
+            case .string: palette.string = rgb.color
+            case .number: palette.number = rgb.color
+            case .comment: palette.comment = rgb.color
+            case .literal: palette.literal = rgb.color
+            case .attribute: palette.attribute = rgb.color
+            case .property: palette.property = rgb.color
+            case .heading: palette.heading = rgb.color
+            }
+        }
+        return found ? palette : nil
     }
 
     private static func hueDistance(_ a: Double, _ b: Double) -> Double {
