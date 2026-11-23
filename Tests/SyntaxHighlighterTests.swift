@@ -205,6 +205,11 @@ struct SyntaxHighlighterTests {
         #expect(lines("x=$(( 1 << 2 ))\nif true", .shell)[1]["if"] == .keyword)
         #expect(lines("mask=$(( 1 << bits ))\nif true", .shell)[1]["if"] == .keyword)
         #expect(lines("(( x <<= n ))\nif true", .shell)[1]["if"] == .keyword)
+        #expect(lines("echo \"))\"; (( a << b ))\nif true", .shell)[1]["if"] == .keyword)
+        #expect(lines("let x=1<<bits\nif true", .shell)[1]["if"] == .keyword)
+        let afterQuotedParens = lines("echo \"((\"; cat <<EOF\nit's\nEOF\nif true", .shell)
+        #expect(afterQuotedParens[1]["it's"] == .string)
+        #expect(afterQuotedParens[3]["if"] == .keyword)
         // Delimiters with punctuation, quoted or backslash-escaped, end where they should.
         for opener in ["cat <<END-OF.TEXT", "cat <<'END-OF.TEXT'", "cat <<\\END-OF.TEXT;"] {
             let heredoc = lines("\(opener)\nDon't\nEND-OF.TEXT\nif true", .shell)

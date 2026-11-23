@@ -217,6 +217,8 @@ struct SyntaxGrammar: Sendable {
         }
         // A here-document starts on the line after its `<<WORD`, once this line is done.
         var pendingHeredoc: SyntaxLineState?
+        // Open shell `((` arithmetic on this line, counted in code only (not strings or comments).
+        var arithmeticDepth = 0
 
         while i < n {
             switch state {
@@ -272,7 +274,18 @@ struct SyntaxGrammar: Sendable {
                 i = end
                 continue
             }
-            if language == .shell, ch == "<", let (end, heredoc) = Self.heredocStart(c, at: i) {
+            if language == .shell, Self.matches(c, i, ["(", "("]) {
+                arithmeticDepth += 1
+                i += 2
+                continue
+            }
+            if language == .shell, arithmeticDepth > 0, Self.matches(c, i, [")", ")"]) {
+                arithmeticDepth -= 1
+                i += 2
+                continue
+            }
+            if language == .shell, ch == "<", arithmeticDepth == 0,
+               let (end, heredoc) = Self.heredocStart(c, at: i) {
                 emit(i, end, .attribute)
                 pendingHeredoc = heredoc
                 i = end
@@ -416,17 +429,15 @@ struct SyntaxGrammar: Sendable {
         return nil
     }
 
-    /// `<<WORD`, `<<-WORD`, `<<'WORD'`, `<<"WORD"`, `<<\WORD` (not `<<<`, and not a shift inside
-    /// `(( … ))` arithmetic): the end of the operator and word, and the state that starts on the
-    /// next line.
+    /// `<<WORD`, `<<-WORD`, `<<'WORD'`, `<<"WORD"`, `<<\WORD` (not `<<<`, and not a shift: the
+    /// caller excludes `(( … ))`, and `1<<n`, `x=<<n`, or a `let` line are arithmetic too): the
+    /// end of the operator and word, and the state that starts on the next line.
     private static func heredocStart(_ c: [Character], at i: Int) -> (Int, SyntaxLineState)? {
         let n = c.count
         guard matches(c, i, ["<", "<"]), !matches(c, i + 2, ["<"]), i == 0 || c[i - 1] != "<" else { return nil }
-        // Inside `$(( … ))` / `(( … ))`, `<<` is a left shift.
-        let before = String(c[..<i])
-        if before.components(separatedBy: "((").count > before.components(separatedBy: "))").count {
-            return nil
-        }
+        if i > 0, isDigit(c[i - 1]) || c[i - 1] == "=" { return nil }
+        let firstWord = c.drop { $0.isWhitespace }.prefix { !$0.isWhitespace }
+        if String(firstWord) == "let" { return nil }
         var j = i + 2
         let stripTabs = j < n && c[j] == "-"
         if stripTabs { j += 1 }
