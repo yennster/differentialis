@@ -37,6 +37,12 @@ When cutting a release, add a section here and use it as the release notes:
   the open file's diff. The selected file stays selected when it is still listed, even if its
   status changed (an untracked file you stage, for example)
   ([#16](https://github.com/yennster/differentialis/issues/16)).
+- Image **Difference** no longer misaligns images of different sizes: both are pinned to the
+  top-left and compared pixel for pixel, so a screenshot padded or cropped at
+  the bottom or right only differs in that strip, which is hatched instead of diffed. Images are
+  compared at their full pixel size regardless of DPI, so a 144-dpi and a 72-dpi export of the same
+  pixels no longer compare at different scales. The info bar shows **Sizes differ** when A and B
+  have different pixel dimensions ([#18](https://github.com/yennster/differentialis/issues/18)).
 
 ## [0.4.0] — 2026-10-28
 

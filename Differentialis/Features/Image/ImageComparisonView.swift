@@ -243,6 +243,14 @@ struct ImageComparisonView: View {
         HStack(spacing: 14) {
             if let aImage { Label("A · \(aImage.pixelDescription)", systemImage: "a.square").foregroundStyle(Theme.removed) }
             if let bImage { Label("B · \(bImage.pixelDescription)", systemImage: "b.square").foregroundStyle(Theme.modified) }
+            if let aImage, let bImage, aImage.pixelSize != bImage.pixelSize {
+                Text("Sizes differ")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(Theme.conflict)
+                    .padding(.horizontal, 7).padding(.vertical, 2)
+                    .background(Theme.conflict.opacity(0.15), in: Capsule())
+                    .help("A and B have different pixel dimensions. Difference pins both to the top-left and hatches the area only one side covers.")
+            }
             Spacer()
             HStack(spacing: 6) {
                 Button { zoom.zoom(by: 0.8) } label: {
