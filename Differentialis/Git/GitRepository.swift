@@ -217,7 +217,10 @@ struct GitRepository {
             if full.hasPrefix("refs/heads/") { kind = .branch }
             else if full.hasPrefix("refs/remotes/") { kind = .remoteBranch }
             else { kind = .tag }
-            if short.hasSuffix("/HEAD") { continue }
+            // Skip remote HEAD symrefs. Test the full name: git shortens
+            // `refs/remotes/<remote>/HEAD` to just `<remote>`, so the short name
+            // never ends in "/HEAD".
+            if kind == .remoteBranch && full.hasSuffix("/HEAD") { continue }
             result.append(GitRef(name: short, fullName: full, kind: kind))
         }
         return result

@@ -588,6 +588,34 @@ struct GitComparisonTests {
         #expect(GitLFSPointer(data: Data((pointer + String(repeating: "x", count: 2_000)).utf8)) == nil)
     }
 
+    @Test("remote HEAD symrefs are not listed as an extra ref named after the remote")
+    func refsSkipRemoteHead() throws {
+        let fixture = try TemporaryGitRepository()
+        try fixture.write("base\n", to: "file.txt")
+        try fixture.commitAll("base")
+        try fixture.git(["branch", "-M", "main"])
+        try fixture.git(["branch", "feature/HEAD"])
+
+        let remote = fixture.directory.appendingPathComponent("remote.git", isDirectory: true)
+        try fixture.git(["init", "--quiet", "--bare", remote.path])
+        try fixture.git(["remote", "add", "origin", remote.path])
+        try fixture.git(["push", "--quiet", "origin", "main"])
+        try fixture.git(["fetch", "--quiet", "origin"])
+        try fixture.git(["remote", "set-head", "origin", "main"])
+        #expect(try fixture.git(["for-each-ref", "--format=%(refname:short)",
+                                 "refs/remotes/origin/HEAD"])
+                .trimmingCharacters(in: .whitespacesAndNewlines) == "origin")
+
+        let refs = try fixture.repository.refs()
+        let names = refs.map(\.name)
+        #expect(!names.contains("origin"))
+        #expect(!refs.contains { $0.fullName == "refs/remotes/origin/HEAD" })
+        #expect(names.filter { $0 == "origin/main" }.count == 1)
+        #expect(refs.first { $0.name == "origin/main" }?.kind == .remoteBranch)
+        // A local branch whose last component is HEAD is a real branch and stays listed.
+        #expect(refs.first { $0.name == "feature/HEAD" }?.kind == .branch)
+    }
+
     @Test("filter search paths are appended once and keep the user's PATH first")
     func filterSearchPaths() {
         #expect(GitRepository.appendingSearchPaths(["/opt/homebrew/bin", "/usr/local/bin"],

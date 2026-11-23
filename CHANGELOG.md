@@ -18,6 +18,9 @@ When cutting a release, add a section here and use it as the release notes:
   ([#23](https://github.com/yennster/differentialis/issues/23)).
 
 ### Fixed
+- **No more duplicate `origin` ref in Custom Comparison.** The reference menu no longer lists a
+  remote's HEAD pointer as an extra entry named after the remote (for example `origin`, a duplicate
+  of `origin/main`) ([#20](https://github.com/yennster/differentialis/issues/20)).
 - Git snapshots (commits, the index, and conflict stages) now read the way `git checkout` writes
   them, applying `.gitattributes` conversions and smudge filters
   ([#15](https://github.com/yennster/differentialis/issues/15)). With `core.autocrlf` or
