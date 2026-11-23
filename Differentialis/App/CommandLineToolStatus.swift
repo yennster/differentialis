@@ -77,6 +77,11 @@ enum CommandLineToolStatus: Equatable, Sendable {
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) else { return nil }
         if isDirectory.boolValue { return "" }
+        // Only open regular files: opening a FIFO would block, and install/uninstall call this on
+        // the main thread.
+        let target = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
+        guard (try? FileManager.default.attributesOfItem(atPath: target))?[.type] as? FileAttributeType == .typeRegular
+        else { return "" }
         guard let handle = FileHandle(forReadingAtPath: path) else { return "" }
         defer { try? handle.close() }
         // The marker and legacy signatures sit well inside the first 16 KB of the launcher.

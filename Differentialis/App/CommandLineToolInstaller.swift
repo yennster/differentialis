@@ -178,6 +178,7 @@ enum CommandLineToolInstaller {
 final class CommandLineToolMenuState {
     private(set) var status: CommandLineToolStatus = .notInstalled
     @ObservationIgnored private var requests = LatestRequests<Int>()
+    /// Never removed: this object lives as long as the app, and the block holds it weakly.
     @ObservationIgnored private var activeObserver: NSObjectProtocol?
 
     init() {
