@@ -85,6 +85,34 @@ struct ImageDiffTests {
         }
     }
 
+    @Test("An image both wider and taller hatches the right and bottom strips")
+    func widerAndTaller() throws {
+        let big = makeImage(width: 30, height: 25, patternWidth: 20, patternHeight: 20)
+        let small = makeImage(width: 20, height: 20, patternWidth: 20, patternHeight: 20)
+        let diff = try #require(ImageDiffRenderer.difference(small, big, amplify: false))
+        #expect(diff.width == 30 && diff.height == 25)
+        let rows = pixels(of: diff)
+        for y in 0..<25 {
+            for x in 0..<30 {
+                let inOverlap = x < 20 && y < 20
+                #expect(isBlack(rows[y][x]) == inOverlap, "pixel (\(x), \(y)): \(rows[y][x])")
+            }
+        }
+    }
+
+    @Test("The amplified (on-screen) path keeps the canvas size and highlights real changes")
+    func amplified() throws {
+        let a = makeImage(width: 20, height: 20, patternWidth: 20, patternHeight: 20)
+        let b = makeImage(width: 20, height: 20, patternWidth: 20, patternHeight: 10) // bottom half white
+        let diff = try #require(ImageDiffRenderer.difference(a, b, amplify: true))
+        #expect(diff.width == 20 && diff.height == 20)
+        let rows = pixels(of: diff)
+        func brightness(_ p: RGBA) -> Int { Int(p.r) + Int(p.g) + Int(p.b) }
+        let unchanged = rows[0..<10].joined().map(brightness).max() ?? 0
+        let changed = rows[10..<20].joined().map(brightness).reduce(0, +) / 200
+        #expect(changed > unchanged, "changed rows should glow brighter than matching rows")
+    }
+
     @Test("Identical images of the same size produce no difference and no hatch")
     func identicalImages() throws {
         let a = makeImage(width: 20, height: 20, patternWidth: 20, patternHeight: 20)

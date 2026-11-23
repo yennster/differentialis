@@ -147,8 +147,10 @@ enum ImageDiffRenderer {
            let cg = best.cgImage {
             return cg
         }
+        // An identity CTM keeps AppKit from picking up the main screen's backing scale, so the
+        // fallback rasterizes at the same size on every Mac.
         var rect = CGRect(origin: .zero, size: image.pixelSize)
-        return image.cgImage(forProposedRect: &rect, context: nil, hints: nil)
+        return image.cgImage(forProposedRect: &rect, context: nil, hints: [.ctm: NSAffineTransform()])
     }
 
     /// False-color difference: pixels that match appear dark, differences glow.
@@ -203,7 +205,8 @@ enum ImageDiffRenderer {
 
     /// The parts of `canvas` outside `overlap`, as disjoint rectangles. Both images are pinned to
     /// the top-left, so the overlap is the canvas's top-left corner: the rest is a strip on the
-    /// right (full height) and a strip along the bottom (under the overlap).
+    /// right (full height) and a strip along the bottom (under the overlap). Requires that pinning:
+    /// `overlap.minX == canvas.minX` and `overlap.maxY == canvas.maxY`.
     static func uncoveredRects(canvas: CGRect, overlap: CGRect) -> [CGRect] {
         guard !overlap.isNull, !overlap.isEmpty else { return [canvas] }
         var rects: [CGRect] = []
