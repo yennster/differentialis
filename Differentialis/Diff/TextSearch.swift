@@ -114,27 +114,46 @@ enum TextSearch {
         return result
     }
 
-    /// A place in merge Review that survives resolving hunks: a hunk and a line offset within the
-    /// lines Review draws for it. An absolute position would shift whenever a hunk above changes
-    /// how many lines it draws.
+    /// A place in merge Review that survives resolving hunks: the match's hunk, part, and line.
+    /// An absolute position would shift whenever a hunk above changes how many lines it draws,
+    /// and resolving the match's own conflict changes which part its line is drawn in.
     struct ReviewAnchor: Hashable, Sendable {
         let hunk: UUID
-        let offset: Int
+        let part: MergeSearchPart
+        let line: Int
     }
 
-    /// The anchor for a match, given the positions `reviewLinePositions` returns.
-    static func reviewAnchor(for match: MergeSearchMatch, starts: [UUID: Int]) -> ReviewAnchor {
-        ReviewAnchor(hunk: match.hunkID, offset: max(0, match.position - (starts[match.hunkID] ?? match.position)))
+    static func reviewAnchor(for match: MergeSearchMatch) -> ReviewAnchor {
+        ReviewAnchor(hunk: match.hunkID, part: match.part, line: match.line)
     }
 
-    /// Where an anchor now falls among Review's lines, clamped to its hunk (which may draw fewer
-    /// lines once resolved); nil when the hunk is gone.
+    /// Where an anchor now falls among Review's lines; nil when its hunk is gone. A line from a
+    /// conflict column follows its text into the resolved hunk when the choice kept it (Take Left,
+    /// Take Right, Take Both), and otherwise falls back to the hunk's first line.
     static func reviewPosition(of anchor: ReviewAnchor, in hunks: [MergeHunk]) -> Int? {
         var position = 0
         for hunk in hunks {
-            let count = reviewParts(of: hunk).reduce(0) { $0 + $1.lines.count }
-            if hunk.id == anchor.hunk { return position + min(anchor.offset, max(count - 1, 0)) }
-            position += count
+            let parts = reviewParts(of: hunk)
+            let count = parts.reduce(0) { $0 + $1.lines.count }
+            guard hunk.id == anchor.hunk else {
+                position += count
+                continue
+            }
+            var offset = 0
+            if let index = parts.firstIndex(where: { $0.part == anchor.part }) {
+                offset = parts[..<index].reduce(0) { $0 + $1.lines.count } + anchor.line
+            } else if parts.first?.part == .chosen {
+                switch (hunk.resolution, anchor.part) {
+                case (.takeLeft, .left), (.takeRight, .right), (.takeBoth, .left):
+                    offset = anchor.line
+                case (.takeBoth, .right):
+                    // Identical sides are taken once.
+                    offset = hunk.leftLines == hunk.rightLines ? anchor.line : hunk.leftLines.count + anchor.line
+                default:
+                    offset = 0
+                }
+            }
+            return position + min(offset, max(count - 1, 0))
         }
         return nil
     }

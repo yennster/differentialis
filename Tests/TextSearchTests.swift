@@ -143,27 +143,36 @@ struct TextSearchTests {
         #expect(changed.map(\.position) == [6])
     }
 
-    @Test("a merge Find anchor survives resolving a hunk above it or the hunk it is in")
+    @Test("a merge Find anchor survives resolving a hunk above it or the conflict it is in")
     func reviewAnchorSurvivesResolve() {
-        let base = "x\nkeep\nfoo 1\nfoo 2\n"
-        let left = "L1\nL2\nL3\nkeep\nfoo 1\nfoo 2\n"
-        let right = "R1\nkeep\nfoo 1\nfoo 2\n"
-        var hunks = ThreeWayMerge.merge(base: base, left: left, right: right)
-        let conflict = try! #require(hunks.firstIndex { $0.isConflict })
-        var matches = TextSearch.matches(of: "foo", in: hunks, options: .init())
-        let anchor = TextSearch.reviewAnchor(for: matches[1], starts: TextSearch.reviewLinePositions(of: hunks))
+        let base = "x\nkeep\nfoo z\n"
+        let left = "foo a\nL2\nL3\nL4\nL5\nkeep\nfoo z\n"
+        let right = "R1\nfoo b\nR3\nR4\nR5\nkeep\nfoo z\n"
+        let original = ThreeWayMerge.merge(base: base, left: left, right: right)
+        let conflict = try! #require(original.firstIndex { $0.isConflict })
+        let before = TextSearch.matches(of: "foo", in: original, options: .init())
+        let fooB = try! #require(before.firstIndex { $0.part == .right })
+        let fooZ = try! #require(before.firstIndex { $0.part == .chosen })
 
-        // Taking Right draws two fewer lines above "foo 2", but the anchor still finds it.
-        hunks[conflict].choose(.takeRight)
-        matches = TextSearch.matches(of: "foo", in: hunks, options: .init())
-        let position = TextSearch.reviewPosition(of: anchor, in: hunks)
-        #expect(TextSearch.startIndex(of: matches, at: position) { $0.position } == 1)
-
-        // An anchor in the conflict's Right column clamps into the resolved hunk.
-        let inConflict = TextSearch.ReviewAnchor(hunk: hunks[conflict].id, offset: 3)
-        let starts = TextSearch.reviewLinePositions(of: hunks)
-        #expect(TextSearch.reviewPosition(of: inConflict, in: hunks) == starts[hunks[conflict].id])
-        #expect(TextSearch.reviewPosition(of: .init(hunk: UUID(), offset: 0), in: hunks) == nil)
+        func current(after resolution: MergeResolution, anchoredAt index: Int) -> String? {
+            var hunks = original
+            hunks[conflict].choose(resolution)
+            let matches = TextSearch.matches(of: "foo", in: hunks, options: .init())
+            let anchor = TextSearch.reviewAnchor(for: before[index])
+            guard let start = TextSearch.startIndex(of: matches, at: TextSearch.reviewPosition(of: anchor, in: hunks),
+                                                    position: { $0.position }) else { return nil }
+            let match = matches[start]
+            let hunk = hunks.first { $0.id == match.hunkID }!
+            let lines = TextSearch.reviewParts(of: hunk).first { $0.part == match.part }!.lines
+            return lines[match.line]
+        }
+        // A match in the resolved conflict stays current when its side is kept…
+        #expect(current(after: .takeRight, anchoredAt: fooB) == "foo b")
+        #expect(current(after: .takeBoth, anchoredAt: fooB) == "foo b")
+        // …and a match below the conflict stays current although the conflict now draws fewer lines.
+        #expect(current(after: .takeRight, anchoredAt: fooZ) == "foo z")
+        #expect(current(after: .takeLeft, anchoredAt: fooZ) == "foo z")
+        #expect(TextSearch.reviewPosition(of: .init(hunk: UUID(), part: .chosen, line: 0), in: original) == nil)
     }
 
     @Test("stepping wraps at both ends and starts at the first or last match")

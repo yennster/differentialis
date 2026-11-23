@@ -40,8 +40,8 @@ struct MergeView: View {
     @State private var goToLineVisible = false
     @State private var goToLineFocusRequest = 0
     @State private var resultEditorHandle = CodeEditorHandle()
-    /// Review line position of the current match (`MergeSearchMatch.position`), so re-searching
-    /// after a resolve or an option change carries on there.
+    /// The current match's hunk, part, and line, so re-searching after a resolve or an option
+    /// change carries on there.
     @State private var findAnchor: TextSearch.ReviewAnchor?
     /// The line the current match is on, to scroll only when a re-search moves it.
     @State private var findCurrentLine: MergeLineID?
@@ -221,7 +221,7 @@ struct MergeView: View {
             return
         }
         let match = findMatches[index]
-        findAnchor = TextSearch.reviewAnchor(for: match, starts: TextSearch.reviewLinePositions(of: session.hunks))
+        findAnchor = TextSearch.reviewAnchor(for: match)
         findCurrentLine = MergeLineID(hunk: match.hunkID, part: match.part, line: match.line)
     }
 
