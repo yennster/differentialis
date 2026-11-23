@@ -146,7 +146,7 @@ struct ThemeFileSyntaxTests {
     }
 
     @Test func partialSyntaxFillsMissingKinds() throws {
-        let theme = try ThemeFile.decode(file(syntax: #"{"string": "#112233"}"#)).colorTheme()
+        let theme = try ThemeFile.decode(file(syntax: ##"{"string": "#112233"}"##)).colorTheme()
         let syntax = try #require(theme.syntax)
         #expect(RGB(syntax.string).hexString == "#112233")
         #expect(syntax.keyword == SyntaxPalette.defaultDark.keyword)
