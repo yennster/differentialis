@@ -12,10 +12,15 @@ When cutting a release, add a section here and use it as the release notes:
 
 ## [0.5.0] — 2026-11-23
 
-Version 0.4.0 was prepared but never published as a download, so this release also includes
-its changes (git difftool and mergetool support, and the fixes listed with it).
+This release follows 0.3.1 (there was no public 0.4.0), so it includes everything below.
 
 ### Added
+- **`git difftool` and `git mergetool` support.** The `differentialis` command-line tool takes
+  `--wait`, which blocks until you finish in the app, and `--output <file>` for merges: **Save**
+  writes the merged result straight to git's file and returns to git, which marks it resolved only
+  when no conflict markers remain. The README has the `~/.gitconfig` snippet
+  ([#22](https://github.com/yennster/differentialis/issues/22)). If the app menu offers
+  **Update Command Line Tool…**, choose it to get the new options.
 - **Syntax highlighting in text diffs.** Split and unified text comparisons now color code for
   Swift, JavaScript/TypeScript, Python, JSON, YAML, Markdown, shell scripts, and C/C++/Objective-C,
   picked by file extension. Change tints and character-level highlights still sit on top, so
@@ -43,20 +48,13 @@ its changes (git difftool and mergetool support, and the fixes listed with it).
   every changed region once all conflicts are resolved. The header's conflict count is now a button
   that jumps to the first unresolved conflict
   ([#23](https://github.com/yennster/differentialis/issues/23)).
-- **`git difftool` and `git mergetool` support.** The `differentialis` command-line tool takes
-  `--wait`, which blocks until you finish in the app, and `--output <file>` for merges: **Save**
-  writes the merged result straight to git's file and returns to git, which marks it resolved only
-  when no conflict markers remain. The README has the `~/.gitconfig` snippet
-  ([#22](https://github.com/yennster/differentialis/issues/22)). If you installed the command-line
-  tool before this release, choose **Update Command Line Tool…** from the app menu to get the new
-  options.
 
 ### Fixed
 - **Command Line Tool** menu fixes ([#21](https://github.com/yennster/differentialis/issues/21)):
-  uninstalling now confirms "Command Line Tool Removed" instead of "Installed"; an installed copy
-  older than the app's launcher is offered **Update Command Line Tool…**; and a
+  uninstalling now confirms "Command Line Tool Removed" instead of "Installed"; if your installed copy is
+  out of date, the app menu now offers **Update Command Line Tool…**; and a
   `/usr/local/bin/differentialis` that isn't Differentialis's is never offered for removal, and
-  installing over it asks first. Copies installed before this release are offered the update once.
+  installing over it asks first.
 - **No more duplicate `origin` ref in Custom Comparison.** The reference menu no longer lists a
   remote's HEAD pointer as an extra entry named after the remote (for example `origin`, a duplicate
   of `origin/main`). Branches whose name ends in `/HEAD`, such as `feature/HEAD`, are no longer

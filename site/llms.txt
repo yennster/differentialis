@@ -37,7 +37,7 @@ Key facts:
 - Is there a Windows or Linux version? No. It is a native macOS app.
 - How do I compare two text files on a Mac? Choose New Text Comparison (⌘N) and pick the files, or drag both onto the window. From Terminal: `differentialis file1 file2`.
 - Can I compare text without saving files? Yes. Paste Text (⌘T) diffs two editable panes live.
-- Can it be used as git difftool or mergetool? Yes, since 0.5.0: the command-line launcher takes --wait (git waits until you finish) and --output for merges; the README has the ~/.gitconfig snippet. If the command-line tool was installed before 0.5.0, choose Update Command Line Tool… from the app menu.
+- Can it be used as git difftool or mergetool? Yes, since 0.5.0: the command-line launcher takes --wait (git waits until you finish) and --output for merges; the README has the ~/.gitconfig snippet. If the app menu offers Update Command Line Tool…, choose it.
 - How is it different from FileMerge? FileMerge (opendiff) comes with Xcode and compares text files and folders. Differentialis doesn't need Xcode, and adds image and pasted-text comparison, git history and branch comparisons, and color themes with custom and .tmTheme import.
 
 ## Docs
