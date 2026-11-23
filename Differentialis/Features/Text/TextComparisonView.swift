@@ -85,6 +85,9 @@ struct TextComparisonView: View {
     @State private var loadError: String?
     @State private var formatDifferences: [String] = []
     @State private var loadRequest: UUID?
+    /// Per-line syntax tokens for both sides; nil for unrecognized languages.
+    @State private var syntax: SyntaxLines?
+
     /// Rows inside collapsed gaps, by the gap's section ID, so Find and Go to Line can open them.
     @State private var gapByRow: [UUID: String] = [:]
 
@@ -324,13 +327,18 @@ struct TextComparisonView: View {
 
     @ViewBuilder
     private func rowView(_ row: DiffRow, leftWidth: CGFloat?) -> some View {
+        let lines = Theme.syntaxHighlighting ? syntax : nil
+        let leftTokens = lines?.left(row.leftNumber) ?? []
+        let rightTokens = lines?.right(row.rightNumber) ?? []
         let isCurrent = row.id == currentChangeID || row.id == lineTargetID
         let find = rowFindHighlights(row.id)
         Group {
             if unified {
-                UnifiedRowView(row: row, isCurrent: isCurrent, find: find)
+                UnifiedRowView(row: row, isCurrent: isCurrent,
+                               leftTokens: leftTokens, rightTokens: rightTokens, find: find)
             } else {
-                DiffRowView(row: row, isCurrent: isCurrent, leftWidth: leftWidth, find: find)
+                DiffRowView(row: row, isCurrent: isCurrent, leftWidth: leftWidth,
+                            leftTokens: leftTokens, rightTokens: rightTokens, find: find)
             }
         }
         .id(row.id)
@@ -466,6 +474,7 @@ struct TextComparisonView: View {
         document = nil
         loadError = nil
         formatDifferences = []
+        syntax = nil
         changeIDs = []
         expandedGaps = []
         gapByRow = [:]
@@ -475,16 +484,25 @@ struct TextComparisonView: View {
         let a = a, b = b
         let options = matchOptions
         let key = taskKey
+        // Each side uses its own file name; a side without one (absent, pasted) borrows the other's.
+        let leftLanguage = a.syntaxLanguage ?? b.syntaxLanguage
+        let rightLanguage = b.syntaxLanguage ?? a.syntaxLanguage
         // Reading the bytes (possibly a git blob) and the Myers + character-level diff are heavy
         // for large files — run them off the main actor so the UI never freezes mid-diff.
-        let outcome = await offMain { () -> (DiffDocument?, [String], String?) in
+        // Tokenizing is linear but still real work on big files, so it rides along off-main too.
+        let outcome = await offMain { () -> (DiffDocument?, [String], SyntaxLines?, String?) in
             do {
                 let aText = try a.loadText()
                 let bText = try b.loadText()
+                var syntax: SyntaxLines?
+                if let leftLanguage, let rightLanguage {
+                    syntax = SyntaxLines(left: SyntaxHighlighter.tokenize(text: aText, language: leftLanguage),
+                                         right: SyntaxHighlighter.tokenize(text: bText, language: rightLanguage))
+                }
                 return (LineDiff.document(aText, bText, options: options),
-                        textFormatDifferences(aText, bText), nil)
+                        textFormatDifferences(aText, bText), syntax, nil)
             } catch {
-                return (nil, [], error.localizedDescription)
+                return (nil, [], nil, error.localizedDescription)
             }
         }
         // Discard a result the user has already navigated past — otherwise an older, slower diff
@@ -493,6 +511,7 @@ struct TextComparisonView: View {
         if let doc = outcome.0 {
             document = doc
             formatDifferences = outcome.1
+            syntax = outcome.2
             changeIDs = hunkStartIDs(doc.allRows)
             var gaps: [UUID: String] = [:]
             for section in doc.sections {
@@ -504,7 +523,7 @@ struct TextComparisonView: View {
             currentChange = -1
             currentChangeID = nil
         } else {
-            loadError = outcome.2
+            loadError = outcome.3
         }
     }
 
@@ -593,6 +612,9 @@ struct LineMatchingMenu: View {
 struct UnifiedRowView: View {
     let row: DiffRow
     var isCurrent: Bool = false
+    /// Syntax tokens for the row's left (A) and right (B) lines.
+    var leftTokens: [SyntaxToken] = []
+    var rightTokens: [SyntaxToken] = []
     var find = RowFindHighlights()
 
     var body: some View {
@@ -604,9 +626,9 @@ struct UnifiedRowView: View {
                     Group {
                         // −/+ say which line is A and which is B; the dimming says it isn't a change.
                         line(marker: "−", number: row.leftNumber, text: left, kind: .equal, highlights: [],
-                             find: find.left)
+                             tokens: leftTokens, find: find.left)
                         line(marker: "+", number: row.rightNumber, text: right, kind: .equal, highlights: [],
-                             find: find.right)
+                             tokens: rightTokens, find: find.right)
                     }
                     .opacity(0.45)
                 } else {
@@ -614,20 +636,21 @@ struct UnifiedRowView: View {
                     // Otherwise the two sides are identical and A's text is drawn once.
                     line(marker: " ", number: row.leftNumber ?? row.rightNumber,
                          text: row.leftText ?? row.rightText, kind: .equal, highlights: [],
+                         tokens: row.leftText != nil ? leftTokens : rightTokens,
                          find: row.leftText != nil ? find.left : find.right)
                         .opacity(row.isIgnored ? 0.45 : 1)
                 }
             case .inserted:
                 line(marker: "+", number: row.rightNumber, text: row.rightText, kind: .inserted, highlights: row.rightHighlights,
-                     find: find.right)
+                     tokens: rightTokens, find: find.right)
             case .deleted:
                 line(marker: "−", number: row.leftNumber, text: row.leftText, kind: .deleted, highlights: row.leftHighlights,
-                     find: find.left)
+                     tokens: leftTokens, find: find.left)
             case .modified:
                 line(marker: "−", number: row.leftNumber, text: row.leftText, kind: .deleted, highlights: row.leftHighlights,
-                     find: find.left)
+                     tokens: leftTokens, find: find.left)
                 line(marker: "+", number: row.rightNumber, text: row.rightText, kind: .inserted, highlights: row.rightHighlights,
-                     find: find.right)
+                     tokens: rightTokens, find: find.right)
             }
         }
         .background(isCurrent ? Theme.brand.opacity(0.12) : .clear)
@@ -635,7 +658,7 @@ struct UnifiedRowView: View {
 
     @ViewBuilder
     private func line(marker: String, number: Int?, text: String?, kind: DiffRow.Kind, highlights: [Range<Int>],
-                      find: LineFindHighlights) -> some View {
+                      tokens: [SyntaxToken], find: LineFindHighlights) -> some View {
         let accent = Theme.color(for: kind)
         HStack(spacing: 0) {
             Rectangle().fill(kind.isChange ? accent : .clear).frame(width: 2.5)
@@ -647,7 +670,7 @@ struct UnifiedRowView: View {
                 .frame(width: 14)
             Text(highlightedLine(text ?? "", ranges: highlights,
                                  color: kind == .deleted ? Theme.removedHighlight : Theme.addedHighlight,
-                                 find: find))
+                                 tokens: tokens, palette: Theme.syntax, find: find))
                 .font(Theme.codeFont)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)

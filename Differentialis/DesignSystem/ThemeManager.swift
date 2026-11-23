@@ -45,6 +45,10 @@ struct ColorTheme: Identifiable, Hashable {
     let badgeForeground: Color
     /// True for imported / user-created themes (removable, backed by a file).
     var isCustom: Bool = false
+    /// Code colors; nil uses `SyntaxPalette.defaultPalette(isDark:)`.
+    var syntax: SyntaxPalette? = nil
+
+    var resolvedSyntax: SyntaxPalette { syntax ?? .defaultPalette(isDark: isDark) }
 
     // Row fills and intra-line highlights are stronger on dark canvases.
     var fillOpacity: Double { isDark ? 0.16 : 0.13 }
@@ -86,7 +90,8 @@ struct ColorTheme: Identifiable, Hashable {
             conflict: Color(red: 0.98, green: 0.68, blue: 0.35),
             brand: Color(red: 0.78, green: 0.58, blue: 0.78),
             brandAlt: Color(red: 0.37, green: 0.71, blue: 0.71),
-            badgeForeground: Color(red: 0.10, green: 0.13, blue: 0.15)),
+            badgeForeground: Color(red: 0.10, green: 0.13, blue: 0.15),
+            syntax: .mariana),
         ColorTheme(
             id: "monokai", name: "Monokai", isDark: true,
             canvasTop: Color(red: 0.18, green: 0.19, blue: 0.16),
@@ -97,7 +102,8 @@ struct ColorTheme: Identifiable, Hashable {
             conflict: Color(red: 0.99, green: 0.59, blue: 0.12),
             brand: Color(red: 0.68, green: 0.51, blue: 1.00),
             brandAlt: Color(red: 0.90, green: 0.86, blue: 0.45),
-            badgeForeground: Color(red: 0.11, green: 0.11, blue: 0.09)),
+            badgeForeground: Color(red: 0.11, green: 0.11, blue: 0.09),
+            syntax: .monokai),
         ColorTheme(
             id: "one-dark", name: "One Dark", isDark: true,
             canvasTop: Color(red: 0.18, green: 0.20, blue: 0.24),
@@ -108,7 +114,8 @@ struct ColorTheme: Identifiable, Hashable {
             conflict: Color(red: 0.90, green: 0.75, blue: 0.48),
             brand: Color(red: 0.78, green: 0.47, blue: 0.87),
             brandAlt: Color(red: 0.34, green: 0.71, blue: 0.76),
-            badgeForeground: Color(red: 0.10, green: 0.11, blue: 0.13)),
+            badgeForeground: Color(red: 0.10, green: 0.11, blue: 0.13),
+            syntax: .oneDark),
         ColorTheme(
             id: "solarized-dark", name: "Solarized", isDark: true,
             canvasTop: Color(red: 0.03, green: 0.24, blue: 0.30),
@@ -119,7 +126,8 @@ struct ColorTheme: Identifiable, Hashable {
             conflict: Color(red: 0.71, green: 0.54, blue: 0.00),
             brand: Color(red: 0.42, green: 0.44, blue: 0.77),
             brandAlt: Color(red: 0.16, green: 0.63, blue: 0.60),
-            badgeForeground: Color(red: 0.00, green: 0.10, blue: 0.12)),
+            badgeForeground: Color(red: 0.00, green: 0.10, blue: 0.12),
+            syntax: .solarizedDark),
     ]
 
     static let lightThemes: [ColorTheme] = [
@@ -134,7 +142,8 @@ struct ColorTheme: Identifiable, Hashable {
             conflict: Color(red: 0.71, green: 0.54, blue: 0.00),
             brand: Color(red: 0.42, green: 0.44, blue: 0.77),
             brandAlt: Color(red: 0.16, green: 0.63, blue: 0.60),
-            badgeForeground: Color(red: 0.99, green: 0.96, blue: 0.89)),
+            badgeForeground: Color(red: 0.99, green: 0.96, blue: 0.89),
+            syntax: .solarizedLight),
         ColorTheme(
             id: "github-light", name: "GitHub", isDark: false,
             canvasTop: Color(red: 1.00, green: 1.00, blue: 1.00),
@@ -145,7 +154,8 @@ struct ColorTheme: Identifiable, Hashable {
             conflict: Color(red: 0.60, green: 0.40, blue: 0.00),
             brand: Color(red: 0.51, green: 0.31, blue: 0.87),
             brandAlt: Color(red: 0.04, green: 0.41, blue: 0.85),
-            badgeForeground: Color(red: 1.00, green: 1.00, blue: 1.00)),
+            badgeForeground: Color(red: 1.00, green: 1.00, blue: 1.00),
+            syntax: .gitHubLight),
     ]
 
 }
@@ -192,6 +202,11 @@ final class ThemeManager {
     /// Font family for code text; nil means the system monospaced font (SF Mono).
     var codeFontName: String? {
         didSet { defaults.set(codeFontName, forKey: "codeFontName") }
+    }
+
+    /// Colors code by language in text comparisons (recognized file types only).
+    var syntaxHighlighting: Bool {
+        didSet { defaults.set(syntaxHighlighting, forKey: "syntaxHighlighting") }
     }
 
     /// Installed fixed-pitch font families, for the Settings font picker.
@@ -274,6 +289,7 @@ final class ThemeManager {
         codeFontSize = stored == 0 ? Self.defaultFontSize
                                    : CGFloat(stored).clamped(to: Self.minFontSize...Self.maxFontSize)
         codeFontName = defaults.string(forKey: "codeFontName")
+        syntaxHighlighting = defaults.object(forKey: "syntaxHighlighting") as? Bool ?? true
         lightCanvasGradient = min(max(defaults.object(forKey: "lightCanvasGradient") as? Double ?? 1, 0), Self.maxCanvasGradient)
         darkCanvasGradient = min(max(defaults.object(forKey: "darkCanvasGradient") as? Double ?? 1, 0), Self.maxCanvasGradient)
         applyAppearance()

@@ -15,13 +15,18 @@ import AppKit
 ///   "conflict": "#FFB347",             // optional
 ///   "brand": "#9E73F5",                // optional — accent for selections and chips
 ///   "brandAlt": "#5CC7FA",             // optional — secondary accent
-///   "badgeForeground": "#090910"       // optional — text on solid color badges
+///   "badgeForeground": "#090910",      // optional — text on solid color badges
+///   "syntax": {                        // optional — code colors, every key optional
+///     "keyword": "#D08CF2", "type": "#6FCBE0", "string": "#E3BE7A",
+///     "number": "#F0997A", "comment": "#7D8595", "literal": "#F0997A",
+///     "attribute": "#E6C46E", "property": "#8DB8F5", "heading": "#8DB8F5"
+///   }
 /// }
 /// ```
 ///
 /// Colors are `#RGB`, `#RRGGBB`, or `#RRGGBBAA` hex strings. Optional keys fall back to
-/// the built-in default theme for the file's appearance. Export the current theme from
-/// Settings to get a complete, editable example.
+/// the built-in default theme (or the default code colors) for the file's appearance.
+/// Export the current theme from Settings to get a complete, editable example.
 struct ThemeFile: Codable {
     var name: String
     var appearance: String
@@ -35,6 +40,7 @@ struct ThemeFile: Codable {
     var brand: String?
     var brandAlt: String?
     var badgeForeground: String?
+    var syntax: SyntaxColorsFile?
 
     enum ThemeFileError: LocalizedError {
         case unreadableJSON
@@ -92,7 +98,8 @@ struct ThemeFile: Codable {
             brandAlt: try brandAlt.map { try color($0, key: "brandAlt") } ?? fallback.brandAlt,
             badgeForeground: try badgeForeground.map { try color($0, key: "badgeForeground") }
                 ?? fallback.badgeForeground,
-            isCustom: true)
+            isCustom: true,
+            syntax: try syntax.map { try $0.palette(fallback: .defaultPalette(isDark: isDark)) })
     }
 
     /// Stable identifier for an imported theme; also names its file in the themes folder.
@@ -192,7 +199,9 @@ extension ColorTheme {
             conflict: adapt(conflict), brand: adapt(brand), brandAlt: adapt(brandAlt),
             badgeForeground: toDark ? RGB(r: 0.05, g: 0.05, b: 0.07).color
                                     : RGB(r: 0.99, g: 0.99, b: 1.00).color,
-            isCustom: true)
+            // Code colors were picked for the old canvas; the target appearance's defaults
+            // read better than rescaled ones.
+            isCustom: true, syntax: nil)
     }
 }
 
@@ -211,5 +220,6 @@ extension ThemeFile {
         brand = RGB(theme.brand).hexString
         brandAlt = RGB(theme.brandAlt).hexString
         badgeForeground = RGB(theme.badgeForeground).hexString
+        syntax = theme.syntax.map { SyntaxColorsFile($0) }
     }
 }

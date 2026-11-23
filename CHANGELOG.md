@@ -11,6 +11,13 @@ When cutting a release, add a section here and use it as the release notes:
 ## [Unreleased]
 
 ### Added
+- **Syntax highlighting in text diffs.** Split and unified text comparisons now color code for
+  Swift, JavaScript/TypeScript, Python, JSON, YAML, Markdown, shell scripts, and C/C++/Objective-C,
+  picked by file extension. Change tints and character-level highlights still sit on top, so
+  edits stay easy to spot. Each built-in theme has its own code colors; imported `.tmTheme`
+  schemes bring theirs, and JSON themes accept an optional `syntax` object. Turn it off under
+  **Settings › Code Font › Syntax highlighting**
+  ([#51](https://github.com/yennster/differentialis/issues/51)).
 - **Ignore case and ignore blank lines** in text comparisons. The matching menu (next to the
   layout switch) now has **Ignore Case** and **Ignore Blank Lines** alongside the whitespace
   options, for file and pasted-text comparisons alike. Ignored differences stay visible, dimmed:

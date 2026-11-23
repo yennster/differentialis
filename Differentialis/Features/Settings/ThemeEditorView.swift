@@ -27,6 +27,9 @@ struct ThemeEditorView: View {
     @State private var brandAlt: Color
     @State private var badgeForeground: Color
     @State private var saveError: String?
+    /// The seed's code colors aren't editable here; they carry over unless the appearance flips.
+    private let seedSyntax: SyntaxPalette?
+    private let seedIsDark: Bool
 
     init(seed: ColorTheme, editingID: String?) {
         self.editingID = editingID
@@ -41,6 +44,8 @@ struct ThemeEditorView: View {
         _brand = State(initialValue: seed.brand)
         _brandAlt = State(initialValue: seed.brandAlt)
         _badgeForeground = State(initialValue: seed.badgeForeground)
+        seedSyntax = seed.syntax
+        seedIsDark = seed.isDark
     }
 
     private var draft: ColorTheme {
@@ -50,7 +55,8 @@ struct ThemeEditorView: View {
             canvasTop: canvasTop, canvasBottom: canvasBottom,
             added: added, removed: removed, modified: modified, conflict: conflict,
             brand: brand, brandAlt: brandAlt, badgeForeground: badgeForeground,
-            isCustom: true)
+            isCustom: true,
+            syntax: isDark == seedIsDark ? seedSyntax : nil)
     }
 
     var body: some View {

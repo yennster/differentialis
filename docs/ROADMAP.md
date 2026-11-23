@@ -100,7 +100,7 @@ claimed is not recorded here** — it is determined by branches and PRs (see AGE
 
 | ID | Status | Epic |
 | --- | --- | --- |
-| R-100 | Epic | Syntax highlighting inside diffs (needs a no-dependency tokenizer design first). |
+| R-100 | Epic | Syntax highlighting inside diffs. Text diff shipped (next version) with a no-dependency tokenizer (`Syntax/`); still open: the merge Result editor, Paste Text editors, more languages. |
 | R-101 | Epic | Directory/package (`.app`, `.xcassets`) aware folder diff. |
 | R-102 | Epic | Editable text diff (edit either side with live re-diff, save). |
 | R-103 | Epic | Shortcuts/App Intents actions ("Compare two files"). |

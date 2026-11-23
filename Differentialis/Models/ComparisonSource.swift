@@ -80,6 +80,15 @@ enum ComparisonSource: Hashable {
         }
     }
 
+    /// The syntax-highlighting language implied by this source's file name, if any.
+    var syntaxLanguage: SyntaxLanguage? {
+        switch self {
+        case .file(let url): return SyntaxLanguage(fileName: url.lastPathComponent)
+        case .gitBlob(_, _, let path, _), .workingCopy(_, let path): return SyntaxLanguage(fileName: path)
+        case .text, .empty: return nil
+        }
+    }
+
     var isDirectory: Bool {
         if case .file(let url) = self {
             var isDir: ObjCBool = false
