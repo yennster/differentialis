@@ -366,10 +366,17 @@ struct RepositoryView: View {
         // label marks Custom Comparison as the primary action rather than a lone glyph.
         ToolbarSpacer(.fixed, placement: .primaryAction)
         ToolbarItem(placement: .primaryAction) {
+            // An explicit HStack instead of `Label(...).labelStyle(.titleAndIcon)`: in a toolbar
+            // that style spaces the glyph ~11pt from the title and centers them on different
+            // lines, so the button reads as two loose parts next to the other glass groups (#77).
             Button { showCustom.toggle() } label: {
-                Label("Compare…", systemImage: "arrow.triangle.branch")
-                    .labelStyle(.titleAndIcon)
+                HStack(spacing: 5) {
+                    Image(systemName: "arrow.triangle.branch")
+                    Text("Compare…")
+                }
+                .padding(.horizontal, 2)
             }
+            .accessibilityLabel("Compare…")
             .help("Custom Comparison")
             .background {
                 SemitransientPopoverPresenter(isPresented: $showCustom) {
