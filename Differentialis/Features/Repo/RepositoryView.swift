@@ -352,9 +352,13 @@ struct RepositoryView: View {
 
     // MARK: - Toolbar
 
+    // `.automatic`, not `.primaryAction`: on macOS primary actions pack against the window's
+    // leading edge, but RootView's sidebar is a plain fixed-width pane the toolbar knows nothing
+    // about, so leading items ran across the sidebar and the Compare… capsule straddled the
+    // sidebar/detail divider (#77). Automatic items sit at the trailing edge, over the detail.
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        ToolbarItemGroup(placement: .primaryAction) {
+        ToolbarItemGroup(placement: .automatic) {
             Button { Task { await refresh() } } label: { Image(systemName: "arrow.clockwise") }
                 .help("Refresh history and working changes")
             Button { revealInFinder() } label: { Image(systemName: "folder") }
@@ -363,12 +367,12 @@ struct RepositoryView: View {
                 .help("Open in Terminal")
         }
         // Keeps the repo utilities and the comparison action in separate glass groups; the
-        // label marks Custom Comparison as the primary action rather than a lone glyph.
-        ToolbarSpacer(.fixed, placement: .primaryAction)
-        ToolbarItem(placement: .primaryAction) {
+        // label marks Custom Comparison as the most prominent action rather than a lone glyph.
+        ToolbarSpacer(.fixed, placement: .automatic)
+        ToolbarItem(placement: .automatic) {
             Button { showCustom.toggle() } label: {
                 Label("Compare…", systemImage: "arrow.triangle.branch")
-                    .labelStyle(.titleAndIcon)
+                    .labelStyle(CompactTitleAndIconLabelStyle())
             }
             .help("Custom Comparison")
             .background {
@@ -526,5 +530,19 @@ struct CommitRow: View {
             Spacer()
         }
         .padding(.vertical, 2)
+    }
+}
+
+/// Title-and-icon label for a toolbar button. The stock `.titleAndIcon` style spaces the glyph
+/// ~11pt from the title in a toolbar and sits the title ~1pt below it (#77); this keeps them
+/// tight and baseline-aligned while staying a real `Label`, so overflow menus and VoiceOver
+/// still get the title.
+private struct CompactTitleAndIconLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+            configuration.icon
+            configuration.title
+        }
+        .padding(.horizontal, 2)
     }
 }
