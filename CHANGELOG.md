@@ -10,6 +10,13 @@ When cutting a release, add a section here and use it as the release notes:
 
 ## [Unreleased]
 
+### Fixed
+- In a repository window, the refresh, Reveal in Finder, Open in Terminal, and **Compare…**
+  toolbar buttons now sit at the toolbar's trailing edge over the diff, instead of running across
+  the sidebar with **Compare…** straddling the sidebar divider. The **Compare…** button's icon and
+  title are also spaced and centered together
+  ([#77](https://github.com/yennster/differentialis/issues/77)).
+
 ## [0.5.0] — 2026-11-23
 
 This release follows 0.3.1 (there was no public 0.4.0), so it includes everything below.
