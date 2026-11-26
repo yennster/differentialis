@@ -28,7 +28,8 @@ struct ChangesetDetailView: View {
             .environment(\.changesetRefresh, ChangesetRefreshAction(changesetID: changeset.id, model: model))
         }
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            // Trailing, like RepositoryView's toolbar: a leading item would sit over the sidebar.
+            ToolbarItem(placement: .automatic) {
                 let id = changeset.id
                 Button { Task { await model.refreshChangeset(id) } } label: {
                     Image(systemName: "arrow.clockwise")

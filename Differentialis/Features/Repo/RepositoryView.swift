@@ -352,9 +352,13 @@ struct RepositoryView: View {
 
     // MARK: - Toolbar
 
+    // `.automatic`, not `.primaryAction`: on macOS primary actions pack against the window's
+    // leading edge, but RootView's sidebar is a plain fixed-width pane the toolbar knows nothing
+    // about, so leading items ran across the sidebar and the Compare… capsule straddled the
+    // sidebar/detail divider (#77). Automatic items sit at the trailing edge, over the detail.
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        ToolbarItemGroup(placement: .primaryAction) {
+        ToolbarItemGroup(placement: .automatic) {
             Button { Task { await refresh() } } label: { Image(systemName: "arrow.clockwise") }
                 .help("Refresh history and working changes")
             Button { revealInFinder() } label: { Image(systemName: "folder") }
@@ -364,8 +368,8 @@ struct RepositoryView: View {
         }
         // Keeps the repo utilities and the comparison action in separate glass groups; the
         // label marks Custom Comparison as the primary action rather than a lone glyph.
-        ToolbarSpacer(.fixed, placement: .primaryAction)
-        ToolbarItem(placement: .primaryAction) {
+        ToolbarSpacer(.fixed, placement: .automatic)
+        ToolbarItem(placement: .automatic) {
             // An explicit HStack instead of `Label(...).labelStyle(.titleAndIcon)`: in a toolbar
             // that style spaces the glyph ~11pt from the title and centers them on different
             // lines, so the button reads as two loose parts next to the other glass groups (#77).
