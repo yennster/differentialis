@@ -13,7 +13,8 @@ When cutting a release, add a section here and use it as the release notes:
 ### Fixed
 - In a repository window, the refresh, Reveal in Finder, Open in Terminal, and **Compare…**
   toolbar buttons now sit at the toolbar's trailing edge over the diff, instead of running across
-  the sidebar with **Compare…** straddling the sidebar divider. The **Compare…** button's icon and
+  the sidebar with **Compare…** straddling the sidebar divider; a saved comparison's refresh
+  button moves to the trailing edge too. The **Compare…** button's icon and
   title are also spaced and centered together
   ([#77](https://github.com/yennster/differentialis/issues/77)).
 
